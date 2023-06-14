@@ -1,9 +1,11 @@
 
 ## Overview
 
-The `rodeos_plugin` provides a high performance storage engine and interface to run concurrent read-only queries against the blockchain state. The plugin incorporates all the functionality formerly provided by the `rodeos` binary and obviates the need for running a separate `state_history_plugin` to source the requisite data. The `rodeos_plugin` relies on an in-memory transfer of blockchain state from nodeos to the plugin at then end of every block. The plugin provides a series of rpc endpoints to query data.
+The rodeos_plugin provides a high performance storage engine and interface to run concurrent read-only queries against the blockchain state. The plugin incorporates all the functionality formerly provided by the rodeos binary and obviates the need for running a separate state_history_plugin to source the requisite data.
 
-Since the plugin is initialized after nodeos has loaded its copy of state, the plugin does not itself maintain a durable copy of the latest state on disk between restarts. At startup the plugin will resync with the latest copy of state from nodeos and continue doing so until the nodeos process is shut down.
+At startup the plugin resyncs with the latest copy of state from nodeos chainbase. The rodeos_plugin makes use of in-memory transfer of blockchain state from nodeos to the plugin at the end of production or relay of every block. Hence, the plugin itself does not need to maintain a durable copy of the latest state on disk between restarts.
+
+The plugin provides a series of RPC endpoints to query data concurrently, enabling high performance queries of the blockchain state from micro services.
 
 ## Usage
 

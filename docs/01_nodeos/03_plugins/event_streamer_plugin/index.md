@@ -1,6 +1,8 @@
 ## Overview
 
-This plugin enables streaming messages from the smart contract. The smart contracts can call the `push_event` intrinsic to send a message to an AMQP queue. Any nodeos in a blockchain cluster can be configured to push messages, and a cluster can be configured to have 1 or more dedicated nodeos instances for streaming.
+This plugin enables streaming messages from the smart contract. The smart contracts can call the `push_event` intrinsic to send a message to an AMQP queue. Any nodeos in a blockchain cluster can be configured to push messages, and a cluster can be configured to have one or more dedicated nodeos instances for streaming.
+
+The streaming support give the ability to contracts to proactively update off-chain services.
 
 The intrinsic `push_event` can send a message if the nodeos executing the transaction is configured to stream, or do nothing if the nodeos is not configured for streaming.
 

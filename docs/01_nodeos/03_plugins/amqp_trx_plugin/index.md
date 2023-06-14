@@ -1,9 +1,9 @@
 
 ## Overview
 
-This plugin enables the consumption of transactions to be executed through the use of an AMQP queue provided by a queue system, such as RabbitMQ, widely used in enterprise applications.
+This plugin enables the consumption of transactions from an AMQP queue provided by a queue system, such as RabbitMQ, widely used in enterprise applications.
 
-The transactions are processed on a first-in first-out (FIFO) order, even when the producer nodeos switches during [auto failover](../producer_ha_plugin/index.md). This feature can make the enterprise applications easier to write on top of the blockchain.
+The transactions are processed on a first-in first-out (FIFO) order, even when the producer nodeos switches during [auto failover](../producer_ha_plugin/index.md). This feature can make it easier to integrate the blockchain with enterprise applications which use queues widely
 
 It can receive transactions encoded using the `chain::packed_transaction_v0` or `chain::packed_transaction` formats.
 
