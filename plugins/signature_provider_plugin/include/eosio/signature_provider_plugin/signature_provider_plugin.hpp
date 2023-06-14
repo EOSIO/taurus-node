@@ -19,7 +19,7 @@ public:
    void plugin_startup() {}
    void plugin_shutdown() {}
 
-   const char* const signature_provider_help_text() const;
+   const char* signature_provider_help_text() const;
 
    using signature_provider_type = std::function<chain::signature_type(chain::digest_type)>;
 

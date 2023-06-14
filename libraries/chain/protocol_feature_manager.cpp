@@ -222,21 +222,54 @@ Allows privileged contracts to set the constraints on WebAssembly code.
          (  builtin_protocol_feature_t::blockchain_parameters, builtin_protocol_feature_spec{
             "BLOCKCHAIN_PARAMETERS",
             fc::variant("70787548dcea1a2c52c913a37f74ce99e6caae79110d7ca7b859936a0075b314").as<digest_type>(),
-            {}
-         } )
             // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
 /*
 Builtin protocol feature: BLOCKCHAIN_PARAMETERS
 
 Allows privileged contracts to get and set subsets of blockchain parameters.
 */
+            {}
+         } )
+         (  builtin_protocol_feature_t::event_generation, builtin_protocol_feature_spec{
+            "EVENT_GENERATION",
+            fc::variant("35ecd1df24ba3e00c37a5572d2284e4a895233f6981ad3dd91e5ff68664b122a").as<digest_type>(),
+            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+/*
+Builtin protocol feature: EVENT_GENERATION
+
+Enables `push_event` host function which provides event data to host.
+*/
+            {}
+         } )
+         (  builtin_protocol_feature_t::verify_rsa_sha256_sig, builtin_protocol_feature_spec{
+            "VERIFY_RSA_SHA256_SIG",
+            fc::variant("46c74376222421ef2827512e88ed7ccfa59e0fba00c9b0b7b5cf35315d079411").as<digest_type>(),
+            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+/*
+Builtin protocol feature: VERIFY_RSA_SHA256_SIG
+
+Enables verification of an RSA signed message.
+*/
+            {}
+         } )
+         (  builtin_protocol_feature_t::verify_ecdsa_sig, builtin_protocol_feature_spec{
+            "VERIFY_ECDSA_SIG",
+            fc::variant("d05fe0811d2bce3ff737f351aa2ddd3ad2411c4c40f90b03a67577dbd9347ecf").as<digest_type>(),
+            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+/*
+Builtin protocol feature: VERIFY_ECDSA_SIG
+
+Enables verification of an ECDSA signed message.
+*/
+            {}
+         } )
    ;
 
 
    const char* builtin_protocol_feature_codename( builtin_protocol_feature_t codename ) {
       auto itr = builtin_protocol_feature_codenames.find( codename );
       EOS_ASSERT( itr != builtin_protocol_feature_codenames.end(), protocol_feature_validation_exception,
-                  "Unsupported builtin_protocol_feature_t passed to builtin_protocol_feature_codename: ${codename}",
+                  "Unsupported builtin_protocol_feature_t passed to builtin_protocol_feature_codename: {codename}",
                   ("codename", static_cast<uint32_t>(codename)) );
 
       return itr->second.codename;
@@ -258,7 +291,7 @@ Allows privileged contracts to get and set subsets of blockchain parameters.
          default:
          {
             EOS_THROW( protocol_feature_validation_exception,
-                       "Unsupported protocol_feature_t passed to constructor: ${type}",
+                       "Unsupported protocol_feature_t passed to constructor: {type}",
                        ("type", static_cast<uint32_t>(feature_type)) );
          }
          break;
@@ -273,7 +306,7 @@ Allows privileged contracts to get and set subsets of blockchain parameters.
          _type = protocol_feature_t::builtin;
       } else {
          EOS_THROW( protocol_feature_validation_exception,
-                    "Unsupported protocol feature type: ${type}", ("type", protocol_feature_type) );
+                    "Unsupported protocol feature type: {type}", ("type", protocol_feature_type) );
       }
    }
 
@@ -288,7 +321,7 @@ Allows privileged contracts to get and set subsets of blockchain parameters.
    {
       auto itr = builtin_protocol_feature_codenames.find( codename );
       EOS_ASSERT( itr != builtin_protocol_feature_codenames.end(), protocol_feature_validation_exception,
-                  "Unsupported builtin_protocol_feature_t passed to constructor: ${codename}",
+                  "Unsupported builtin_protocol_feature_t passed to constructor: {codename}",
                   ("codename", static_cast<uint32_t>(codename)) );
 
       builtin_feature_codename = itr->second.codename;
@@ -305,7 +338,7 @@ Allows privileged contracts to get and set subsets of blockchain parameters.
       }
 
       EOS_THROW( protocol_feature_validation_exception,
-                 "Unsupported builtin protocol feature codename: ${codename}",
+                 "Unsupported builtin protocol feature codename: {codename}",
                  ("codename", builtin_feature_codename) );
    }
 
@@ -404,7 +437,7 @@ Allows privileged contracts to get and set subsets of blockchain parameters.
       auto itr = _recognized_protocol_features.find( feature_digest );
 
       EOS_ASSERT( itr != _recognized_protocol_features.end(), protocol_feature_exception,
-                  "unrecognized protocol feature with digest: ${digest}",
+                  "unrecognized protocol feature with digest: {digest}",
                   ("digest", feature_digest)
       );
 
@@ -434,7 +467,7 @@ Allows privileged contracts to get and set subsets of blockchain parameters.
       auto itr = builtin_protocol_feature_codenames.find( codename );
 
       EOS_ASSERT( itr != builtin_protocol_feature_codenames.end(), protocol_feature_validation_exception,
-                  "Unsupported builtin_protocol_feature_t: ${codename}",
+                  "Unsupported builtin_protocol_feature_t: {codename}",
                   ("codename", static_cast<uint32_t>(codename)) );
 
       flat_set<digest_type> dependencies;
@@ -450,7 +483,7 @@ Allows privileged contracts to get and set subsets of blockchain parameters.
    const protocol_feature& protocol_feature_set::add_feature( const builtin_protocol_feature& f ) {
       auto builtin_itr = builtin_protocol_feature_codenames.find( f._codename );
       EOS_ASSERT( builtin_itr != builtin_protocol_feature_codenames.end(), protocol_feature_validation_exception,
-                  "Builtin protocol feature has unsupported builtin_protocol_feature_t: ${codename}",
+                  "Builtin protocol feature has unsupported builtin_protocol_feature_t: {codename}",
                   ("codename", static_cast<uint32_t>( f._codename )) );
 
       uint32_t indx = static_cast<uint32_t>( f._codename );
@@ -458,7 +491,7 @@ Allows privileged contracts to get and set subsets of blockchain parameters.
       if( indx < _recognized_builtin_protocol_features.size() ) {
          EOS_ASSERT( _recognized_builtin_protocol_features[indx] == _recognized_protocol_features.end(),
                      protocol_feature_exception,
-                     "builtin protocol feature with codename '${codename}' already added",
+                     "builtin protocol feature with codename '{codename}' already added",
                      ("codename", f.builtin_feature_codename) );
       }
 
@@ -471,7 +504,7 @@ Allows privileged contracts to get and set subsets of blockchain parameters.
       for( const auto& d : f.dependencies ) {
          auto itr = _recognized_protocol_features.find( d );
          EOS_ASSERT( itr != _recognized_protocol_features.end(), protocol_feature_exception,
-            "builtin protocol feature with codename '${codename}' and digest of ${digest} has a dependency on a protocol feature with digest ${dependency_digest} that is not recognized",
+            "builtin protocol feature with codename '{codename}' and digest of {digest} has a dependency on a protocol feature with digest {dependency_digest} that is not recognized",
             ("codename", f.builtin_feature_codename)
             ("digest",  feature_digest)
             ("dependency_digest", d )
@@ -505,7 +538,7 @@ Allows privileged contracts to get and set subsets of blockchain parameters.
          }
 
          EOS_THROW(  protocol_feature_validation_exception,
-                     "Not all the builtin dependencies of the builtin protocol feature with codename '${codename}' and digest of ${digest} were satisfied.",
+                     "Not all the builtin dependencies of the builtin protocol feature with codename '{codename}' and digest of {digest} were satisfied.",
                      ("missing_dependencies", missing_builtins_with_names)
          );
       }
@@ -521,7 +554,7 @@ Allows privileged contracts to get and set subsets of blockchain parameters.
       } );
 
       EOS_ASSERT( res.second, protocol_feature_exception,
-                  "builtin protocol feature with codename '${codename}' has a digest of ${digest} but another protocol feature with the same digest has already been added",
+                  "builtin protocol feature with codename '{codename}' has a digest of {digest} but another protocol feature with the same digest has already been added",
                   ("codename", f.builtin_feature_codename)("digest", feature_digest) );
 
       if( indx >= _recognized_builtin_protocol_features.size() ) {
@@ -537,9 +570,8 @@ Allows privileged contracts to get and set subsets of blockchain parameters.
 
 
    protocol_feature_manager::protocol_feature_manager(
-      protocol_feature_set&& pfs,
-      std::function<fc::logger*()> get_deep_mind_logger
-   ):_protocol_feature_set( std::move(pfs) ), _get_deep_mind_logger(get_deep_mind_logger)
+      protocol_feature_set&& pfs
+   ):_protocol_feature_set( std::move(pfs) )
    {
       _builtin_protocol_features.resize( _protocol_feature_set._recognized_builtin_protocol_features.size() );
    }
@@ -685,15 +717,15 @@ Allows privileged contracts to get and set subsets of blockchain parameters.
       auto itr = _protocol_feature_set.find( feature_digest );
 
       EOS_ASSERT( itr != _protocol_feature_set.end(), protocol_feature_exception,
-                  "unrecognized protocol feature digest: ${digest}", ("digest", feature_digest) );
+                  "unrecognized protocol feature digest: {digest}", ("digest", feature_digest) );
 
       if( _activated_protocol_features.size() > 0 ) {
          const auto& last = _activated_protocol_features.back();
          EOS_ASSERT( last.activation_block_num <= current_block_num,
                      protocol_feature_exception,
-                     "last protocol feature activation block num is ${last_activation_block_num} yet "
-                     "attempting to activate protocol feature with a current block num of ${current_block_num}"
-                     "protocol features is ${last_activation_block_num}",
+                     "last protocol feature activation block num is {last_activation_block_num} yet "
+                     "attempting to activate protocol feature with a current block num of {current_block_num}"
+                     "protocol features is {last_activation_block_num}",
                      ("current_block_num", current_block_num)
                      ("last_activation_block_num", last.activation_block_num)
          );
@@ -707,24 +739,17 @@ Allows privileged contracts to get and set subsets of blockchain parameters.
       uint32_t indx = static_cast<uint32_t>( *itr->builtin_feature );
 
       EOS_ASSERT( indx < _builtin_protocol_features.size(), protocol_feature_exception,
-                  "invariant failure while trying to activate feature with digest '${digest}': "
-                  "unsupported builtin_protocol_feature_t ${codename}",
+                  "invariant failure while trying to activate feature with digest '{digest}': "
+                  "unsupported builtin_protocol_feature_t {codename}",
                   ("digest", feature_digest)
                   ("codename", indx)
       );
 
       EOS_ASSERT( _builtin_protocol_features[indx].activation_block_num == builtin_protocol_feature_entry::not_active,
                   protocol_feature_exception,
-                  "cannot activate already activated builtin feature with digest: ${digest}",
+                  "cannot activate already activated builtin feature with digest: {digest}",
                   ("digest", feature_digest)
       );
-
-      if (auto dm_logger = _get_deep_mind_logger()) {
-         fc_dlog(*dm_logger, "FEATURE_OP ACTIVATE ${feature_digest} ${feature}",
-            ("feature_digest", feature_digest)
-            ("feature", itr->to_variant())
-         );
-      }
 
       _activated_protocol_features.push_back( protocol_feature_entry{itr, current_block_num} );
       _builtin_protocol_features[indx].previous = _head_of_builtin_activation_list;

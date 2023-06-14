@@ -7,7 +7,7 @@
 #include <eosio/system.hpp>
 #include <eosio/asset.hpp>
 #include <eosio/key_value.hpp>
-#include <eosio/key_value_singleton.hpp>
+#include <eosio/privileged.hpp>
 
 struct kv_config {
    uint32_t version = 0;
@@ -16,8 +16,11 @@ struct kv_config {
    uint32_t itrmax = 1024;
 };
 
-extern "C" __attribute__((eosio_wasm_import)) void set_kv_parameters_packed(const void*        params, uint32_t size);
-
+#if !__has_include(<eosio/table.hpp>)
+extern "C" __attribute__((eosio_wasm_import)) void set_kv_parameters_packed(const char*        params, uint32_t size);
+#else
+using eosio::internal_use_do_not_use::set_kv_parameters_packed;
+#endif
 using namespace eosio;
 using namespace std;
 
@@ -37,7 +40,7 @@ class [[eosio::contract]] kvload: public eosio::contract {
    };
 
    struct table_t : eosio::kv_table<row> {
-      KV_NAMED_INDEX("by.id", by_key);
+      KV_NAMED_INDEX("by.id"_n, by_key);
 
       table_t(eosio::name acc, eosio::name tablename) {
          init(acc, tablename, eosio::kv_ram, by_key);

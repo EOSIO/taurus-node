@@ -1,4 +1,4 @@
-if( EOSIO_COMPILE_TEST_CONTRACTS )
+if( EOSIO_COMPILE_TEST_CONTRACTS AND FALSE)
    add_contract( kv_addr_book kv_addr_book kv_addr_book.cpp )
 else()
    configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/kv_addr_book.wasm ${CMAKE_CURRENT_BINARY_DIR}/kv_addr_book.wasm COPYONLY )

@@ -166,7 +166,8 @@ class Cluster(object):
     # pylint: disable=too-many-statements
     def launch(self, pnodes=1, unstartedNodes=0, totalNodes=1, prodCount=1, topo="mesh", delay=1, onlyBios=False, dontBootstrap=False,
                totalProducers=None, sharedProducers=0, extraNodeosArgs="", useBiosBootFile=True, specificExtraNodeosArgs=None, onlySetProds=False,
-               pfSetupPolicy=PFSetupPolicy.FULL, alternateVersionLabelsFile=None, associatedNodeLabels=None, loadSystemContract=True, manualProducerNodeConf={}):
+               pfSetupPolicy=PFSetupPolicy.FULL, alternateVersionLabelsFile=None, associatedNodeLabels=None, loadSystemContract=True, manualProducerNodeConf={}, prod_ha=False,
+               genesisPath=None):
         """Launch cluster.
         pnodes: producer nodes count
         unstartedNodes: non-producer nodes that are configured into the launch, but not started.  Should be included in totalNodes.
@@ -241,8 +242,12 @@ class Cluster(object):
         cmdArr=cmd.split()
         if self.staging:
             cmdArr.append("--nogen")
-
-        nodeosArgs="--max-transaction-time -1 --abi-serializer-max-time-ms 990000 --p2p-max-nodes-per-host %d" % (totalNodes)
+        if genesisPath:
+            cmdArr.append("-g")
+            cmdArr.append(genesisPath)
+        if prod_ha:
+            cmdArr.append("--producer-ha")
+        nodeosArgs="--max-transaction-time -1 --subjective-cpu-leeway-us 500000 --abi-serializer-max-time-ms 990000 --p2p-max-nodes-per-host %d" % (totalNodes)
         if not self.walletd:
             nodeosArgs += " --plugin eosio::wallet_api_plugin"
         if Utils.Debug:
@@ -286,11 +291,6 @@ class Cluster(object):
         if nodeosArgs:
             cmdArr.append("--nodeos")
             cmdArr.append(nodeosArgs)
-
-        cmdArr.append("--max-block-cpu-usage")
-        cmdArr.append(str(160000000))
-        cmdArr.append("--max-transaction-cpu-usage")
-        cmdArr.append(str(150000000))
 
         if associatedNodeLabels is not None:
             for nodeNum,label in associatedNodeLabels.items():
@@ -448,20 +448,22 @@ class Cluster(object):
         if unstartedNodes > 0:
             self.unstartedNodes=self.discoverUnstartedLocalNodes(unstartedNodes, totalNodes)
 
-        biosNode=self.discoverBiosNode(timeout=Utils.systemWaitTimeout)
-        if not biosNode or not Utils.waitForTruth(biosNode.checkPulse, Utils.systemWaitTimeout):
-            Utils.Print("ERROR: Bios node doesn't appear to be running...")
-            return False
+        if prod_ha == False:
+            biosNode=self.discoverBiosNode(timeout=Utils.systemWaitTimeout)
+            if not biosNode or not Utils.waitForTruth(biosNode.checkPulse, Utils.systemWaitTimeout):
+                Utils.Print("ERROR: Bios node doesn't appear to be running...")
+                return False
 
         if onlyBios:
             self.nodes=[biosNode]
 
         # ensure cluster node are inter-connected by ensuring everyone has block 1
         Utils.Print("Cluster viability smoke test. Validate every cluster node has block 1. ")
-        if not self.waitOnClusterBlockNumSync(1):
+        if not self.waitOnClusterBlockNumSync(1, 120):
             Utils.Print("ERROR: Cluster doesn't seem to be in sync. Some nodes missing block 1")
             return False
-
+        if prod_ha:
+            return True
         if PFSetupPolicy.hasPreactivateFeature(pfSetupPolicy):
             Utils.Print("Activate Preactivate Feature.")
             biosNode.activatePreactivateFeature()
@@ -577,15 +579,17 @@ class Cluster(object):
            blockAdvancing) is present on every cluster node."""
         assert(self.nodes)
         assert(len(self.nodes) > 0)
-        node=self.nodes[0]
-        targetBlockNum=node.getBlockNum(blockType) #retrieve node 0's head or irrevercible block number
-        targetBlockNum+=blockAdvancing
-        if Utils.Debug:
-            Utils.Print("%s block number on root node: %d" % (blockType.type, targetBlockNum))
-        if targetBlockNum == -1:
-            return False
+        for node in self.nodes:
+            if not node.killed:
+                targetBlockNum=node.getBlockNum(blockType) #retrieve node 0's head or irrevercible block number
+                targetBlockNum+=blockAdvancing
+                if Utils.Debug:
+                    Utils.Print("%s block number on root node: %d" % (blockType.type, targetBlockNum))
+                if targetBlockNum == -1:
+                    return False
 
-        return self.waitOnClusterBlockNumSync(targetBlockNum, timeout)
+                return self.waitOnClusterBlockNumSync(targetBlockNum, timeout)
+        return False
 
     def waitOnClusterBlockNumSync(self, targetBlockNum, timeout=None, blockType=BlockType.head):
         """Wait for all nodes to have targetBlockNum finalized."""
@@ -615,6 +619,28 @@ class Cluster(object):
         lam = lambda: doNodesHaveBlockNum(self.nodes, targetBlockNum, blockType, printCount)
         ret=Utils.waitForTruth(lam, timeout)
         return ret
+
+    def check_hard_fork(self):
+        assert len(self.nodes) > 0, "Producer_ha_cluster failed to continue block production"
+        blkNumId_dic={}
+        aliveNodes=0
+
+        # check if there is any block number with two different block Id exist. if so hard fork happened
+        for j in self.nodes:
+            if not j.killed:
+                aliveNodes+=1
+                curHeadBlk=j.getHeadBlockNum()
+                for blkNum in range(max(1, curHeadBlk - 10), curHeadBlk+1):
+                    block=j.getBlock(blkNum)
+                    blkId=j.getBlockAttribute(block, "id", blkNum)
+                    if blkNum in blkNumId_dic:
+                        if blkNumId_dic[blkNum] != blkId:
+                            Utils.errorExit("Hard fork detected.")
+                    else:
+                        blkNumId_dic[blkNum] = blkId
+        if aliveNodes < 2:
+            Utils.Print("cluster should have at least two BP nodes for fork check!")
+
 
     @staticmethod
     def createAMQPQueue(queueName):
@@ -887,28 +913,21 @@ class Cluster(object):
 
         node.validateAccounts(myAccounts)
 
-    def createAccountAndVerify(self, account, creator, stakedDeposit=1000, stakeNet=100, stakeCPU=100, buyRAM=10000):
-        """create account, verify account and return transaction id"""
-        assert(len(self.nodes) > 0)
+    # create account, verify account and return transaction id
+    def createAccountAndVerify(self, account, creator, stakedDeposit=1000, stakeNet=100, stakeCPU=500, buyRAM=10000):
+        if len(self.nodes) == 0:
+            Utils.Print("ERROR: No nodes initialized.")
+            return None
         node=self.nodes[0]
-        trans=node.createInitializeAccount(account, creator, stakedDeposit, stakeNet=stakeNet, stakeCPU=stakeCPU, buyRAM=buyRAM, exitOnError=True)
-        assert(node.verifyAccount(account))
+
+        trans=node.createInitializeAccount(account, creator, stakedDeposit, waitForTransBlock=True, stakeNet=stakeNet, stakeCPU=stakeCPU, buyRAM=buyRAM, exitOnError=True)
+
+        assert trans is not None
+        assert node.verifyAccount(account) is not None
+        
         return trans
 
-    # # create account, verify account and return transaction id
-    # def createAccountAndVerify(self, account, creator, stakedDeposit=1000):
-    #     if len(self.nodes) == 0:
-    #         Utils.Print("ERROR: No nodes initialized.")
-    #         return None
-    #     node=self.nodes[0]
-
-    #     transId=node.createAccount(account, creator, stakedDeposit)
-
-    #     if transId is not None and node.verifyAccount(account) is not None:
-    #         return transId
-    #     return None
-
-    def createInitializeAccount(self, account, creatorAccount, stakedDeposit=1000, waitForTransBlock=False, stakeNet=100, stakeCPU=100, buyRAM=10000, exitOnError=False):
+    def createInitializeAccount(self, account, creatorAccount, stakedDeposit=1000, waitForTransBlock=False, stakeNet=100, stakeCPU=500, buyRAM=10000, exitOnError=False):
         assert(len(self.nodes) > 0)
         node=self.nodes[0]
         trans=node.createInitializeAccount(account, creatorAccount, stakedDeposit, waitForTransBlock, stakeNet=stakeNet, stakeCPU=stakeCPU, buyRAM=buyRAM)
@@ -1004,7 +1023,7 @@ class Cluster(object):
         Utils.Print("Starting cluster bootstrap.")
         assert PFSetupPolicy.isValid(pfSetupPolicy)
 
-        cmd="bash bios_boot.sh"
+        cmd="bash -x bios_boot.sh"
         if Utils.Debug: Utils.Print("cmd: %s" % (cmd))
         env = {
             "BIOS_CONTRACT_PATH": "unittests/contracts/old_versions/v1.6.0-rc3/eosio.bios",
@@ -1742,3 +1761,59 @@ class Cluster(object):
         while len(lowestMaxes)>0 and compareCommon(blockLogs, blockNameExtensions, first, lowestMaxes[0]):
             first=lowestMaxes[0]+1
             lowestMaxes=stripValues(lowestMaxes,lowestMaxes[0])
+
+    def find_leader_and_nonleaders(self):
+        """
+        This only works for active producer_ha cluster. If the producer_ha cluster is in standby mode. All nodeos
+        will be non leaders as no BP is allowed to produce.
+        """
+        all_nodes = self.getNodes()
+
+        # only check node with producer_ha enabled
+        nodes = []
+        for node in all_nodes:
+            if 'leader_id' in node.get_producer_ha_info():
+                nodes.append(node)
+
+        non_leaders = []
+        leader = []
+        ha_infos = {}
+
+        leader_id = -1
+        continue_checking = False
+        start_time = time.time()
+        while (leader_id == -1 or continue_checking) and time.time() < start_time + 30:
+            continue_checking = False
+            # get ha_infos
+            for i in range(len(nodes)):
+                ha_infos[i] = nodes[i].get_producer_ha_info()
+            # analyze ha_infos
+            for i in range(len(nodes)):
+                cur_leader_id = ha_infos[i]["leader_id"]
+                if leader_id != -1:
+                    if cur_leader_id != leader_id:
+                        Utils.Print("It seems the leadership changed during the checking. " +
+                                    "Continue checking for next round.")
+                        continue_checking = True
+                        leader_id = cur_leader_id
+                else:
+                    leader_id = cur_leader_id
+
+        if leader_id == -1:
+            Utils.errorExit("Leader not found.")
+
+        if continue_checking:
+            Utils.errorExit("Leader is still changing after timeout.")
+
+        # ensure leader is producing
+        leader_node = nodes[leader_id]
+        next_block = leader_node.waitForNextBlock(timeout=30)
+        if not next_block:
+            Utils.errorExit("Leader {} did not produce new blocks.".format(leader_id))
+
+        for i in range(len(nodes)):
+            if i != leader_id:
+                non_leaders.append((i, nodes[i]))
+            else:
+                leader.append((i, nodes[i]))
+        return leader, non_leaders

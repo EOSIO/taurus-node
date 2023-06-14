@@ -54,7 +54,7 @@ void compute_and_print_timer_accuracy(platform_timer& timer) {
       }
    }
 
-   #define TIMER_STATS_FORMAT "min:${min}us max:${max}us mean:${mean}us stddev:${stddev}us"
+   #define TIMER_STATS_FORMAT "min:{min}us max:{max}us mean:{mean}us stddev:{stddev}us"
    #define TIMER_STATS \
       ("min", bacc::min(samples))("max", bacc::max(samples)) \
       ("mean", (int)bacc::mean(samples))("stddev", (int)sqrt(bacc::variance(samples)))

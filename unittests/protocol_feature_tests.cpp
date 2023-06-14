@@ -370,317 +370,6 @@ BOOST_AUTO_TEST_CASE( subjective_restrictions_test ) try {
    BOOST_CHECK( c.control->is_builtin_activated( builtin_protocol_feature_t::only_link_to_existing_permission ) );
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( replace_deferred_test ) try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
-
-   c.create_accounts( {"alice"_n, "bob"_n, "test"_n} );
-   c.set_code( "test"_n, contracts::deferred_test_wasm() );
-   c.set_abi( "test"_n, contracts::deferred_test_abi().data() );
-   c.produce_block();
-
-   auto alice_ram_usage0 = c.control->get_resource_limits_manager().get_account_ram_usage( "alice"_n );
-
-   c.push_action( "test"_n, "defercall"_n, "alice"_n, fc::mutable_variant_object()
-      ("payer", "alice")
-      ("sender_id", 42)
-      ("contract", "test")
-      ("payload", 100)
-   );
-
-   auto alice_ram_usage1 = c.control->get_resource_limits_manager().get_account_ram_usage( "alice"_n );
-
-   // Verify subjective mitigation is in place
-   BOOST_CHECK_EXCEPTION(
-      c.push_action( "test"_n, "defercall"_n, "alice"_n, fc::mutable_variant_object()
-                        ("payer", "alice")
-                        ("sender_id", 42)
-                        ("contract", "test")
-                        ("payload", 101 )
-                   ),
-      subjective_block_production_exception,
-      fc_exception_message_is( "Replacing a deferred transaction is temporarily disabled." )
-   );
-
-   BOOST_CHECK_EQUAL( c.control->get_resource_limits_manager().get_account_ram_usage( "alice"_n ), alice_ram_usage1 );
-
-   c.control->abort_block();
-
-   c.close();
-   auto cfg = c.get_config();
-   cfg.disable_all_subjective_mitigations = true;
-   c.init( cfg );
-
-   BOOST_CHECK_EQUAL( c.control->get_resource_limits_manager().get_account_ram_usage( "alice"_n ), alice_ram_usage0 );
-
-   c.push_action( "test"_n, "defercall"_n, "alice"_n, fc::mutable_variant_object()
-      ("payer", "alice")
-      ("sender_id", 42)
-      ("contract", "test")
-      ("payload", 100)
-   );
-
-   BOOST_CHECK_EQUAL( c.control->get_resource_limits_manager().get_account_ram_usage( "alice"_n ), alice_ram_usage1 );
-   auto dtrxs = c.get_scheduled_transactions();
-   BOOST_CHECK_EQUAL( dtrxs.size(), 1 );
-   auto first_dtrx_id = dtrxs[0];
-
-   // With the subjective mitigation disabled, replacing the deferred transaction is allowed.
-   c.push_action( "test"_n, "defercall"_n, "alice"_n, fc::mutable_variant_object()
-      ("payer", "alice")
-      ("sender_id", 42)
-      ("contract", "test")
-      ("payload", 101)
-   );
-
-   auto alice_ram_usage2 = c.control->get_resource_limits_manager().get_account_ram_usage( "alice"_n );
-   BOOST_CHECK_EQUAL( alice_ram_usage2, alice_ram_usage1 + (alice_ram_usage1 - alice_ram_usage0) );
-
-   dtrxs = c.get_scheduled_transactions();
-   BOOST_CHECK_EQUAL( dtrxs.size(), 1 );
-   BOOST_CHECK_EQUAL( first_dtrx_id, dtrxs[0] ); // Incorrectly kept as the old transaction ID.
-
-   c.produce_block();
-
-   auto alice_ram_usage3 = c.control->get_resource_limits_manager().get_account_ram_usage( "alice"_n );
-   BOOST_CHECK_EQUAL( alice_ram_usage3, alice_ram_usage1 );
-
-   dtrxs = c.get_scheduled_transactions();
-   BOOST_CHECK_EQUAL( dtrxs.size(), 0 );
-
-   c.produce_block();
-
-   c.close();
-   cfg.disable_all_subjective_mitigations = false;
-   c.init( cfg );
-
-   const auto& pfm = c.control->get_protocol_feature_manager();
-
-   auto d = pfm.get_builtin_digest( builtin_protocol_feature_t::replace_deferred );
-   BOOST_REQUIRE( d );
-
-   c.preactivate_protocol_features( {*d} );
-   c.produce_block();
-
-   BOOST_CHECK_EQUAL( c.control->get_resource_limits_manager().get_account_ram_usage( "alice"_n ), alice_ram_usage0 );
-
-   c.push_action( "test"_n, "defercall"_n, "alice"_n, fc::mutable_variant_object()
-      ("payer", "alice")
-      ("sender_id", 42)
-      ("contract", "test")
-      ("payload", 100)
-   );
-
-   BOOST_CHECK_EQUAL( c.control->get_resource_limits_manager().get_account_ram_usage( "alice"_n ), alice_ram_usage1 );
-
-   dtrxs = c.get_scheduled_transactions();
-   BOOST_CHECK_EQUAL( dtrxs.size(), 1 );
-   auto first_dtrx_id2 = dtrxs[0];
-
-   // With REPLACE_DEFERRED activated, replacing the deferred transaction is allowed and now should work properly.
-   c.push_action( "test"_n, "defercall"_n, "alice"_n, fc::mutable_variant_object()
-      ("payer", "alice")
-      ("sender_id", 42)
-      ("contract", "test")
-      ("payload", 101)
-   );
-
-   BOOST_CHECK_EQUAL( c.control->get_resource_limits_manager().get_account_ram_usage( "alice"_n ), alice_ram_usage1 );
-
-   dtrxs = c.get_scheduled_transactions();
-   BOOST_CHECK_EQUAL( dtrxs.size(), 1 );
-   BOOST_CHECK( first_dtrx_id2 != dtrxs[0] );
-
-   // Replace again with a deferred transaction identical to the first one
-   c.push_action( "test"_n, "defercall"_n, "alice"_n, fc::mutable_variant_object()
-      ("payer", "alice")
-      ("sender_id", 42)
-      ("contract", "test")
-      ("payload", 100),
-      100 // Needed to make this input transaction unique
-   );
-
-   BOOST_CHECK_EQUAL( c.control->get_resource_limits_manager().get_account_ram_usage( "alice"_n ), alice_ram_usage1 );
-
-   dtrxs = c.get_scheduled_transactions();
-   BOOST_CHECK_EQUAL( dtrxs.size(), 1 );
-   BOOST_CHECK_EQUAL( first_dtrx_id2, dtrxs[0] );
-
-} FC_LOG_AND_RETHROW()
-
-BOOST_AUTO_TEST_CASE( no_duplicate_deferred_id_test ) try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
-   tester c2( setup_policy::none );
-
-   c.create_accounts( {"alice"_n, "test"_n} );
-   c.set_code( "test"_n, contracts::deferred_test_wasm() );
-   c.set_abi( "test"_n, contracts::deferred_test_abi().data() );
-   c.produce_block();
-
-   push_blocks( c, c2 );
-
-   c2.push_action( "test"_n, "defercall"_n, "alice"_n, fc::mutable_variant_object()
-      ("payer", "alice")
-      ("sender_id", 1)
-      ("contract", "test")
-      ("payload", 50)
-   );
-
-   c2.finish_block();
-
-   BOOST_CHECK_EXCEPTION(
-      c2.produce_block(),
-      fc::exception,
-      fc_exception_message_is( "no transaction extensions supported yet for deferred transactions" )
-   );
-
-   c2.produce_empty_block( fc::minutes(10) );
-
-   transaction_trace_ptr trace0;
-   auto h2 = c2.control->applied_transaction.connect( [&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> x) {
-      auto& t = std::get<0>(x);
-      if( t && t->receipt && t->receipt->status == transaction_receipt::expired) {
-         trace0 = t;
-      }
-   } );
-
-   c2.produce_block();
-
-   h2.disconnect();
-
-   BOOST_REQUIRE( trace0 );
-
-   c.produce_block();
-
-   const auto& index = c.control->db().get_index<generated_transaction_multi_index,by_trx_id>();
-
-   transaction_trace_ptr trace1;
-   auto h = c.control->applied_transaction.connect( [&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> x) {
-      auto& t = std::get<0>(x);
-      if( t && t->receipt && t->receipt->status == transaction_receipt::executed) {
-         trace1 = t;
-      }
-   } );
-
-   BOOST_REQUIRE_EQUAL(0, index.size());
-
-   c.push_action( config::system_account_name, "reqauth"_n, "alice"_n, fc::mutable_variant_object()
-      ("from", "alice"),
-      5, 2
-   );
-
-   BOOST_REQUIRE_EQUAL(1, index.size());
-
-   c.produce_block();
-
-   BOOST_REQUIRE_EQUAL(1, index.size());
-
-   const auto& pfm = c.control->get_protocol_feature_manager();
-
-   auto d1 = pfm.get_builtin_digest( builtin_protocol_feature_t::replace_deferred );
-   BOOST_REQUIRE( d1 );
-   auto d2 = pfm.get_builtin_digest( builtin_protocol_feature_t::no_duplicate_deferred_id );
-   BOOST_REQUIRE( d2 );
-
-   c.push_action( "test"_n, "defercall"_n, "alice"_n, fc::mutable_variant_object()
-      ("payer", "alice")
-      ("sender_id", 1)
-      ("contract", "test")
-      ("payload", 42)
-   );
-   BOOST_REQUIRE_EQUAL(2, index.size());
-
-   c.preactivate_protocol_features( {*d1, *d2} );
-   c.produce_block();
-   // The deferred transaction with payload 42 that was scheduled prior to the activation of the protocol features should now be retired.
-
-   BOOST_REQUIRE( trace1 );
-   BOOST_REQUIRE_EQUAL(1, index.size());
-
-   trace1 = nullptr;
-
-   // Retire the delayed eosio::reqauth transaction.
-   c.produce_blocks(5);
-   BOOST_REQUIRE( trace1 );
-   BOOST_REQUIRE_EQUAL(0, index.size());
-
-   h.disconnect();
-
-   auto check_generation_context = []( auto&& data,
-                                       const transaction_id_type& sender_trx_id,
-                                       unsigned __int128 sender_id,
-                                       account_name sender )
-   {
-      transaction trx;
-      fc::datastream<const char*> ds1( data.data(), data.size() );
-      fc::raw::unpack( ds1, trx );
-      BOOST_REQUIRE_EQUAL( trx.transaction_extensions.size(), 1 );
-      BOOST_REQUIRE_EQUAL( trx.transaction_extensions.back().first, 0 );
-
-      fc::datastream<const char*> ds2( trx.transaction_extensions.back().second.data(),
-                                       trx.transaction_extensions.back().second.size() );
-
-      transaction_id_type actual_sender_trx_id;
-      fc::raw::unpack( ds2, actual_sender_trx_id );
-      BOOST_CHECK_EQUAL( actual_sender_trx_id, sender_trx_id );
-
-      unsigned __int128 actual_sender_id;
-      fc::raw::unpack( ds2, actual_sender_id );
-      BOOST_CHECK( actual_sender_id == sender_id );
-
-      uint64_t actual_sender;
-      fc::raw::unpack( ds2, actual_sender );
-      BOOST_CHECK_EQUAL( account_name(actual_sender), sender );
-   };
-
-   BOOST_CHECK_EXCEPTION(
-      c.push_action( "test"_n, "defercall"_n, "alice"_n, fc::mutable_variant_object()
-                        ("payer", "alice")
-                        ("sender_id", 1)
-                        ("contract", "test")
-                        ("payload", 77 )
-                   ),
-      ill_formed_deferred_transaction_generation_context,
-      fc_exception_message_is( "deferred transaction generaction context contains mismatching sender" )
-   );
-
-   BOOST_REQUIRE_EQUAL(0, index.size());
-
-   auto trace2 = c.push_action( "test"_n, "defercall"_n, "alice"_n, fc::mutable_variant_object()
-      ("payer", "alice")
-      ("sender_id", 1)
-      ("contract", "test")
-      ("payload", 40)
-   );
-
-   BOOST_REQUIRE_EQUAL(1, index.size());
-
-   check_generation_context( index.begin()->packed_trx,
-                             trace2->id,
-                             ((static_cast<unsigned __int128>("alice"_n.to_uint64_t()) << 64) | 1),
-                             "test"_n );
-
-   c.produce_block();
-
-   BOOST_REQUIRE_EQUAL(0, index.size());
-
-   auto trace3 = c.push_action( "test"_n, "defercall"_n, "alice"_n, fc::mutable_variant_object()
-      ("payer", "alice")
-      ("sender_id", 1)
-      ("contract", "test")
-      ("payload", 50)
-   );
-
-   BOOST_REQUIRE_EQUAL(1, index.size());
-
-   check_generation_context( index.begin()->packed_trx,
-                             trace3->id,
-                             ((static_cast<unsigned __int128>("alice"_n.to_uint64_t()) << 64) | 1),
-                             "test"_n );
-
-   c.produce_block();
-
-} FC_LOG_AND_RETHROW()
-
 BOOST_AUTO_TEST_CASE( fix_linkauth_restriction ) { try {
    tester chain( setup_policy::preactivate_feature_and_new_bios );
 
@@ -714,13 +403,11 @@ BOOST_AUTO_TEST_CASE( fix_linkauth_restriction ) { try {
    validate_disallow("eosio", "unlinkauth");
    validate_disallow("eosio", "deleteauth");
    validate_disallow("eosio", "updateauth");
-   validate_disallow("eosio", "canceldelay");
 
    validate_disallow("currency", "linkauth");
    validate_disallow("currency", "unlinkauth");
    validate_disallow("currency", "deleteauth");
    validate_disallow("currency", "updateauth");
-   validate_disallow("currency", "canceldelay");
 
    const auto& pfm = chain.control->get_protocol_feature_manager();
    auto d = pfm.get_builtin_digest( builtin_protocol_feature_t::fix_linkauth_restriction );
@@ -741,14 +428,11 @@ BOOST_AUTO_TEST_CASE( fix_linkauth_restriction ) { try {
    validate_disallow("eosio", "unlinkauth");
    validate_disallow("eosio", "deleteauth");
    validate_disallow("eosio", "updateauth");
-   validate_disallow("eosio", "canceldelay");
 
    validate_allowed("currency", "linkauth");
    validate_allowed("currency", "unlinkauth");
    validate_allowed("currency", "deleteauth");
    validate_allowed("currency", "updateauth");
-   validate_allowed("currency", "canceldelay");
-
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_CASE( disallow_empty_producer_schedule_test ) { try {
@@ -794,24 +478,13 @@ BOOST_AUTO_TEST_CASE( restrict_action_to_self_test ) { try {
 
    // Before the protocol feature is preactivated
    // - Sending inline action to self = no problem
-   // - Sending deferred trx to self = throw subjective exception
    // - Sending inline action to self from notification = throw subjective exception
-   // - Sending deferred trx to self from notification = throw subjective exception
    BOOST_CHECK_NO_THROW( c.push_action( "testacc"_n, "sendinline"_n, "alice"_n, mutable_variant_object()("authorizer", "alice")) );
-   BOOST_REQUIRE_EXCEPTION( c.push_action( "testacc"_n, "senddefer"_n, "alice"_n,
-                                           mutable_variant_object()("authorizer", "alice")("senderid", 0)),
-                            subjective_block_production_exception,
-                            fc_exception_message_starts_with( "Authorization failure with sent deferred transaction" ) );
 
    BOOST_REQUIRE_EXCEPTION( c.push_action( "testacc"_n, "notifyinline"_n, "alice"_n,
                                         mutable_variant_object()("acctonotify", "acctonotify")("authorizer", "alice")),
                             subjective_block_production_exception,
                             fc_exception_message_starts_with( "Authorization failure with inline action sent to self" ) );
-
-   BOOST_REQUIRE_EXCEPTION( c.push_action( "testacc"_n, "notifydefer"_n, "alice"_n,
-                                           mutable_variant_object()("acctonotify", "acctonotify")("authorizer", "alice")("senderid", 1)),
-                            subjective_block_production_exception,
-                            fc_exception_message_starts_with( "Authorization failure with sent deferred transaction" ) );
 
    c.preactivate_protocol_features( {*d} );
    c.produce_block();
@@ -821,18 +494,8 @@ BOOST_AUTO_TEST_CASE( restrict_action_to_self_test ) { try {
                             unsatisfied_authorization,
                             fc_exception_message_starts_with( "transaction declares authority" ) );
 
-   BOOST_REQUIRE_EXCEPTION( c.push_action( "testacc"_n, "senddefer"_n, "alice"_n,
-                                           mutable_variant_object()("authorizer", "alice")("senderid", 3)),
-                            unsatisfied_authorization,
-                            fc_exception_message_starts_with( "transaction declares authority" ) );
-
    BOOST_REQUIRE_EXCEPTION( c.push_action( "testacc"_n, "notifyinline"_n, "alice"_n,
                                            mutable_variant_object()("acctonotify", "acctonotify")("authorizer", "alice") ),
-                            unsatisfied_authorization,
-                            fc_exception_message_starts_with( "transaction declares authority" ) );
-
-   BOOST_REQUIRE_EXCEPTION( c.push_action( "testacc"_n, "notifydefer"_n, "alice"_n,
-                                           mutable_variant_object()("acctonotify", "acctonotify")("authorizer", "alice")("senderid", 4)),
                             unsatisfied_authorization,
                             fc_exception_message_starts_with( "transaction declares authority" ) );
 
@@ -1132,36 +795,6 @@ BOOST_AUTO_TEST_CASE( ram_restrictions_test ) { try {
       fc_exception_message_is( "Cannot charge RAM to other accounts during notify." )
    );
 
-   // Cannot send deferred transaction paid by another account that has not authorized the action.
-   BOOST_REQUIRE_EXCEPTION(
-      c.push_action( tester1_account, "senddefer"_n, bob_account, mutable_variant_object()
-         ("senderid", 123)
-         ("payer", alice_account)
-      ),
-      missing_auth_exception,
-      fc_exception_message_starts_with( "missing authority" )
-   );
-
-   // Cannot send deferred transaction paid by another account within a notification
-   // even if the account authorized the original action.
-   // This is due to the subjective mitigation in place.
-   BOOST_REQUIRE_EXCEPTION(
-      c.push_action( tester2_account, "notifydefer"_n, alice_account, mutable_variant_object()
-         ("acctonotify", tester1_account)
-         ("senderid", 123)
-         ("payer", alice_account)
-      ),
-      subjective_block_production_exception,
-      fc_exception_message_is( "Cannot charge RAM to other accounts during notify." )
-   );
-
-   // Can send deferred transaction paid by another account if it has authorized the action.
-   c.push_action( tester1_account, "senddefer"_n, alice_account, mutable_variant_object()
-      ("senderid", 123)
-      ("payer", alice_account)
-   );
-   c.produce_block();
-
    // Can migrate data from table1 to table2 paid by another account
    // in a RAM usage neutral way with the authority of that account.
    c.push_action( tester1_account, "setdata"_n, alice_account, mutable_variant_object()
@@ -1227,30 +860,6 @@ BOOST_AUTO_TEST_CASE( ram_restrictions_test ) { try {
    c.preactivate_protocol_features( {*d} );
    c.produce_block();
 
-   // Cannot send deferred transaction paid by another account that has not authorized the action.
-   // This still fails objectively, but now with another error message.
-   BOOST_REQUIRE_EXCEPTION(
-      c.push_action( tester1_account, "senddefer"_n, bob_account, mutable_variant_object()
-         ("senderid", 123)
-         ("payer", alice_account)
-      ),
-      action_validate_exception,
-      fc_exception_message_starts_with( "cannot bill RAM usage of deferred transaction to another account that has not authorized the action" )
-   );
-
-   // Cannot send deferred transaction paid by another account within a notification
-   // even if the account authorized the original action.
-   // This now fails with an objective error.
-   BOOST_REQUIRE_EXCEPTION(
-      c.push_action( tester2_account, "notifydefer"_n, alice_account, mutable_variant_object()
-         ("acctonotify", tester1_account)
-         ("senderid", 123)
-         ("payer", alice_account)
-      ),
-      action_validate_exception,
-      fc_exception_message_is( "cannot bill RAM usage of deferred transactions to another account within notify context" )
-   );
-
    // Cannot bill more RAM to another account within a notification
    // even if the account authorized the original action.
    // This now fails with an objective error.
@@ -1276,13 +885,6 @@ BOOST_AUTO_TEST_CASE( ram_restrictions_test ) { try {
       unauthorized_ram_usage_increase,
       fc_exception_message_starts_with( "unprivileged contract cannot increase RAM usage of another account that has not authorized the action" )
    );
-
-   // Still can send deferred transaction paid by another account if it has authorized the action.
-   c.push_action( tester1_account, "senddefer"_n, alice_account, mutable_variant_object()
-      ("senderid", 123)
-      ("payer", alice_account)
-   );
-   c.produce_block();
 
    // Now can migrate data from table1 to table2 paid by another account
    // in a RAM usage neutral way without the authority of that account.

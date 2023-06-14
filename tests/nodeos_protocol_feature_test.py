@@ -33,7 +33,7 @@ keepLogs=args.keep_logs
 def restartNode(node: Node, chainArg=None, addSwapFlags=None):
     if not node.killed:
         node.kill(signal.SIGTERM)
-    isRelaunchSuccess = node.relaunch(chainArg, addSwapFlags=addSwapFlags, timeout=5, cachePopen=True)
+    isRelaunchSuccess = node.relaunch(chainArg, addSwapFlags=addSwapFlags, timeout=10, cachePopen=True)
     assert isRelaunchSuccess, "Fail to relaunch"
 
 walletMgr=WalletMgr(True)

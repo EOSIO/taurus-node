@@ -1,10 +1,12 @@
 #include "help_text.hpp"
-#include "localize.hpp"
 #include <regex>
 #include <fc/io/json.hpp>
 #include <eosio/chain/exceptions.hpp>
 
-using namespace eosio::client::localize;
+#if !defined(_)
+#define _(str) str
+#endif
+
 using namespace eosio::chain;
 
 const char* transaction_help_text_header = _("An error occurred while submitting the transaction for this command!");
@@ -20,20 +22,20 @@ issue:
 
 const char* missing_perms_help_text = _(R"text(The transaction requires permissions that were not granted by the transaction.
 Missing permission from:
-  - ${1}
+  - {1}
 
 Please use the `-p,--permissions` option to add the missing accounts!
 Note: you will need an unlocked wallet that can authorized these permissions.)text");
 
 const char* missing_sigs_help_text = _(R"text(The transaction requires permissions that could not be authorized by the wallet.
 Missing authrizations:
-  - ${1}@${2}
+  - {1}@{2}
 
 Please make sure the proper keys are imported into an unlocked wallet and try again!)text");
 
 const char* missing_scope_help_text = _(R"text(The transaction requires scopes that were not listed by the transaction.
 Missing scope(s):
-  - ${1}
+  - {1}
 
 Please use the `-S,--scope` option to add the missing accounts!)text");
 
@@ -41,40 +43,38 @@ Please use the `-S,--scope` option to add the missing accounts!)text");
 const char* tx_unknown_account_help_text = _("The transaction references an account which does not exist.");
 
 const char* unknown_account_help_text = _(R"text(Unknown accounts:
-  - ${1}
+  - {1}
 
 Please check the account names and try again!)text");
 
-const char* missing_abi_help_text = _(R"text(The ABI for action "${2}" on code account "${1}" is unknown.
+const char* missing_abi_help_text = _(R"text(The ABI for action "{2}" on code account "{1}" is unknown.
 The payload cannot be automatically serialized.
 
 You can push an arbitrary transaction using the 'push action' subcommand)text");
 
-const char* unknown_wallet_help_text = _("Unable to find a wallet named \"${1}\", are you sure you typed the name correctly?");
+const char* unknown_wallet_help_text = _("Unable to find a wallet named \"{1}\", are you sure you typed the name correctly?");
 
-const char* bad_wallet_password_help_text = _("Invalid password for wallet named \"${1}\"");
+const char* bad_wallet_password_help_text = _("Invalid password for wallet named \"{1}\"");
 
-const char* locked_wallet_help_text = _("The wallet named \"${1}\" is locked.  Please unlock it and try again.");
+const char* locked_wallet_help_text = _("The wallet named \"{1}\" is locked.  Please unlock it and try again.");
 
-const char* duplicate_key_import_help_text = _("This key is already imported into the wallet named \"${1}\".");
+const char* duplicate_key_import_help_text = _("This key is already imported into the wallet named \"{1}\".");
 
-const char* unknown_abi_table_help_text = _(R"text(The ABI for the code on account "${1}" does not specify table "${2}".
+const char* unknown_abi_table_help_text = _(R"text(The ABI for the code on account "{1}" does not specify table "{2}".
 
 Please check the account and table name, and verify that the account has the expected code using:
-  @CLI_CLIENT_EXECUTABLE_NAME@ get code ${1})text");
+  @CLI_CLIENT_EXECUTABLE_NAME@ get code {1})text");
 
-const char* unknown_abi_kv_table_help_text = _(R"text(The ABI for the code on account "${1}" does not specify kv_table "${2}".
+const char* unknown_abi_kv_table_help_text = _(R"text(The ABI for the code on account "{1}" does not specify kv_table "{2}".
 Please check the account and kv_table name, and verify that the account has the expected code using:
-  @CLI_CLIENT_EXECUTABLE_NAME@ get code ${1})text");
+  @CLI_CLIENT_EXECUTABLE_NAME@ get code {1})text");
 
-const char* failed_to_find_transaction_text = _("Failed to fetch information for transaction: \033[1m${1}\033[0m from the history plugin\n\n"
+const char* failed_to_find_transaction_text = _("Failed to fetch information for transaction: \033[1m{1}\033[0m from the history plugin\n\n"
                                                 "\033[32mIf you know the block number which included this transaction you providing it with the \033[2m--block-hint\033[22m option may help\033[0m");
 
-const char* failed_to_find_transaction_with_block_text = _("Failed to fetch information for transaction: \033[1m${1}\033[0m from the history plugin and the transaction was not present in block \033[1m${2}\033[0m\n");
+const char* failed_to_find_transaction_with_block_text = _("Failed to fetch information for transaction: \033[1m{1}\033[0m from the history plugin and the transaction was not present in block \033[1m{2}\033[0m\n");
 
 const char* history_plugin_advice_text = _("\033[32mPlease ensure that the \033[2meosio::history_plugin\033[22m is enabled on the RPC node you are connecting to and that an account involved in this transaction was configured in the \033[2mfilter-on\033[22m setting.\033[0m\n");
-
-const char* help_regex_error = _("Error locating help text: ${code} ${what}");
 
 const std::vector<std::pair<const char*, std::vector<const char *>>> error_help_text {
    {"Error\n: 3030011", {transaction_help_text_header, duplicate_transaction_help_text}},
@@ -93,20 +93,6 @@ const std::vector<std::pair<const char*, std::vector<const char *>>> error_help_
    {"ABI does not define kv_table[^\\x00]*get_kv_table_rows.*code\":\"([^\"]*)\",\"kv_table\":\"([^\"]*)\"", {unknown_abi_kv_table_help_text}},
    {"Transaction ([^ ]{8})[^ ]* not found in history and no block hint was given", {failed_to_find_transaction_text, history_plugin_advice_text}},
    {"Transaction ([^ ]{8})[^ ]* not found in history or in block number ([0-9]*)", {failed_to_find_transaction_with_block_text, history_plugin_advice_text}},
-};
-
-auto smatch_to_variant(const std::smatch& smatch) {
-   auto result = fc::mutable_variant_object();
-   for(size_t index = 0; index < smatch.size(); index++) {
-      auto name = boost::lexical_cast<std::string>(index);
-      if (smatch[index].matched) {
-         result = result(name, smatch.str(index));
-      } else {
-         result = result(name, "");
-      }
-   }
-
-   return result;
 };
 
 const char* error_advice_name_type_exception = R"=====(Name should be less than 13 characters and only contains the following symbol .12345abcdefghijklmnopqrstuvwxyz)=====";
@@ -272,7 +258,7 @@ const std::map<int64_t, std::string> error_advice = {
 
 namespace eosio { namespace client { namespace help {
 
-bool print_recognized_errors(const fc::exception& e, const bool verbose_errors) {
+bool print_recognized_errors(const fc::exception& e, const bool verbose_errors, std::ostream& err) {
    // eos recognized error code is from 3000000
    // refer to libraries/chain/include/eosio/chain/exceptions.hpp
    if (e.code() >= chain_exception::code_value) {
@@ -284,14 +270,7 @@ bool print_recognized_errors(const fc::exception& e, const bool verbose_errors) 
 
       // Get explanation from log, if any
       for (auto &log : e.get_log()) {
-         // Check if there's a log to display
-         if (!log.get_format().empty()) {
-            // Localize the message as needed
-            explanation += "\n" + localized_with_variant(log.get_format().data(), log.get_data());
-         } else if (log.get_data().size() > 0 && verbose_errors) {
-            // Show data-only log only if verbose_errors option is enabled
-            explanation += "\n" + fc::json::to_string(log.get_data(), fc::time_point::maximum());
-         }
+         explanation += log.get_message();
          // Check if there's stack trace to be added
          if (!log.get_context().get_method().empty() && verbose_errors) {
             stack_trace += "\n" +
@@ -304,17 +283,48 @@ bool print_recognized_errors(const fc::exception& e, const bool verbose_errors) 
       if (!explanation.empty()) explanation = std::string("Error Details:") + explanation;
       if (!stack_trace.empty()) stack_trace = std::string("Stack Trace:") + stack_trace;
 
-      std::cerr << "\033[31m" << "Error " << e.code() << ": " << e.what() << "\033[0m";
-      if (!advice.empty()) std::cerr << "\n" << "\033[32m" << advice << "\033[0m";
-      if (!explanation.empty()) std::cerr  << "\n" << "\033[33m" << explanation << "\033[0m";
-      if (!stack_trace.empty()) std::cerr  << "\n" << stack_trace;
-      std::cerr << std::endl;
+      err << "Error " << e.code() << ": " << e.what();
+      if (!advice.empty()) err << "\n" << advice;
+      if (!explanation.empty()) err  << "\n" << explanation;
+      if (!stack_trace.empty()) err  << "\n" << stack_trace;
+      err << std::endl;
       return true;
    }
    return false;
 }
 
-bool print_help_text(const fc::exception& e) {
+void output_error_msg(const char* raw_fmt, const std::smatch& smatch, std::ostream& err) {
+   std::vector<std::string> v;
+   for (size_t index = 0; index < smatch.size(); index++) {
+      if (smatch[index].matched)
+         v.push_back(smatch.str(index));
+      else
+         v.push_back("");
+   }
+   switch (smatch.size()) {
+      case 0:
+         err << fmt::format(raw_fmt) << std::endl;
+         break;
+      case 1:
+         err << fmt::format(raw_fmt, fmt::arg(boost::lexical_cast<std::string>(0).c_str(), v[0])) << std::endl;
+         break;
+      case 2:
+         err << fmt::format(raw_fmt, fmt::arg(boost::lexical_cast<std::string>(0).c_str(), v[0]),
+                                  fmt::arg(boost::lexical_cast<std::string>(1).c_str(), v[1])) << std::endl;
+         break;
+      case 3:
+         err << fmt::format(raw_fmt, fmt::arg(boost::lexical_cast<std::string>(0).c_str(), v[0]),
+                                  fmt::arg(boost::lexical_cast<std::string>(1).c_str(), v[1]),
+                                  fmt::arg(boost::lexical_cast<std::string>(2).c_str(), v[2])) << std::endl;
+         break;
+      default:
+         err << fmt::format(raw_fmt, fmt::arg(boost::lexical_cast<std::string>(0).c_str(), v[0]),
+                                  fmt::arg(boost::lexical_cast<std::string>(1).c_str(), v[1]),
+                                  fmt::arg(boost::lexical_cast<std::string>(2).c_str(), v[2])) << "..." << std::endl;;
+   }
+}
+
+bool print_help_text(const fc::exception& e, std::ostream& err) {
    bool result = false;
    // Large input strings to std::regex can cause SIGSEGV, this is a known bug in libstdc++.
    // See https://stackoverflow.com/questions/36304204/%D0%A1-regex-segfault-on-long-sequences
@@ -326,16 +336,15 @@ bool print_help_text(const fc::exception& e) {
          auto expr = std::regex {candidate.first};
          std::smatch matches;
          if (std::regex_search(detail_str, matches, expr)) {
-            auto args = smatch_to_variant(matches);
             for (const auto& msg: candidate.second) {
-               std::cerr << localized_with_variant(msg, args) << std::endl;
+               output_error_msg(msg, matches, err);
             }
             result = true;
             break;
          }
       }
    } catch (const std::regex_error& e ) {
-      std::cerr << localized(help_regex_error, ("code", (int64_t)e.code())("what", e.what())) << std::endl;
+      err << "Error locating help text: " << std::to_string((int64_t)e.code()) << e.what() << std::endl;
    }
 
    return result;

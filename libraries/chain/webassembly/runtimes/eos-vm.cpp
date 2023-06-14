@@ -7,11 +7,7 @@
 //eos-vm includes
 #include <eosio/vm/backend.hpp>
 #include <eosio/chain/webassembly/preconditions.hpp>
-#ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
-#include <eosio/chain/webassembly/eos-vm-oc.hpp>
-#endif
 #include <boost/hana/string.hpp>
-#include <boost/hana/equal.hpp>
 
 namespace eosio { namespace chain { namespace webassembly { namespace eos_vm_runtime {
 
@@ -72,7 +68,7 @@ void validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics) 
       for(std::uint32_t i = 0; i < imports.size(); ++i) {
          EOS_ASSERT(std::string_view((char*)imports[i].module_str.raw(), imports[i].module_str.size()) == "env" &&
                     is_intrinsic_whitelisted(intrinsics, std::string_view((char*)imports[i].field_str.raw(), imports[i].field_str.size())),
-                    wasm_serialization_error, "${module}.${fn} unresolveable",
+                    wasm_serialization_error, "{module}.{fn} unresolveable",
                     ("module", std::string((char*)imports[i].module_str.raw(), imports[i].module_str.size()))
                           ("fn", std::string((char*)imports[i].field_str.raw(), imports[i].field_str.size())));
       }
@@ -93,7 +89,7 @@ void validate( const bytes& code, const wasm_config& cfg, const whitelisted_intr
       for(std::uint32_t i = 0; i < imports.size(); ++i) {
          EOS_ASSERT(std::string_view((char*)imports[i].module_str.raw(), imports[i].module_str.size()) == "env" &&
                     is_intrinsic_whitelisted(intrinsics, std::string_view((char*)imports[i].field_str.raw(), imports[i].field_str.size())),
-                    wasm_serialization_error, "${module}.${fn} unresolveable",
+                    wasm_serialization_error, "{module}.{fn} unresolveable",
                     ("module", std::string((char*)imports[i].module_str.raw(), imports[i].module_str.size()))
                           ("fn", std::string((char*)imports[i].field_str.raw(), imports[i].field_str.size())));
       }
@@ -161,6 +157,7 @@ private:
    eos_vm_runtime<Impl>*            _runtime;
    std::unique_ptr<backend_t> _instantiated_module;
 };
+#ifdef EOSIO_EOS_VM_JIT_RUNTIME_ENABLED
 
 class eos_vm_profiling_module : public wasm_instantiated_module_interface {
       using backend_t = eosio::vm::backend<eos_vm_host_functions_t, eosio::vm::jit_profile, webassembly::eos_vm_runtime::apply_options, vm::profile_instr_map>;
@@ -227,6 +224,7 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
       boost::container::flat_map<name, std::unique_ptr<profile_data>> _prof;
       std::vector<char> _original_code;
 };
+#endif
 
 template<typename Impl>
 eos_vm_runtime<Impl>::eos_vm_runtime() {}
@@ -254,11 +252,14 @@ std::unique_ptr<wasm_instantiated_module_interface> eos_vm_runtime<Impl>::instan
       eos_vm_host_functions_t::resolve(bkend->get_module());
       return std::make_unique<eos_vm_instantiated_module<Impl>>(this, std::move(bkend));
    } catch(eosio::vm::exception& e) {
-      FC_THROW_EXCEPTION(wasm_execution_error, "Error building eos-vm interp: ${e}", ("e", e.what()));
+      FC_THROW_EXCEPTION(wasm_execution_error, "Error building eos-vm interp: {e}", ("e", e.what()));
    }
 }
 
 template class eos_vm_runtime<eosio::vm::interpreter>;
+
+#ifdef EOSIO_EOS_VM_JIT_RUNTIME_ENABLED
+
 template class eos_vm_runtime<eosio::vm::jit>;
 
 eos_vm_profile_runtime::eos_vm_profile_runtime() {}
@@ -283,23 +284,13 @@ std::unique_ptr<wasm_instantiated_module_interface> eos_vm_profile_runtime::inst
       eos_vm_host_functions_t::resolve(bkend->get_module());
       return std::make_unique<eos_vm_profiling_module>(std::move(bkend), code_bytes, code_size);
    } catch(eosio::vm::exception& e) {
-      FC_THROW_EXCEPTION(wasm_execution_error, "Error building eos-vm interp: ${e}", ("e", e.what()));
+      FC_THROW_EXCEPTION(wasm_execution_error, "Error building eos-vm interp: {e}", ("e", e.what()));
    }
 }
 
-}
-
-template <auto HostFunction, typename... Preconditions>
-struct host_function_registrator {
-   template <typename Mod, typename Name>
-   constexpr host_function_registrator(Mod mod_name, Name fn_name) {
-      using rhf_t = eos_vm_host_functions_t;
-      rhf_t::add<HostFunction, Preconditions...>(mod_name.c_str(), fn_name.c_str());
-#ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
-      eosvmoc::register_eosvm_oc<HostFunction, std::tuple<Preconditions...>>(mod_name + BOOST_HANA_STRING(".") + fn_name);
 #endif
-   }
-};
+
+}
 
 #define REGISTER_HOST_FUNCTION(NAME, ...)                                                                              \
    static host_function_registrator<&interface::NAME, core_precondition, context_aware_check, ##__VA_ARGS__>           \
@@ -373,6 +364,9 @@ REGISTER_LEGACY_CF_HOST_FUNCTION(sha256);
 REGISTER_LEGACY_CF_HOST_FUNCTION(sha1);
 REGISTER_LEGACY_CF_HOST_FUNCTION(sha512);
 REGISTER_LEGACY_CF_HOST_FUNCTION(ripemd160);
+REGISTER_LEGACY_HOST_FUNCTION(verify_rsa_sha256_sig);
+REGISTER_LEGACY_HOST_FUNCTION(verify_ecdsa_sig);
+REGISTER_LEGACY_HOST_FUNCTION(is_supported_ecdsa_pubkey);
 
 // permission api
 REGISTER_LEGACY_HOST_FUNCTION(check_transaction_authorization);
@@ -392,6 +386,7 @@ REGISTER_HOST_FUNCTION(current_time);
 REGISTER_HOST_FUNCTION(publication_time);
 REGISTER_LEGACY_HOST_FUNCTION(is_feature_activated);
 REGISTER_HOST_FUNCTION(get_sender);
+REGISTER_HOST_FUNCTION(push_event)
 
 // context-free system api
 REGISTER_CF_HOST_FUNCTION(abort)

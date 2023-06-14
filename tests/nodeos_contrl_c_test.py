@@ -9,9 +9,15 @@ import json
 from WalletMgr import WalletMgr
 from Node import Node
 from TestHelper import TestHelper
+from core_symbol import CORE_SYMBOL
 
+import json
+import os
+import re
+import shutil
 import signal
-
+import sys
+import threading
 ###############################################################
 # nodeos_contrl_c_lr_test
 #
@@ -21,7 +27,7 @@ import signal
 # kill the bridge. It tests that no crashes happen when the nodes are killed.
 #
 ###############################################################
-
+Print=Utils.Print
 errorExit=Utils.errorExit
 
 args = TestHelper.parse_args({"--wallet-port", "-v"})
@@ -49,21 +55,24 @@ try:
     specificExtraNodeosArgs[totalProducerNodes] = "--plugin eosio::producer_plugin --plugin eosio::chain_api_plugin --plugin eosio::http_plugin "
     "--plugin eosio::txn_test_gen_plugin --plugin eosio::producer_api_plugin "
 
+    traceNodeosArgs = " --plugin eosio::trace_api_plugin --trace-no-abis "
     # ***   setup topogrophy   ***
 
     # "bridge" shape connects defprocera through defproducerk (in node0) to each other and defproducerl through defproduceru (in node01)
     # and the only connection between those 2 groups is through the bridge node
 
     if cluster.launch(prodCount=1, topo="bridge", pnodes=totalProducerNodes,
-                      totalNodes=totalNodes, totalProducers=totalProducers,
-                      useBiosBootFile=False, specificExtraNodeosArgs=specificExtraNodeosArgs) is False:
+                      totalNodes=totalNodes, totalProducers=totalProducerNodes,
+                      useBiosBootFile=False, specificExtraNodeosArgs=specificExtraNodeosArgs, extraNodeosArgs=traceNodeosArgs) is False:
         Utils.cmdError("launcher")
         Utils.errorExit("Failed to stand up eos cluster.")
-    Print("Validating system accounts after bootstrap")
-    cluster.validateAccounts(None)
 
     prodNode = cluster.getNode(0)
     nonProdNode = cluster.getNode(1)
+
+    #verify nodes are in sync and advancing
+    cluster.waitOnClusterSync(blockAdvancing=5)
+    Print("Cluster in Sync")
 
     accounts=cluster.createAccountKeys(2)
     if accounts is None:
@@ -91,16 +100,22 @@ try:
         TestHelper.shutdown(cluster, walletMgr, testSuccessful=testSuccessful, killEosInstances=True, killWallet=True, keepLogs=True, cleanRun=True, dumpErrorDetails=True)
         errorExit("Failed to kill the producer node")
 
-    transferAmount="1.0000 {0}".format(CORE_SYMBOL)
-    for _ in range(500):
-        nonProdNode.transferFunds(account[0], account[1], transferAmount, "test transfer", waitForTransBlock=False)
+    def make_batch_transfer_fund() :
+        transferAmount="1.0000 {0}".format(CORE_SYMBOL)
+        for _ in range(500):
+            Print("Transfer fund _ \"%s\"." % (_))
+            nonProdNode.transferFunds(accounts[0], accounts[1], transferAmount, "test transfer", waitForTransBlock=False)
 
+    transferThread = threading.Thread(target=make_batch_transfer_fund, name="BatchTransferFund")
+    transferThread.start()
+    time.sleep(10)
     testSuccessful = nonProdNode.kill(signal.SIGTERM)
-
     if not testSuccessful:
         TestHelper.shutdown(cluster, walletMgr, testSuccessful=testSuccessful, killEosInstances=True, killWallet=True, keepLogs=True, cleanRun=True, dumpErrorDetails=True)
         errorExit("Failed to kill the seed node")
 
 finally:
     TestHelper.shutdown(cluster, walletMgr, testSuccessful=True, killEosInstances=True, killWallet=True, keepLogs=True, cleanRun=True, dumpErrorDetails=True)
-    exit(0)
+
+exitCode = 0 if testSuccessful else 1
+exit(exitCode)

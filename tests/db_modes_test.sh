@@ -85,10 +85,9 @@ run_expect_failure --database-map-mode locked
 run_expect_success
 #Try killing with KILL
 run_and_kill
-#should be dirty now
-run_expect_failure
-#should also still be dirty in heap mode
-run_expect_failure --database-map-mode heap
+#should NOT fail to start because of dirty shared_memory.bin
+run_expect_success
+run_expect_success --database-map-mode heap
 
 #start over again! but this time start with heap mode
 run_expect_success --delete-all-blocks  --database-map-mode heap
@@ -96,6 +95,6 @@ run_expect_success --delete-all-blocks  --database-map-mode heap
 run_expect_success
 #try killing it while in heap mode
 run_and_kill --database-map-mode heap
-#should be dirty if we run in either mode node
-run_expect_failure --database-map-mode heap
-run_expect_failure
+#should NOT fail to start because of dirty shared_memory.bin
+run_expect_success --database-map-mode heap
+run_expect_success

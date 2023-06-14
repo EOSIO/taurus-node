@@ -23,7 +23,7 @@ struct yubihsm_wallet_impl {
    yubihsm_wallet_impl(const string& ep, const uint16_t ak) : endpoint(ep), authkey(ak) {
       yh_rc rc;
       if((rc = yh_init()))
-         FC_THROW("yubihsm init failure: ${c}", ("c", yh_strerror(rc)));
+         FC_THROW("yubihsm init failure: {c}", ("c", yh_strerror(rc)));
    }
 
    ~yubihsm_wallet_impl() {
@@ -43,7 +43,7 @@ struct yubihsm_wallet_impl {
       size_t blob_sz = 128;
       uint8_t blob[blob_sz];
       if((rc = yh_util_get_public_key(session, key_id, blob, &blob_sz, nullptr)))
-         FC_THROW_EXCEPTION(chain::wallet_exception, "yh_util_get_public_key failed: ${m}", ("m", yh_strerror(rc)));
+         FC_THROW_EXCEPTION(chain::wallet_exception, "yh_util_get_public_key failed: {m}", ("m", yh_strerror(rc)));
       if(blob_sz != 64)
          FC_THROW_EXCEPTION(chain::wallet_exception, "unexpected pubkey size from yh_util_get_public_key");
 
@@ -65,17 +65,17 @@ struct yubihsm_wallet_impl {
 
       try {
          if((rc = yh_init_connector(endpoint.c_str(), &connector)))
-            FC_THROW_EXCEPTION(chain::wallet_exception, "Failled to initialize yubihsm connector URL: ${c}", ("c", yh_strerror(rc)));
+            FC_THROW_EXCEPTION(chain::wallet_exception, "Failled to initialize yubihsm connector URL: {c}", ("c", yh_strerror(rc)));
          if((rc = yh_connect(connector, 0)))
-            FC_THROW_EXCEPTION(chain::wallet_exception, "Failed to connect to YubiHSM connector: ${m}", ("m", yh_strerror(rc)));
+            FC_THROW_EXCEPTION(chain::wallet_exception, "Failed to connect to YubiHSM connector: {m}", ("m", yh_strerror(rc)));
          if((rc = yh_create_session_derived(connector, authkey, (const uint8_t *)password.data(), password.size(), false, &session)))
-            FC_THROW_EXCEPTION(chain::wallet_exception, "Failed to create YubiHSM session: ${m}", ("m", yh_strerror(rc)));
+            FC_THROW_EXCEPTION(chain::wallet_exception, "Failed to create YubiHSM session: {m}", ("m", yh_strerror(rc)));
          if((rc = yh_authenticate_session(session)))
-            FC_THROW_EXCEPTION(chain::wallet_exception, "Failed to authenticate YubiHSM session: ${m}", ("m", yh_strerror(rc)));
+            FC_THROW_EXCEPTION(chain::wallet_exception, "Failed to authenticate YubiHSM session: {m}", ("m", yh_strerror(rc)));
 
          yh_object_descriptor authkey_desc;
          if((rc = yh_util_get_object_info(session, authkey, YH_AUTHENTICATION_KEY, &authkey_desc)))
-            FC_THROW_EXCEPTION(chain::wallet_exception, "Failed to get authkey info: ${m}", ("m", yh_strerror(rc)));
+            FC_THROW_EXCEPTION(chain::wallet_exception, "Failed to get authkey info: {m}", ("m", yh_strerror(rc)));
 
          authkey_caps = authkey_desc.capabilities;
          authkey_domains = authkey_desc.domains;
@@ -88,7 +88,7 @@ struct yubihsm_wallet_impl {
          yh_capabilities find_caps;
          yh_string_to_capabilities("sign-ecdsa", &find_caps);
          if((rc = yh_util_list_objects(session, 0, YH_ASYMMETRIC_KEY, 0, &find_caps, YH_ALGO_EC_P256, nullptr, found_objs, &found_objects_n)))
-            FC_THROW_EXCEPTION(chain::wallet_exception, "yh_util_list_objects failed: ${m}", ("m", yh_strerror(rc)));
+            FC_THROW_EXCEPTION(chain::wallet_exception, "yh_util_list_objects failed: {m}", ("m", yh_strerror(rc)));
 
          for(size_t i = 0; i < found_objects_n; ++i)
             populate_key_map_with_keyid(found_objs[i].id);
@@ -123,7 +123,7 @@ struct yubihsm_wallet_impl {
          if(ec || !session)
             return;
 
-         uint8_t data, resp;
+         uint8_t data=0, resp;
          yh_cmd resp_cmd;
          size_t resp_sz = 1;
          if(yh_send_secure_msg(session, YHC_ECHO, &data, 1, &resp_cmd, &resp, &resp_sz))
@@ -143,7 +143,7 @@ struct yubihsm_wallet_impl {
       yh_rc rc;
       if((rc = yh_util_sign_ecdsa(session, it->second, (uint8_t*)d.data(), d.data_size(), der_sig, &der_sig_sz))) {
          lock();
-         FC_THROW_EXCEPTION(chain::wallet_exception, "yh_util_sign_ecdsa failed: ${m}", ("m", yh_strerror(rc)));
+         FC_THROW_EXCEPTION(chain::wallet_exception, "yh_util_sign_ecdsa failed: {m}", ("m", yh_strerror(rc)));
       }
 
       ///XXX a lot of this below is similar to SE wallet; commonize it in non-junky way
@@ -183,7 +183,7 @@ struct yubihsm_wallet_impl {
 
       try {
          if((rc = yh_util_generate_ec_key(session, &new_key_id, "keosd created key", authkey_domains, &creation_caps, YH_ALGO_EC_P256)))
-            FC_THROW_EXCEPTION(chain::wallet_exception, "yh_util_generate_ec_key failed: ${m}", ("m", yh_strerror(rc)));
+            FC_THROW_EXCEPTION(chain::wallet_exception, "yh_util_generate_ec_key failed: {m}", ("m", yh_strerror(rc)));
          return populate_key_map_with_keyid(new_key_id)->first;
       }
       catch(chain::wallet_exception& e) {

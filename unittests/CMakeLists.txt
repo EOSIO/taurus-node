@@ -3,8 +3,6 @@ include(ExternalProject)
 
 if( EOSIO_COMPILE_TEST_CONTRACTS )
    set(EOSIO_WASM_OLD_BEHAVIOR "Off")
-   find_package(eosio.cdt REQUIRED)
-
    set(CMAKE_ARGS_VAL -DCMAKE_TOOLCHAIN_FILE=${EOSIO_CDT_ROOT}/lib/cmake/eosio.cdt/EosioWasmToolchain.cmake -DEOSIO_COMPILE_TEST_CONTRACTS=${EOSIO_COMPILE_TEST_CONTRACTS} )
    if( USE_EOSIO_CDT_1_7_X)
       list(APPEND CMAKE_ARGS_VAL -DUSE_EOSIO_CDT_1_7_X=${USE_EOSIO_CDT_1_7_X})
@@ -44,7 +42,7 @@ add_custom_command(
 file(GLOB UNIT_TESTS "*.cpp") # find all unit test suites
 add_executable( unit_test ${UNIT_TESTS} protocol_feature_digest_tests.cpp) # build unit tests as one executable
 
-target_link_libraries( unit_test eosio_chain_wrap chainbase eosio_testing fc appbase state_history abieos ${PLATFORM_SPECIFIC_LIBS} )
+target_link_libraries( unit_test eosio_chain_wrap chainbase eosio_testing fc appbase state_history abieos ship_abi ${PLATFORM_SPECIFIC_LIBS} )
 
 target_compile_options(unit_test PUBLIC -DDISABLE_EOSLIB_SERIALIZE)
 target_include_directories( unit_test PUBLIC
@@ -81,7 +79,6 @@ set(ctest_tests "'${ctest_tests}' -j8") # surround test list string in apostroph
 foreach(RUNTIME ${EOSIO_WASM_RUNTIMES})
    set_tests_properties(api_unit_test_${RUNTIME} PROPERTIES COST 5000)
    set_tests_properties(wasm_unit_test_${RUNTIME} PROPERTIES COST 4000)
-   set_tests_properties(delay_unit_test_${RUNTIME} PROPERTIES COST 3000)
 endforeach()
 
 ### COVERAGE TESTING ###

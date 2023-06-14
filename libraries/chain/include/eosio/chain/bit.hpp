@@ -1,6 +1,6 @@
 #pragma once
 
-#if __cplusplus < 202002L
+#if __cplusplus < 202002L || !defined(__cpp_lib_bit_cast)
 
 #include <type_traits>
 

@@ -1,9 +1,10 @@
 #include <eosio/amqp_trx_plugin/amqp_trx_plugin.hpp>
 #include <eosio/amqp_trx_plugin/fifo_trx_processing_queue.hpp>
 #include <eosio/amqp/amqp_handler.hpp>
+#include <boost/asio/ssl.hpp>
+
 #include <eosio/amqp_trx_plugin/amqp_trace_plugin_impl.hpp>
 #include <eosio/chain_plugin/chain_plugin.hpp>
-#include <eosio/resource_monitor_plugin/resource_monitor_plugin.hpp>
 
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain/transaction.hpp>
@@ -61,14 +62,20 @@ struct amqp_trx_plugin_impl : std::enable_shared_from_this<amqp_trx_plugin_impl>
    chain_plugin* chain_plug = nullptr;
    producer_plugin* prod_plugin = nullptr;
    std::optional<amqp_handler> amqp_trx;
-   amqp_trace_plugin_impl trace_plug;
 
    std::string amqp_trx_address;
    std::string amqp_trx_queue;
    ack_mode acked = ack_mode::executed;
-
+   ////////////////////////////////////////////////////////////////////////
+   // for ssl/tls
+   bool secured = false;
+   bool ssl_verify_peer = false;
+   std::string ca_cert_perm_path;
+   std::string cert_perm_path;
+   std::string key_perm_path;
+   /////////////////////////////////////////////////////////////////////////
    struct block_tracking {
-      eosio::amqp_handler::delivery_tag_t tracked_delivery_tag; // highest delivery_tag for block
+      eosio::amqp_handler::delivery_tag_t tracked_delivery_tag{}; // highest delivery_tag for block
       std::string block_uuid;
       std::set<std::string> tracked_block_uuid_rks;
    };
@@ -85,6 +92,8 @@ struct amqp_trx_plugin_impl : std::enable_shared_from_this<amqp_trx_plugin_impl>
    std::optional<scoped_connection> block_abort_connection;
    std::optional<scoped_connection> accepted_block_connection;
 
+   bool startup_stopped = false;
+   bool is_stopped = true;
 
    // called from amqp thread
    void consume_message( const AMQP::Message& message, const amqp_handler::delivery_tag_t& delivery_tag, bool redelivered ) {
@@ -103,7 +112,7 @@ struct amqp_trx_plugin_impl : std::enable_shared_from_this<amqp_trx_plugin_impl>
             fc::raw::unpack(ds, *ptr);
             handle_message( delivery_tag, message.replyTo(), message.correlationID(), std::move(block_uuid_rk), std::move( ptr ) );
          } else {
-            FC_THROW_EXCEPTION( fc::out_of_range_exception, "Invalid which ${w} for consume of transaction_type message", ("w", which) );
+            FC_THROW_EXCEPTION( fc::out_of_range_exception, "Invalid which {w} for consume of transaction_type message", ("w", which) );
          }
          if( acked == ack_mode::received ) {
             amqp_trx->ack( delivery_tag );
@@ -115,6 +124,9 @@ struct amqp_trx_plugin_impl : std::enable_shared_from_this<amqp_trx_plugin_impl>
    }
 
    void on_block_start( uint32_t bn ) {
+      if (is_stopped)
+         return;
+
       if (!prod_plugin->paused() || allow_speculative_execution) {
          if (!started_consuming) {
             ilog("Starting consuming amqp messages during on_block_start");
@@ -127,41 +139,67 @@ struct amqp_trx_plugin_impl : std::enable_shared_from_this<amqp_trx_plugin_impl>
          }
 
          tracked_blocks[bn] = block_tracking{.block_uuid = boost::uuids::to_string( boost::uuids::random_generator()() )};
-         trx_queue_ptr->on_block_start();
+         trx_queue_ptr->on_block_start(bn);
       } else {
-         if( prod_plugin->paused() && started_consuming ) {
-            ilog("Stopping consuming amqp messages during on_block_start");
-            amqp_trx->stop_consume([](const std::string& consumer_tag){
-               dlog("Stopped consuming from amqp tag: ${t}", ("t", consumer_tag));
-            });
-            started_consuming = false;
-            const bool clear = true;
-            amqp_handler::delivery_tag_t delivery_tag = 0;
-            trx_queue_ptr->for_each_delivery_tag([&](const amqp_handler::delivery_tag_t& i_delivery_tag){
-               delivery_tag = i_delivery_tag;
-            }, clear);
-            const bool multiple = true;
-            const bool requeue = true;
-            if(delivery_tag != 0) amqp_trx->reject(delivery_tag, multiple, requeue);
+         if (prod_plugin->paused()) {
+            if (started_consuming) {
+               ilog("Stopping consuming amqp messages during on_block_start");
+               amqp_trx->stop_consume([](const std::string& consumer_tag) {
+                  dlog("Stopped consuming from amqp tag: {t}", ( "t", consumer_tag ));
+               });
+               started_consuming = false;
+            }
+
+            // Try to clear any delivery_tag left, to avoid holding these messages and block other consumers from
+            // consuming these messages. During the above stop_consume, the background thread may have consumed some
+            // messages and the delivery tag is kept there.
+            if (amqp_trx) {
+               const bool clear = true;
+               amqp_handler::delivery_tag_t delivery_tag = 0;
+               // any blocks left
+               for (auto const& [blkn, blk]: tracked_blocks) {
+                  if (blkn != bn) {
+                     delivery_tag = std::max(delivery_tag, blk.tracked_delivery_tag);
+                     tracked_blocks.erase(blkn);
+                  }
+               }
+               if (delivery_tag != 0) {
+                  ilog("Found delivery tag after checking tracked_blocks to reject/return: {t}", ("t", delivery_tag));
+               }
+
+               // clear queue
+               trx_queue_ptr->for_each_delivery_tag([&](const amqp_handler::delivery_tag_t& i_delivery_tag) {
+                  delivery_tag = std::max(delivery_tag, i_delivery_tag);
+               }, clear);
+
+               if (delivery_tag != 0) {
+                  amqp_trx->reject(delivery_tag, true, true);
+                  ilog("Rejected and returned back the message range with delivery tag {t}", ("t", delivery_tag));
+               }
+            }
          }
       }
-
    }
 
    void on_block_abort( uint32_t bn ) {
-      trx_queue_ptr->on_block_stop();
-      tracked_blocks.erase(bn);
+      if (is_stopped)
+         return;
+
+      trx_queue_ptr->on_block_stop(bn);
    }
 
    void on_accepted_block( const chain::block_state_ptr& bsp ) {
-      trx_queue_ptr->on_block_stop();
+      if (is_stopped)
+         return;
+
+      trx_queue_ptr->on_block_stop(bsp->block_num);
       const auto& entry = tracked_blocks.find( bsp->block_num );
       if( entry != tracked_blocks.end() ) {
-         if( acked == ack_mode::in_block ) {
+         if( acked == ack_mode::in_block && entry->second.tracked_delivery_tag != 0 ) {
             amqp_trx->ack( entry->second.tracked_delivery_tag, true );
          }
          for( auto& e : entry->second.tracked_block_uuid_rks ) {
-            trace_plug.publish_block_uuid( std::move( e ), entry->second.block_uuid, bsp->id );
+            amqp_trace_plugin_impl::publish_block_uuid( *amqp_trx, std::move( e ), entry->second.block_uuid, bsp->id );
          }
          tracked_blocks.erase(entry);
       }
@@ -177,7 +215,8 @@ private:
                         chain::packed_transaction_ptr trx ) {
       static_assert(std::is_same_v<amqp_handler::delivery_tag_t, uint64_t>, "fifo_trx_processing_queue assumes delivery_tag is an uint64_t");
       const auto& tid = trx->id();
-      dlog( "received packed_transaction ${id}", ("id", tid) );
+      dlog( "received packed_transaction {id}, delivery_tag: {tag}, reply_to: {rt}, correlation_id: {cid}, block_uuid_rk: {buid}",
+            ("id", tid)("tag", delivery_tag)("rt", reply_to)("cid", correlation_id)("buid", block_uuid_rk) );
 
       auto trx_trace = fc_create_trace_with_id("Transaction", tid);
       auto trx_span = fc_create_span(trx_trace, "AMQP Received");
@@ -194,12 +233,15 @@ private:
             if( std::holds_alternative<chain::exception_ptr>(result) ) {
                auto& eptr = std::get<chain::exception_ptr>(result);
                fc_add_tag(trx_span, "error", eptr->to_string());
-               dlog( "accept_transaction ${id} exception: ${e}", ("id", trx->id())("e", eptr->to_string()) );
+               dlog( "accept_transaction {id} exception: {e}", ("id", trx->id())("e", eptr->to_string()) );
                if( my->acked == ack_mode::executed || my->acked == ack_mode::in_block ) { // ack immediately on failure
                   my->amqp_trx->ack( delivery_tag );
                }
                if( !reply_to.empty() ) {
-                  my->trace_plug.publish_error( std::move(reply_to), std::move(correlation_id), eptr->code(), eptr->to_string() );
+                  dlog( "publish error, reply_to: {rt}, correlation_id: {cid}, trx id: {tid}, error code: {ec}, error: {e}",
+                        ("rt", reply_to)("cid", correlation_id)("tid", trx->id())("ec", eptr->code())("e", eptr->to_string()) );
+                  using namespace amqp_trace_plugin_impl;
+                  publish_error( *my->amqp_trx, std::move(reply_to), std::move(correlation_id), eptr->code(), eptr->to_string() );
                }
             } else {
                auto& trace = std::get<chain::transaction_trace_ptr>(result);
@@ -210,15 +252,15 @@ private:
                   fc_add_tag(trx_span, "status", std::string(trace->receipt->status));
                }
                auto itr = my->tracked_blocks.find(trace->block_num);
-               EOS_ASSERT(itr != my->tracked_blocks.end(), chain::unknown_block_exception, "amqp_trx_plugin attempted to update tracking for unknown block ${block_num}", ("block_num", trace->block_num));
+               EOS_ASSERT(itr != my->tracked_blocks.end(), chain::unknown_block_exception, "amqp_trx_plugin attempted to update tracking for unknown block {block_num}", ("block_num", trace->block_num));
                if( trace->except ) {
                   fc_add_tag(trx_span, "error", trace->except->to_string());
-                  dlog( "accept_transaction ${id} exception: ${e}", ("id", trx->id())("e", trace->except->to_string()) );
+                  dlog( "accept_transaction {id} exception: {e}", ("id", trx->id())("e", trace->except->to_string()) );
                   if( my->acked == ack_mode::executed || my->acked == ack_mode::in_block ) { // ack immediately on failure
                      my->amqp_trx->ack( delivery_tag );
                   }
                } else {
-                  dlog( "accept_transaction ${id}", ("id", trx->id()) );
+                  dlog( "accept_transaction {id}", ("id", trx->id()) );
                   if( my->acked == ack_mode::executed ) {
                      my->amqp_trx->ack( delivery_tag );
                   } else if( my->acked == ack_mode::in_block ) {
@@ -229,7 +271,10 @@ private:
                   }
                }
                if( !reply_to.empty() ) {
-                  my->trace_plug.publish_result( std::move(reply_to), std::move(correlation_id), itr->second.block_uuid, trx, trace );
+                  dlog( "publish result, reply_to: {rt}, correlation_id: {cid}, block uuid: {uid}, trx id: {tid}",
+                        ("rt", reply_to)("cid", correlation_id)("uid", itr->second.block_uuid)("tid", trx->id()) );
+                  using namespace amqp_trace_plugin_impl;
+                  publish_result( *my->amqp_trx, std::move(reply_to), std::move(correlation_id), itr->second.block_uuid, trx, trace );
                }
             }
          } );
@@ -239,7 +284,6 @@ private:
 amqp_trx_plugin::amqp_trx_plugin()
 : my(std::make_shared<amqp_trx_plugin_impl>()) {
    app().register_config_type<ack_mode>();
-   app().register_config_type<amqp_trace_plugin_impl::reliable_mode>();
 }
 
 amqp_trx_plugin::~amqp_trx_plugin() {}
@@ -265,12 +309,11 @@ void amqp_trx_plugin::set_program_options(options_description& cli, options_desc
    op("amqp-trx-ack-mode", bpo::value<ack_mode>()->default_value(ack_mode::in_block),
       "AMQP ack when 'received' from AMQP, when 'executed', or when 'in_block' is produced that contains trx.\n"
       "Options: received, executed, in_block");
-   op("amqp-trx-trace-reliable-mode", bpo::value<amqp_trace_plugin_impl::reliable_mode>()->default_value(amqp_trace_plugin_impl::reliable_mode::queue),
-      "If AMQP reply-to header is set, transaction trace is sent to default exchange with routing key of the reply-to header.\n"
-      "If AMQP reply-to header is not set, then transaction trace is discarded.\n"
-      "Reliable mode 'exit', exit application on any AMQP publish error.\n"
-      "Reliable mode 'queue', queue transaction traces to send to AMQP on connection establishment.\n"
-      "Reliable mode 'log', log an error and drop message when unable to directly publish to AMQP.");
+   op("amqp-trx-startup-stopped", bpo::bool_switch()->default_value(false), "do not start plugin on startup - require RPC amqp_trx/start to start plugin");
+   op("amqps-ca-cert-perm", bpo::value<std::string>()->default_value("test_ca_cert.perm"),  "ca cert perm file path for ssl, required only for amqps.");
+   op("amqps-cert-perm", bpo::value<std::string>()->default_value("test_cert.perm"),  "client cert perm file path for ssl, required only for amqps.");
+   op("amqps-key-perm", bpo::value<std::string>()->default_value("test_key.perm"),  "client key perm file path for ssl, required only for amqps.");
+   op("amqps-verify-peer", bpo::bool_switch()->default_value(false), "config ssl/tls verify peer or not.");
 }
 
 void amqp_trx_plugin::plugin_initialize(const variables_map& options) {
@@ -281,6 +324,17 @@ void amqp_trx_plugin::plugin_initialize(const variables_map& options) {
 
       EOS_ASSERT( options.count("amqp-trx-address"), chain::plugin_config_exception, "amqp-trx-address required" );
       my->amqp_trx_address = options.at("amqp-trx-address").as<std::string>();
+      if(my->amqp_trx_address.substr(0, 5) == "amqps" || my->amqp_trx_address.substr(0, 5) == "AMQPS"){
+         my->secured = true;
+         EOS_ASSERT( options.count("amqps-ca-cert-perm"), chain::plugin_config_exception, "amqps-ca-cert-perm required" );
+         EOS_ASSERT( options.count("amqps-cert-perm"), chain::plugin_config_exception, "amqps-cert-perm required" );
+         EOS_ASSERT( options.count("amqps-key-perm"), chain::plugin_config_exception, "amqps-key-perm required" );
+
+         my->ca_cert_perm_path = options.at("amqps-ca-cert-perm").as<std::string>();
+         my->cert_perm_path = options.at("amqps-cert-perm").as<std::string>();
+         my->key_perm_path = options.at("amqps-key-perm").as<std::string>();
+         my->ssl_verify_peer = options.at("amqps-verify-peer").as<bool>();
+      }
 
       my->amqp_trx_queue = options.at("amqp-trx-queue-name").as<std::string>();
       EOS_ASSERT( !my->amqp_trx_queue.empty(), chain::plugin_config_exception, "amqp-trx-queue-name required" );
@@ -292,13 +346,9 @@ void amqp_trx_plugin::plugin_initialize(const variables_map& options) {
       my->trx_retry_interval_us = options.at("amqp-trx-retry-interval-us").as<uint32_t>();
       my->allow_speculative_execution = options.at("amqp-trx-speculative-execution").as<bool>();
 
+      my->startup_stopped = options.at("amqp-trx-startup-stopped").as<bool>();
       EOS_ASSERT( my->acked != ack_mode::in_block || !my->allow_speculative_execution, chain::plugin_config_exception,
                   "amqp-trx-ack-mode = in_block not supported with amqp-trx-speculative-execution" );
-
-      my->trace_plug.amqp_trace_address = my->amqp_trx_address;
-      my->trace_plug.amqp_trace_queue_name = ""; // not used, reply-to is used for each message
-      my->trace_plug.amqp_trace_exchange = ""; // default exchange, reply-to used for routing-key
-      my->trace_plug.pub_reliable_mode = options.at("amqp-trx-trace-reliable-mode").as<amqp_trace_plugin_impl::reliable_mode>();
 
       my->chain_plug->enable_accept_transactions();
    }
@@ -315,30 +365,6 @@ void amqp_trx_plugin::plugin_startup() {
                "Must be a producer to run without amqp-trx-speculative-execution" );
 
    auto& chain = my->chain_plug->chain();
-   my->trx_queue_ptr =
-         std::make_shared<fifo_trx_processing_queue<producer_plugin>>( chain.get_chain_id(),
-                                                                       chain.configured_subjective_signature_length_limit(),
-                                                                       my->allow_speculative_execution,
-                                                                       chain.get_thread_pool(),
-                                                                       my->prod_plugin,
-                                                                       my->trx_processing_queue_size );
-
-   const boost::filesystem::path trace_data_dir_path = appbase::app().data_dir() / "amqp_trx_plugin";
-   const boost::filesystem::path trace_data_file_path = trace_data_dir_path / "trxtrace.bin";
-   if( my->trace_plug.pub_reliable_mode != amqp_trace_plugin_impl::reliable_mode::queue ) {
-      EOS_ASSERT( !fc::exists( trace_data_file_path ), chain::plugin_config_exception,
-                  "Existing queue file when amqp-trx-trace-reliable-mode != 'queue': ${f}",
-                  ("f", trace_data_file_path.generic_string()) );
-   } else if( auto resmon_plugin = app().find_plugin<resource_monitor_plugin>() ) {
-      resmon_plugin->monitor_directory( trace_data_dir_path );
-   }
-
-   my->trace_plug.amqp_trace.emplace( my->trace_plug.amqp_trace_address, my->trace_plug.amqp_trace_exchange,
-                                      my->trace_plug.amqp_trace_queue_name, trace_data_file_path,
-                                      []( const std::string& err ) {
-                                         elog( "AMQP fatal error: ${e}", ("e", err) );
-                                         appbase::app().quit();
-                                      } );
 
    my->block_start_connection.emplace(
          chain.block_start.connect( [this]( uint32_t bn ) { my->on_block_start( bn ); } ) );
@@ -347,16 +373,90 @@ void amqp_trx_plugin::plugin_startup() {
    my->accepted_block_connection.emplace(
          chain.accepted_block.connect( [this]( const auto& bsp ) { my->on_accepted_block( bsp ); } ) );
 
+   if(!my->startup_stopped)
+      start();
+}
+
+void amqp_trx_plugin::plugin_shutdown() {
+   try {
+      dlog( "shutdown.." );
+
+      stop();
+
+      dlog( "exit amqp_trx_plugin" );
+   }
+   FC_LOG_AND_DROP()
+}
+
+void amqp_trx_plugin::handle_sighup() {
+}
+
+void amqp_trx_plugin::start() {
+   if (!my->is_stopped)
+      return;
+
+   auto& chain = my->chain_plug->chain();
+   my->trx_queue_ptr =
+         std::make_shared<fifo_trx_processing_queue<producer_plugin>>( chain.get_chain_id(),
+                                                                       chain.configured_subjective_signature_length_limit(),
+                                                                       my->allow_speculative_execution,
+                                                                       chain.get_thread_pool(),
+                                                                       my->prod_plugin,
+                                                                       my->trx_processing_queue_size );
    my->trx_queue_ptr->run();
 
-   my->amqp_trx.emplace( my->amqp_trx_address,
-                         fc::microseconds(my->trx_retry_timeout_us),
-                         fc::microseconds(my->trx_retry_interval_us),
-                         []( const std::string& err ) {
-                            elog( "amqp error: ${e}", ("e", err) );
-                            app().quit();
-                         }
-   );
+   if(!my->secured){
+      my->amqp_trx.emplace( my->amqp_trx_address,
+                           fc::microseconds(my->trx_retry_timeout_us),
+                           fc::microseconds(my->trx_retry_interval_us),
+                           []( const std::string& err ) {
+                              elog( "amqp error: {e}", ("e", err) );
+                              app().quit();
+                           }
+      );
+   } else {
+      boost::asio::ssl::context ssl_ctx(boost::asio::ssl::context::sslv23);
+      try {
+         ssl_ctx.set_verify_mode(my->ssl_verify_peer ? boost::asio::ssl::context::verify_peer : boost::asio::ssl::context::verify_none);
+         // Currently use tls 1.3 only, rabbitmq can support tls 1.3
+         // The tls 1.3 default cipher suite to be use is TLS_AES_256_GCM_SHA384
+         ssl_ctx.set_options(boost::asio::ssl::context::default_workarounds |
+                                boost::asio::ssl::context::no_compression |
+                                boost::asio::ssl::context::no_sslv2 |
+                                boost::asio::ssl::context::no_sslv3 |
+                                boost::asio::ssl::context::no_tlsv1 |
+                                boost::asio::ssl::context::no_tlsv1_1 |
+                                boost::asio::ssl::context::no_tlsv1_2);
+         // If allow tls 1.2 and lower version, we can use the below SSL_CTX_set_cipher_list to add more ciphers
+         // if(SSL_CTX_set_cipher_list(ssl_ctx.native_handle(),
+         //         "EECDH+ECDSA+AESGCM:EECDH+aRSA+AESGCM:EECDH+ECDSA+SHA384:EECDH+ECDSA+SHA256:AES256:DHE:RSA:AES128"
+         //         "!RC4:!DES:!3DES:!DSS:!SRP:!PSK:!EXP:!MD5:!LOW:!aNULL:!eNULL") != 1)
+         //         EOS_THROW(chain::plugin_config_exception, "Failed to set  amqps tls 1.2 cipher list");
+
+         ssl_ctx.load_verify_file(my->ca_cert_perm_path);
+         ilog( my->ca_cert_perm_path);
+         boost::system::error_code error;
+         ssl_ctx.use_certificate_file (my->cert_perm_path, boost::asio::ssl::context::pem, error);
+         ilog( my->cert_perm_path);
+         EOS_ASSERT( !error, chain::plugin_config_exception, "Error happen with using client certificate pem file, error code : {ec} ", ("ec", error.message()));
+         ssl_ctx.use_private_key_file (my->key_perm_path, boost::asio::ssl::context::pem, error);
+         ilog( my->key_perm_path);
+         EOS_ASSERT( !error, chain::plugin_config_exception, "Error happen with using client key pem file, error code : {ec} ", ("ec", error.message()));
+      } catch (const fc::exception& e) {
+         elog("amqps client initialization error: {w}", ("w", e.to_detail_string()) );
+      } catch(std::exception& e) {
+         elog("amqps client initialization error: {w}", ("w", e.what()) );
+      }
+
+      my->amqp_trx.emplace( my->amqp_trx_address, ssl_ctx,
+                     fc::microseconds(my->trx_retry_timeout_us),
+                     fc::microseconds(my->trx_retry_interval_us),
+                     []( const std::string& err ) {
+                        elog( "amqp error: {e}", ("e", err) );
+                        app().quit();
+                     }
+      );
+   }
 
    if (!my->prod_plugin->paused() || my->allow_speculative_execution) {
       ilog("Starting amqp consumption at startup.");
@@ -367,33 +467,29 @@ void amqp_trx_plugin::plugin_startup() {
          }, true);
       my->started_consuming = true;
    }
+
+   my->is_stopped = false;
 }
 
-void amqp_trx_plugin::plugin_shutdown() {
-   try {
-      dlog( "shutdown.." );
+void amqp_trx_plugin::stop() {
+   if (my->is_stopped)
+      return;
 
-      if( my->trx_queue_ptr ) {
-         // Need to stop processing from queue since amqp_handler can be paused waiting on queue to empty.
-         // Without this it is possible for the amqp_trx->stop() to hang forever waiting on the trx_queue.
-         my->trx_queue_ptr->signal_stop();
-      }
-
-      if( my->amqp_trx ) {
-         my->amqp_trx->stop();
-      }
-
-      dlog( "stopping fifo queue" );
-      if( my->trx_queue_ptr ) {
-         my->trx_queue_ptr->stop();
-      }
-
-      dlog( "exit amqp_trx_plugin" );
+   if( my->trx_queue_ptr ) {
+      // Need to stop processing from queue since amqp_handler can be paused waiting on queue to empty.
+      // Without this it is possible for the amqp_trx->stop() to hang forever waiting on the trx_queue.
+      my->trx_queue_ptr->signal_stop();
    }
-   FC_LOG_AND_DROP()
-}
-
-void amqp_trx_plugin::handle_sighup() {
+   if( my->amqp_trx ) {
+      my->amqp_trx->stop();
+   }
+   my->amqp_trx.reset();
+   dlog( "stopping fifo queue" );
+   if( my->trx_queue_ptr ) {
+      my->trx_queue_ptr->stop();
+   }
+   my->trx_queue_ptr = nullptr;
+   my->is_stopped = true;
 }
 
 } // namespace eosio

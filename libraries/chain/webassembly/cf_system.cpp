@@ -11,7 +11,7 @@ namespace eosio { namespace chain { namespace webassembly {
       if( BOOST_UNLIKELY( !condition ) ) {
          const size_t sz = strnlen( msg.data(), max_assert_message );
          std::string message( msg.data(), sz );
-         EOS_THROW( eosio_assert_message_exception, "assertion failure with message: ${s}", ("s",message) );
+         EOS_THROW( eosio_assert_message_exception, "assertion failure with message: {s}", ("s",message) );
       }
    }
 
@@ -19,7 +19,7 @@ namespace eosio { namespace chain { namespace webassembly {
       if( BOOST_UNLIKELY( !condition ) ) {
          const size_t sz = msg.size() > max_assert_message ? max_assert_message : msg.size();
          std::string message( msg.data(), sz );
-         EOS_THROW( eosio_assert_message_exception, "assertion failure with message: ${s}", ("s",message) );
+         EOS_THROW( eosio_assert_message_exception, "assertion failure with message: {s}", ("s",message) );
       }
    }
 
@@ -28,7 +28,7 @@ namespace eosio { namespace chain { namespace webassembly {
          if( error_code >= static_cast<uint64_t>(system_error_code::generic_system_error) ) {
             restricted_error_code_exception e( FC_LOG_MESSAGE(
                                                    error,
-                                                   "eosio_assert_code called with reserved error code: ${error_code}",
+                                                   "eosio_assert_code called with reserved error code: {error_code}",
                                                    ("error_code", error_code)
             ) );
             e.error_code = static_cast<uint64_t>(system_error_code::contract_restricted_error_code);
@@ -36,7 +36,7 @@ namespace eosio { namespace chain { namespace webassembly {
          } else {
             eosio_assert_code_exception e( FC_LOG_MESSAGE(
                                              error,
-                                             "assertion failure with error code: ${error_code}",
+                                             "assertion failure with error code: {error_code}",
                                              ("error_code", error_code)
             ) );
             e.error_code = error_code;

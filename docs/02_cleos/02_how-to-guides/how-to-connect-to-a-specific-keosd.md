@@ -11,8 +11,8 @@ Make sure you meet the following requirements:
 
 * Install the currently supported version of `cleos` and `keosd`.
 [[info | Note]]
-| The `cleos` tool and `keosd` are bundled with the EOSIO software. [Installing EOSIO](../../00_install/index.md) will install the `cleos` and `keosd` command line tools. 
-* You have access to an EOSIO blockchain and the http address and port number of a `nodeos` instance. 
+| The `cleos` tool and `keosd` are bundled with the EOSIO-Taurus software. [Installing EOSIO](../../00_install/index.md) will install the `cleos` and `keosd` command line tools. 
+* You have access to an EOSIO-Taurus blockchain and the http address and port number of a `nodeos` instance. 
 
 ## Reference
 See the following reference guides for command line usage and related options:

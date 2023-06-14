@@ -16,6 +16,9 @@
 name global_receiver;
 
 extern "C" {
+#if __clang_major__ >= 13
+   [[clang::export_name("apply")]]
+#endif
    void apply( uint64_t receiver, uint64_t code, uint64_t action ) {
       if( code == "eosio"_n.value && action == "onerror"_n.value ) {
          auto error = eosio::onerror::from_current_action();
@@ -67,6 +70,7 @@ extern "C" {
       WASM_TEST_HANDLER_EX( test_action, test_action_ordinal4       );
       WASM_TEST_HANDLER_EX( test_action, test_action_ordinal_foo    );
       WASM_TEST_HANDLER_EX( test_action, test_action_ordinal_bar    );
+      WASM_TEST_HANDLER_EX( test_action, test_push_event            );
 
       // test named actions
       // We enforce action name matches action data type name, so name mangling will not work for these tests.

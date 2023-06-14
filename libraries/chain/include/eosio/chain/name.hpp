@@ -23,7 +23,7 @@ namespace eosio::chain {
       else if( c == '.')
          return 0;
       else
-         FC_THROW_EXCEPTION(name_type_exception, "Name contains invalid character: (${c}) ", ("c", std::string(1, c)));
+         FC_THROW_EXCEPTION(name_type_exception, "Name contains invalid character: ({c}) ", ("c", std::string(1, c)));
 
       //unreachable
       return 0;
@@ -33,7 +33,7 @@ namespace eosio::chain {
    bool is_string_valid_name(std::string_view str);
 
    constexpr uint64_t string_to_uint64_t( std::string_view str ) {
-      EOS_ASSERT(str.size() <= 13, name_type_exception, "Name is longer than 13 characters (${name}) ", ("name", std::string(str)));
+      EOS_ASSERT(str.size() <= 13, name_type_exception, "Name is longer than 13 characters ({name}) ", ("name", std::string(str)));
 
       uint64_t n = 0;
       int i = (int) str.size();
@@ -44,7 +44,7 @@ namespace eosio::chain {
          // The 13th character must be in the range [.1-5a-j] because it needs to be encoded
          // using only four bits (64_bits - 5_bits_per_char * 12_chars).
          n = char_to_symbol(str[12]);
-         EOS_ASSERT(n <= 0x0Full, name_type_exception, "invalid 13th character: (${c})", ("c", std::string(1, str[12])));
+         EOS_ASSERT(n <= 0x0Full, name_type_exception, "invalid 13th character: ({c})", ("c", std::string(1, str[12])));
       }
       // Encode full-range characters.
       while (--i >= 0) {
@@ -104,6 +104,9 @@ namespace eosio::chain {
 #if defined(__clang__)
 # pragma clang diagnostic push
 # pragma clang diagnostic ignored "-Wgnu-string-literal-operator-template"
+#elif defined(__GNUC__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wpedantic"
 #endif
       template <typename T, T... Str>
       inline constexpr name operator""_n() {
@@ -126,5 +129,18 @@ namespace std {
       }
    };
 };
+
+namespace fmt {
+   template<>
+   struct formatter<eosio::chain::name>{
+      template<typename ParseContext>
+      constexpr auto parse( ParseContext& ctx ) { return ctx.begin(); }
+
+      template<typename FormatContext>
+      auto format( const eosio::chain::name& p, FormatContext& ctx ) {
+         return format_to( ctx.out(), "{}", p.to_string());
+      }
+   };
+}
 
 FC_REFLECT( eosio::chain::name, (value) )

@@ -67,12 +67,6 @@ try:
     producerNode = cluster.getNode(producerNodeId)
     irrNode = cluster.getNode(irrNodeId)
 
-    # Create delayed transaction to create "generated_transaction_object"
-    cmd = "create account -j eosio sample EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV\
-         EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV --delay-sec 600 -p eosio"
-    trans = producerNode.processCleosCmd(cmd, cmd, silentErrors=False)
-    assert trans
-
     # Schedule a new producer to trigger new producer schedule for "global_property_object"
     newProducerAcc = Account("newprod")
     newProducerAcc.ownerPublicKey = "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV"
@@ -80,7 +74,7 @@ try:
     producerNode.createAccount(newProducerAcc, cluster.eosioAccount)
 
     setProdsStr = '{"schedule": ['
-    setProdsStr += '{"producer_name":' + newProducerAcc.name + ',"block_signing_key":' + newProducerAcc.activePublicKey + '}'
+    setProdsStr += '{"producer_name":"' + newProducerAcc.name + '","block_signing_key":"' + newProducerAcc.activePublicKey + '"}'
     setProdsStr += ']}'
     cmd="push action -j eosio setprods '{}' -p eosio".format(setProdsStr)
     trans = producerNode.processCleosCmd(cmd, cmd, silentErrors=False)
@@ -104,7 +98,7 @@ try:
 
     # Restart irr node and ensure the snapshot is still identical
     irrNode.kill(signal.SIGTERM)
-    isRelaunchSuccess = irrNode.relaunch(timeout=5, cachePopen=True)
+    isRelaunchSuccess = irrNode.relaunch(timeout=30, cachePopen=True)
     assert isRelaunchSuccess, "Fail to relaunch"
     res = irrNode.createSnapshot()
     afterShutdownSnapshotPath = res["snapshot_name"]

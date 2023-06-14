@@ -1,0 +1,33 @@
+{
+    "____comment": "This file was generated with eosio-abigen. DO NOT EDIT ",
+    "version": "eosio::abi/1.2",
+    "types": [],
+    "structs": [
+        {
+            "name": "run",
+            "base": "",
+            "fields": [
+                {
+                    "name": "str",
+                    "type": "string"
+                },
+                {
+                    "name": "iterations",
+                    "type": "uint64"
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "name": "run",
+            "type": "run",
+            "ricardian_contract": ""
+        }
+    ],
+    "tables": [],
+    "ricardian_clauses": [],
+    "variants": [],
+    "kv_tables": {},
+    "action_results": []
+}

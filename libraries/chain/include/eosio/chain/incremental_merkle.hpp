@@ -104,7 +104,7 @@ class incremental_merkle_impl {
       incremental_merkle_impl& operator= ( incremental_merkle_impl&& ) = default;
 
       template<typename Allocator, std::enable_if_t<!std::is_same<std::decay_t<Allocator>, incremental_merkle_impl>::value, int> = 0>
-      incremental_merkle_impl( Allocator&& alloc ):_active_nodes(forward<Allocator>(alloc)){}
+      incremental_merkle_impl( Allocator&& alloc ):_active_nodes(std::forward<Allocator>(alloc)){}
 
       /*
       template<template<typename ...> class OtherContainer, typename ...OtherArgs>

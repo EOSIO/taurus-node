@@ -118,6 +118,13 @@ struct block_header_state : public detail::block_header_state_common {
    signed_block_header                  header;
    detail::schedule_info                pending_schedule;
    protocol_feature_activation_set_ptr  activated_protocol_features;
+
+   /*
+    * NOTE: the additional_signatures in a block being built will be updated by a separated thread
+    * created by the finalized_block() function call. During the separated thread is running, this
+    * field should not be read/updated by any other threads, without race condition protections.
+    */
+
    vector<signature_type>               additional_signatures;
 
    /// this data is redundant with the data stored in header, but it acts as a cache that avoids

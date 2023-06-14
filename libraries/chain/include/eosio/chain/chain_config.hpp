@@ -29,8 +29,8 @@ struct chain_config_v0 {
       max_transaction_cpu_usage_id,
       min_transaction_cpu_usage_id,
       max_transaction_lifetime_id,
-      deferred_trx_expiration_window_id,
-      max_transaction_delay_id,
+      deferred_trx_expiration_window_id, // deprecated
+      max_transaction_delay_id, // deprecated
       max_inline_action_size_id,
       max_inline_action_depth_id,
       max_authority_depth_id,
@@ -51,8 +51,8 @@ struct chain_config_v0 {
    uint32_t   min_transaction_cpu_usage;           ///< the minimum billable cpu usage (in microseconds) that the chain requires
 
    uint32_t   max_transaction_lifetime;            ///< the maximum number of seconds that an input transaction's expiration can be ahead of the time of the block in which it is first included
-   uint32_t   deferred_trx_expiration_window;      ///< the number of seconds after the time a deferred transaction can first execute until it expires
-   uint32_t   max_transaction_delay;               ///< the maximum number of seconds that can be imposed as a delay requirement by authorization checks
+   uint32_t   deferred_trx_expiration_window;      ///< deprecated. the number of seconds after the time a deferred transaction can first execute until it expires
+   uint32_t   max_transaction_delay;               ///< deprecated. the maximum number of seconds that can be imposed as a delay requirement by authorization checks
    uint32_t   max_inline_action_size;              ///< maximum allowed size (in bytes) of an inline action
    uint16_t   max_inline_action_depth;             ///< recursion depth limit on sending inline actions
    uint16_t   max_authority_depth;                 ///< recursion depth limit for checking if an authority is satisfied
@@ -230,7 +230,7 @@ inline DataStream &operator<<(DataStream &s, const eosio::chain::data_entry<eosi
 
    //initial requirements were to skip packing field if it is not activated.
    //this approach allows to spam this function with big buffer so changing this behavior
-   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is no allowed", ("id", entry.id));
+   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id {id} is no allowed", ("id", entry.id));
    
    switch (entry.id){
       case chain_config_v0::max_block_net_usage_id:
@@ -285,7 +285,7 @@ inline DataStream &operator<<(DataStream &s, const eosio::chain::data_entry<eosi
       fc::raw::pack(s, entry.config.max_authority_depth);
       break;
       default:
-      FC_THROW_EXCEPTION(config_parse_error, "DataStream& operator<<: no such id: ${id}", ("id", entry.id));
+      FC_THROW_EXCEPTION(config_parse_error, "DataStream& operator<<: no such id: {id}", ("id", entry.id));
    }
    return s;
 }
@@ -308,7 +308,7 @@ inline DataStream &operator<<(DataStream &s, const eosio::chain::data_entry<eosi
    //When the protocol feature is not activated, the old version of nodeos that doesn't know about 
    //the entry MUST behave the same as the new version of nodeos that does.
    //Skipping known but unactivated entries violates this.
-   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is no allowed", ("id", entry.id));
+   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id {id} is no allowed", ("id", entry.id));
    
    switch (entry.id){
       case chain_config_v1::max_action_return_value_size_id:
@@ -333,7 +333,7 @@ template <typename DataStream>
 inline DataStream &operator>>(DataStream &s, eosio::chain::data_entry<eosio::chain::chain_config_v0, eosio::chain::config_entry_validator> &entry){
    using namespace eosio::chain;
 
-   EOS_ASSERT(entry.is_allowed(), eosio::chain::unsupported_feature, "config id ${id} is no allowed", ("id", entry.id));
+   EOS_ASSERT(entry.is_allowed(), eosio::chain::unsupported_feature, "config id {id} is no allowed", ("id", entry.id));
 
    switch (entry.id){
       case chain_config_v0::max_block_net_usage_id:
@@ -388,7 +388,7 @@ inline DataStream &operator>>(DataStream &s, eosio::chain::data_entry<eosio::cha
       fc::raw::unpack(s, entry.config.max_authority_depth);
       break;
       default:
-      FC_THROW_EXCEPTION(eosio::chain::config_parse_error, "DataStream& operator<<: no such id: ${id}", ("id", entry.id));
+      FC_THROW_EXCEPTION(eosio::chain::config_parse_error, "DataStream& operator<<: no such id: {id}", ("id", entry.id));
    }
    
    return s;
@@ -405,7 +405,7 @@ template <typename DataStream>
 inline DataStream &operator>>(DataStream &s, eosio::chain::data_entry<eosio::chain::chain_config_v1, eosio::chain::config_entry_validator> &entry){
    using namespace eosio::chain;
 
-   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is no allowed", ("id", entry.id));
+   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id {id} is no allowed", ("id", entry.id));
 
    switch (entry.id){
       case chain_config_v1::max_action_return_value_size_id:
@@ -437,8 +437,8 @@ inline DataStream& operator<<( DataStream& s, const eosio::chain::data_range<T, 
    std::vector<bool> visited(T::PARAMS_COUNT, false);
    for (auto uid : selection.ids){
       uint32_t id = uid;
-      EOS_ASSERT(id < visited.size(), config_parse_error, "provided id ${id} should be less than ${size}", ("id", id)("size", visited.size()));
-      EOS_ASSERT(!visited[id], config_parse_error, "duplicate id provided: ${id}", ("id", id));
+      EOS_ASSERT(id < visited.size(), config_parse_error, "provided id {id} should be less than {size}", ("id", id)("size", visited.size()));
+      EOS_ASSERT(!visited[id], config_parse_error, "duplicate id provided: {id}", ("id", id));
       visited[id] = true;
 
       fc::raw::pack(s, fc::unsigned_int(id));
@@ -468,8 +468,8 @@ inline DataStream& operator>>( DataStream& s, eosio::chain::data_range<T, eosio:
       fc::unsigned_int id;
       fc::raw::unpack(s, id);
       
-      EOS_ASSERT(id.value < visited.size(), config_parse_error, "provided id ${id} should be less than ${size}", ("id", id)("size", visited.size()));
-      EOS_ASSERT(!visited[id], config_parse_error, "duplicate id provided: ${id}", ("id", id));
+      EOS_ASSERT(id.value < visited.size(), config_parse_error, "provided id {id} should be less than {size}", ("id", id)("size", visited.size()));
+      EOS_ASSERT(!visited[id], config_parse_error, "duplicate id provided: {id}", ("id", id));
       visited[id] = true;
 
       data_entry<T, config_entry_validator> cfg_entry(selection.config, id, selection.validator);

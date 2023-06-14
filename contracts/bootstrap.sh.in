@@ -1,0 +1,43 @@
+set -ex
+
+TAURUS_NODE_ROOT=@CMAKE_BINARY_DIR@ 
+CONTRACTS_DIR=@CMAKE_CURRENT_BINARY_DIR@/contracts
+
+BIOS_ENDPOINT=http://127.0.0.1:8888
+
+function cleos {
+   $TAURUS_NODE_ROOT/bin/cleos --url $BIOS_ENDPOINT "${@}"
+}
+
+function wait_bios_ready {
+  for (( i=0 ; i<10; i++ )); do
+    ! cleos get info || break
+    sleep 3
+  done
+}
+
+wait_bios_ready
+
+killall keosd 2> /dev/null || :
+sleep 3
+$TAURUS_NODE_ROOT/bin/keosd --max-body-size=4194304 --http-max-response-time-ms=9999 & 
+rm -rf  ~/eosio-wallet
+
+cleos wallet create --to-console -n ignition
+cleos wallet import -n ignition --private-key 5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3
+
+curl -X POST $BIOS_ENDPOINT/v1/producer/schedule_protocol_feature_activations -d '{"protocol_features_to_activate": ["0ec7e080177b2c02b278d5088611686b49d739925a92d9bfcacd7fc6b74053bd"]}'
+FEATURE_DIGESTS=`curl $BIOS_ENDPOINT/v1/producer/get_supported_protocol_features | jq -r -c 'map(select(.specification[].value | contains("PREACTIVATE_FEATURE") | not) | .feature_digest )[]'`
+sleep 3
+cleos set contract eosio $CONTRACTS_DIR/eosio.boot 
+
+# Preactivate all digests
+for digest in $FEATURE_DIGESTS;
+do
+   cleos push action eosio activate "{\"feature_digest\":\"$digest\"}" -p eosio
+done
+sleep 3
+cleos set contract eosio $CONTRACTS_DIR/eosio.bios 
+cleos push action eosio init '{}' -p eosio
+
+

@@ -20,7 +20,7 @@ public:
    net_api_plugin& operator=(net_api_plugin&&) = delete;
    virtual ~net_api_plugin() override = default;
 
-   virtual void set_program_options(options_description& cli, options_description& cfg) override {}
+   virtual void set_program_options(options_description&, options_description&) override {}
    void plugin_initialize(const variables_map& vm);
    void plugin_startup();
    void plugin_shutdown() {}

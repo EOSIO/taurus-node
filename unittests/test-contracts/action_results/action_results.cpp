@@ -1,14 +1,19 @@
 #include <eosio/eosio.hpp>                   /* contract, datastream, unsigned_int */
+#include <eosio/privileged.hpp>
 #include <vector>                            /* vector */
 
 using namespace eosio;
 using namespace std;
 
 extern "C" { 
+#if defined( __eosio_cdt_major__) &&  __eosio_cdt_major__ <= 2
 __attribute__((eosio_wasm_import))
 void set_parameters_packed( const char* params, uint32_t params_size );
 __attribute__((eosio_wasm_import))
 void set_action_return_value(void*, size_t);
+#else
+using eosio::internal_use_do_not_use::set_parameters_packed;
+#endif
 };
 
 class [[eosio::contract]] action_results : public contract {

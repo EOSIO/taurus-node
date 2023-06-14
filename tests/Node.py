@@ -6,6 +6,7 @@ import os
 import re
 import json
 import signal
+import platform
 
 from datetime import datetime
 from datetime import timedelta
@@ -18,13 +19,15 @@ from testUtils import unhandledEnumType
 from testUtils import ReturnType
 from testUtils import WaitSpec
 
+
 class BlockType(EnumType):
     pass
+
 
 addEnum(BlockType, "head")
 addEnum(BlockType, "lib")
 
-# pylint: disable=too-many-public-methods
+
 class Node(object):
 
     # pylint: disable=too-many-instance-attributes
@@ -135,6 +138,8 @@ class Node(object):
         cntxt=Node.Context(trans, "trans")
         # could be a transaction response
         if cntxt.hasKey("processed"):
+            if trans["processed"]["except"] is not None:
+                return "error"
             cntxt.add("processed")
             cntxt.add("receipt")
             return cntxt.add("status")
@@ -193,8 +198,8 @@ class Node(object):
         assert trans
         assert isinstance(trans, dict), print("Input type is %s" % type(trans))
 
-        assert "transaction_id" in trans, print("trans does not contain key %s. trans={%s}" % ("transaction_id", json.dumps(trans, indent=2, sort_keys=True)))
-        transId=trans["transaction_id"]
+        assert "transaction_id" in trans or "id" in trans["result"], print("trans does not contain key %s or %s. trans=\n{%s}" % ("transaction_id", "result:id", json.dumps(trans, indent=2, sort_keys=True)))
+        transId=trans["transaction_id"] if "transaction_id" in trans else trans["result"]["id"]
         return transId
 
     @staticmethod
@@ -319,7 +324,7 @@ class Node(object):
 
         return False
 
-    def getBlockIdByTransId(self, transId, exitOnError=True, delayedRetry=True, blocksAhead=5):
+    def getBlockNumByTransId(self, transId, exitOnError=True, delayedRetry=True, blocksAhead=5):
         """Given a transaction Id (string), will return the actual block id (int) containing the transaction"""
         assert(transId)
         assert(isinstance(transId, str))
@@ -348,26 +353,26 @@ class Node(object):
             raise
 
         if Utils.Debug: Utils.Print("Reference block num %d, Head block num: %d" % (refBlockNum, headBlockNum))
+        self.waitForBlock(headBlockNum+blocksAhead)
         for blockNum in range(refBlockNum, headBlockNum+blocksAhead):
-            self.waitForBlock(blockNum)
             if self.isTransInBlock(str(transId), blockNum):
                 if Utils.Debug: Utils.Print("Found transaction %s in block %d" % (transId, blockNum))
                 return blockNum
 
         return None
 
-    def isTransInAnyBlock(self, transId):
+    def isTransInAnyBlock(self, transId, exitOnError=True):
         """Check if transaction (transId) is in a block."""
         assert(transId)
         assert(isinstance(transId, (str,int)))
-        blockId=self.getBlockIdByTransId(transId)
+        blockId=self.getBlockNumByTransId(transId, exitOnError=exitOnError)
         return True if blockId else False
 
     def isTransFinalized(self, transId):
         """Check if transaction (transId) has been finalized."""
         assert(transId)
         assert(isinstance(transId, str))
-        blockId=self.getBlockIdByTransId(transId)
+        blockId=self.getBlockNumByTransId(transId)
         if not blockId:
             return False
 
@@ -376,21 +381,18 @@ class Node(object):
 
 
     # Create & initialize account and return creation transactions. Return transaction json object
-    def createInitializeAccount(self, account, creatorAccount, stakedDeposit=1000, waitForTransBlock=False, stakeNet=100, stakeCPU=100, buyRAM=10000, exitOnError=False, sign=False):
+    def createInitializeAccount(self, account, creatorAccount, stakedDeposit=1000, waitForTransBlock=False, stakeNet=100, stakeCPU=500, buyRAM=10000, exitOnError=False, sign=False, additionalArgs=''):
         signStr = Node.__sign_str(sign, [ creatorAccount.activePublicKey ])
         cmdDesc="system newaccount"
-        cmd='%s -j %s %s \'%s\' \'%s\' --stake-net "%s %s" --stake-cpu "%s %s" --buy-ram "%s %s"' % (
+        cmd='%s -j %s %s \'%s\' \'%s\' --stake-net "%s %s" --stake-cpu "%s %s" --buy-ram "%s %s" %s' % (
             cmdDesc, creatorAccount.name, account.name, account.ownerPublicKey,
-            account.activePublicKey, stakeNet, CORE_SYMBOL, stakeCPU, CORE_SYMBOL, buyRAM, CORE_SYMBOL)
+            account.activePublicKey, stakeNet, CORE_SYMBOL, stakeCPU, CORE_SYMBOL, buyRAM, CORE_SYMBOL, additionalArgs)
         msg="(creator account=%s, account=%s)" % (creatorAccount.name, account.name);
         trans=self.processCleosCmd(cmd, cmdDesc, silentErrors=False, exitOnError=exitOnError, exitMsg=msg)
         self.trackCmdTransaction(trans)
-        transId=Node.getTransId(trans)
 
         if stakedDeposit > 0:
-            self.waitForTransInBlock(transId) # seems like account creation needs to be finalized before transfer can happen
             trans = self.transferFunds(creatorAccount, account, Node.currencyIntToStr(stakedDeposit, CORE_SYMBOL), "init")
-            transId=Node.getTransId(trans)
 
         return self.waitForTransBlockIfNeeded(trans, waitForTransBlock, exitOnError=exitOnError)
 
@@ -486,10 +488,10 @@ class Node(object):
 
         return None
 
-    def waitForTransInBlock(self, transId, timeout=None):
+    def waitForTransInBlock(self, transId, timeout=None, exitOnError=True):
         """Wait for trans id to be finalized."""
         assert(isinstance(transId, str))
-        lam = lambda: self.isTransInAnyBlock(transId)
+        lam = lambda: self.isTransInAnyBlock(transId, exitOnError=exitOnError)
         ret=Utils.waitForTruth(lam, timeout)
         return ret
 
@@ -777,7 +779,7 @@ class Node(object):
             return None
 
     # publish contract and return transaction as json object
-    def publishContract(self, account, contractDir, wasmFile, abiFile, waitForTransBlock=False, shouldFail=False, sign=False):
+    def publishContract(self, account, contractDir, wasmFile, abiFile, waitForTransBlock=False, shouldFail=False, sign=False, retJson=True, trace=False):
         signStr = Node.__sign_str(sign, [ account.activePublicKey ])
         cmd="%s %s -v set contract -j %s %s %s" % (Utils.EosClientPath, self.eosClientArgs(), signStr, account.name, contractDir)
         cmd += "" if wasmFile is None else (" "+ wasmFile)
@@ -786,8 +788,12 @@ class Node(object):
         trans=None
         start=time.perf_counter()
         try:
-            trans=Utils.runCmdReturnJson(cmd, trace=False)
-            self.trackCmdTransaction(trans)
+            if retJson:
+                trans=Utils.runCmdReturnJson(cmd, trace=trace)
+                self.trackCmdTransaction(trans)
+            else:
+                r = Utils.runCmdReturnStr(cmd, trace=trace)
+                Utils.Print(r)
             if Utils.Debug:
                 end=time.perf_counter()
                 Utils.Print("cmd Duration: %.3f sec" % (end-start))
@@ -806,6 +812,10 @@ class Node(object):
                 # retMap["stdout"]=ex.stdout
                 # retMap["stderr"]=ex.stderr
                 return retMap
+        else:
+            # this happens when return transaction failure trace is enabled
+            if Node.getTransStatus(trans) == "error":
+                return {"returncode" : 0, "cmd" : cmd, "output" : bytearray(json.dumps(trans), "utf-8")}
 
         if shouldFail:
             Utils.Print("ERROR: The publish contract did not fail as expected.")
@@ -838,9 +848,12 @@ class Node(object):
         return keys
 
     # returns tuple with indication if transaction was successfully sent and either the transaction or else the exception output
-    def pushMessage(self, account, action, data, opts, silentErrors=False, signatures=None):
+    def pushMessage(self, account, action, data, opts, silentErrors=False, signatures=None, dontBroadcastSkipSign=False):
         reportStatus = True
-        cmd="%s %s push action -j %s %s" % (Utils.EosClientPath, self.eosClientArgs(), account, action)
+        cmd="%s %s push action -j " % (Utils.EosClientPath, self.eosClientArgs())
+        if dontBroadcastSkipSign:
+            cmd += "-s -d -x 3600 "
+        cmd += "%s %s" % (account, action)
         cmdArr=cmd.split()
         # not using __sign_str, since cmdArr messes up the string
         if signatures is not None:
@@ -858,7 +871,10 @@ class Node(object):
             if Utils.Debug:
                 end=time.perf_counter()
                 Utils.Print("cmd Duration: %.3f sec" % (end-start))
-            return (True, trans)
+            succeeded = True
+            if Node.isTrans(trans) and Node.getTransStatus(trans) == "error":
+                succeeded = False
+            return (succeeded, trans)
         except subprocess.CalledProcessError as ex:
             msg=ex.output.decode("utf-8")
             if not silentErrors:
@@ -868,7 +884,6 @@ class Node(object):
 
     # returns tuple with indication if transaction was successfully sent and either the transaction or else the exception output
     def pushTransaction(self, trans, opts="--skip-sign", silentErrors=False, permissions=None):
-        assert(isinstance(trans, dict))
         if isinstance(permissions, str):
             permissions=[permissions]
         reportStatus = True
@@ -878,9 +893,17 @@ class Node(object):
             reportStatus = False
         cmd="%s %s %s push transaction -j" % (Utils.EosClientPath, amqpAddrStr, self.eosClientArgs())
         cmdArr=cmd.split()
-        transStr = json.dumps(trans, separators=(',', ':'))
-        transStr = transStr.replace("'", '"')
-        cmdArr.append(transStr)
+        # if argument is filename, just append file name
+        try:
+            f = open(trans, 'r')
+            f.close()
+            cmdArr.append(trans)
+        except:
+            assert(isinstance(trans, dict))
+            transStr = json.dumps(trans, separators=(',', ':'))
+            transStr = transStr.replace("'", '"')
+            cmdArr.append(transStr)
+
         if opts is not None:
             cmdArr += opts.split()
         if permissions is not None:
@@ -902,7 +925,44 @@ class Node(object):
             msg=ex.output.decode("utf-8")
             if not silentErrors:
                 end=time.perf_counter()
-                Utils.Print("ERROR: Exception during push message.  cmd Duration=%.3f sec.  %s" % (end - start, msg))
+                Utils.Print("ERROR: Exception during push transaction.  cmd Duration=%.3f sec.  %s" % (end - start, msg))
+            return (False, msg)
+
+    # returns tuple with indication if transaction was successfully sent and either the transaction or else the exception output
+    def signTransaction(self, trx, sig, silentErrors=False):
+        reportStatus = True
+        cmd="%s %s sign " % (Utils.EosClientPath, self.eosClientArgs())
+        cmdArr=cmd.split()
+        cmdArr.append("--public-key")
+        cmdArr.append("%s" % (sig,))
+        # if argument is filename, just append file name
+        try:
+            f = open(trx, 'r')
+            f.close()
+            cmdArr.append(trx)
+        except:
+            transStr = json.dumps(trx, separators=(',', ':'))
+            transStr = transStr.replace("'", '"')
+            cmdArr.append("'%s'" % (transStr,))
+
+        # not using __sign_str, since cmdArr messes up the string
+        if Utils.Debug: Utils.Print("cmd: %s" % (cmdArr))
+        start=time.perf_counter()
+        try:
+            trans=Utils.runCmdArrReturnJson(cmdArr)
+            self.trackCmdTransaction(trans, ignoreNonTrans=True, reportStatus=reportStatus)
+            if Utils.Debug:
+                end=time.perf_counter()
+                Utils.Print("cmd Duration: %.3f sec" % (end-start))
+            succeeded = True
+            if Node.isTrans(trans) and Node.getTransStatus(trans) == "error":
+                succeeded = False
+            return (succeeded, trans)
+        except subprocess.CalledProcessError as ex:
+            msg=ex.output.decode("utf-8")
+            if not silentErrors:
+                end=time.perf_counter()
+                Utils.Print("ERROR: Exception during sign transaction.  cmd Duration=%.3f sec.  %s" % (end - start, msg))
             return (False, msg)
 
     @staticmethod
@@ -1025,7 +1085,7 @@ class Node(object):
         return self.processCurlCmd("test_control", "kill_node_on_producer", payload, silentErrors=silentErrors, exitOnError=exitOnError, exitMsg=exitMsg, returnType=returnType)
 
     def processCurlCmd(self, resource, command, payload, silentErrors=True, exitOnError=False, exitMsg=None, returnType=ReturnType.json):
-        cmd="curl %s/v1/%s/%s -d '%s' -X POST -H \"Content-Type: application/json\"" % \
+        cmd="curl -s %s/v1/%s/%s -d '%s' -X POST -H \"Content-Type: application/json\"" % \
             (self.endpointHttp, resource, command, payload)
         if Utils.Debug: Utils.Print("cmd: %s" % (cmd))
         rtn=None
@@ -1132,15 +1192,17 @@ class Node(object):
         else:
             unhandledEnumType(blockType)
 
-    def kill(self, killSignal):
+    def kill(self, killSignal=signal.SIGTERM):
+        """ kill the node. Default signal used is SIGTERM """
         if Utils.Debug: Utils.Print("Killing node: %s" % (self.cmd))
         assert (self.pid is not None)
-        Utils.Print("Killing node pid: {}", self.pid)
+        Utils.Print("Killing node pid: {}".format(self.pid))
         try:
             if self.popenProc is not None:
                Utils.Print("self.popenProc is not None")
                self.popenProc.send_signal(killSignal)
-               self.popenProc.wait()
+               exitcode = self.popenProc.wait()
+               Utils.Print(f"node exited with exit code {exitcode}")
             else:
                os.kill(self.pid, killSignal)
         except OSError as ex:
@@ -1155,11 +1217,13 @@ class Node(object):
                 return True
             return False
 
-        if not Utils.waitForTruth(myFunc):
+        # nodeos creates snapshot on shutdown; explicitly specifying wait time to 120s
+        if not Utils.waitForTruth(myFunc, timeout=120):
             Utils.Print("ERROR: Failed to validate node shutdown.")
             return False
 
         # mark node as killed
+        Utils.Print("Killed node pid: {}".format(self.pid))
         self.pid=None
         self.killed=True
         return True
@@ -1357,10 +1421,8 @@ class Node(object):
 
     def launchCmd(self, cmd, cachePopen=False):
         dataDir=Utils.getNodeDataDir(self.nodeId)
-        dt = datetime.now()
-        dateStr=Utils.getDateString(dt)
-        stdoutFile="%s/stdout.%s.txt" % (dataDir, dateStr)
-        stderrFile="%s/stderr.%s.txt" % (dataDir, dateStr)
+        stdoutFile="%s/stdout.txt" % (dataDir)
+        stderrFile="%s/stderr.txt" % (dataDir)
         with open(stdoutFile, 'w') as sout, open(stderrFile, 'w') as serr:
             Utils.Print("cmd: %s" % (cmd))
             popen=subprocess.Popen(cmd.split(), stdout=sout, stderr=serr)
@@ -1438,10 +1500,12 @@ class Node(object):
                     break
         return protocolFeatureDigestDict
 
-    def waitForHeadToAdvance(self, timeout=6):
+    def waitForHeadToAdvance(self, blocksToAdvance=1, timeout=None):
         currentHead = self.getHeadBlockNum()
+        if timeout is None:
+            timeout = 6 + blocksToAdvance / 2
         def isHeadAdvancing():
-            return self.getHeadBlockNum() > currentHead
+            return self.getHeadBlockNum() >= currentHead + blocksToAdvance
         return Utils.waitForTruth(isHeadAdvancing, timeout)
 
     def waitForLibToAdvance(self, timeout=30):
@@ -1459,7 +1523,7 @@ class Node(object):
         self.scheduleProtocolFeatureActivations([preactivateFeatureDigest])
 
         # Wait for the next block to be produced so the scheduled protocol feature is activated
-        assert self.waitForHeadToAdvance(), print("ERROR: TIMEOUT WAITING FOR PREACTIVATE")
+        assert self.waitForHeadToAdvance(blocksToAdvance=2), print("ERROR: TIMEOUT WAITING FOR PREACTIVATE")
 
     # Return an array of feature digests to be preactivated in a correct order respecting dependencies
     # Require producer_api_plugin
@@ -1480,13 +1544,13 @@ class Node(object):
     def preactivateProtocolFeatures(self, featureDigests:list):
         for digest in featureDigests:
             Utils.Print("push activate action with digest {}".format(digest))
-            data="{{\"feature_digest\":{}}}".format(digest)
+            data="{{\"feature_digest\":\"{}\"}}".format(digest)
             opts="--permission eosio@active"
             trans=self.pushMessage("eosio", "activate", data, opts)
             if trans is None or not trans[0]:
                 Utils.Print("ERROR: Failed to preactive digest {}".format(digest))
                 return None
-        self.waitForHeadToAdvance()
+        self.waitForHeadToAdvance(blocksToAdvance=2)
 
     # Require PREACTIVATE_FEATURE to be activated and require eosio.bios with preactivate_feature
     def preactivateAllBuiltinProtocolFeature(self):
@@ -1549,7 +1613,7 @@ class Node(object):
         it=os.scandir(path)
         for entry in it:
             if entry.is_file(follow_symlinks=False):
-                match=re.match("stderr\..+\.txt", entry.name)
+                match=re.match("stderr.*\.txt", entry.name)
                 if match:
                     files.append(os.path.join(path, entry.name))
         files.sort()
@@ -1633,3 +1697,118 @@ class Node(object):
             retry = retry - 1
             startBlockNum = latestBlockNum + 1
         return False
+
+    @staticmethod
+    def readlogs(node_num, process_time, log, log_type, print_log, last_lines=10):
+        Utils.Print("Process logs for node Id {} for the next {} seconds".format(node_num, process_time))
+        filename = 'var/lib/node_0{}/stderr.txt'.format(node_num)
+        with subprocess.Popen(['tail', '-n', str(last_lines), '-F', filename], stdout=subprocess.PIPE, stderr=subprocess.PIPE) as f:
+            t_end = time.time() + process_time  # cluster runs for several seconds and logs are being processed
+            while time.time() <= t_end:
+                line = f.stdout.readline().decode("utf-8")
+                print("nodes[{}] log:".format(node_num), line.rstrip())
+                if log_type in line and log in line:
+                    Utils.Print(print_log)
+                    return True
+            return False
+
+    @staticmethod
+    def read_background_snapshot_logs(node_num, process_time):
+        # macOS redirect the child process' stdout/stderr to somewhere, we don't bother to
+        # mess up with macOS. Checking the parent's logs only here on macOS.
+        if platform.system() == "Darwin":
+            return Node.readlogs(
+                node_num, process_time,
+                'Background creating state snapshot into',
+                'info',
+                "Saw 'Background creating state snapshot into ...'"
+            )
+        else:
+            return Node.readlogs(
+                node_num, process_time,
+                'Background saved state snapshot into',
+                'info',
+                "Saw 'Background saved state snapshot into ...'"
+            )
+
+    @staticmethod
+    def create_ha_config(id,
+                         leadership_expiry_ms=None,
+                         heart_beat_interval_ms=None,
+                         is_active=True,
+                         use_relay=False,
+                         clstrNum=1,
+                         snapshot_distance=None,
+                         enable_ssl=False,
+                         server_cert_file=None,
+                         server_key_file=None,
+                         root_cert_file=None,
+                         allowed_ssl_subject_names=None,
+                         quorum_size=2,
+                         cluster_size=3
+                         ):
+        cntClstr=(clstrNum-1)*3
+        peers = [None] * cluster_size
+        for i in range(cluster_size):
+            peers[i] = {"id": i + cntClstr,
+                        "address": "localhost:{}".format(8988 + i + cntClstr)}
+            if use_relay:
+                peers[i]["listening_port"] = "{}".format(18988 + i + cntClstr)
+        configDic = {
+            "is_active_raft_cluster": is_active,
+            "leader_election_quorum_size": quorum_size,
+            "logging_level": 3,
+            "self": id,
+            "peers": peers
+        }
+        if use_relay:
+            configDic = {
+                "is_active_raft_cluster": is_active,
+                "leader_election_quorum_size": quorum_size,
+                "self": id,
+                "peers": peers
+            }
+        if leadership_expiry_ms:
+            configDic["leadership_expiry_ms"] = leadership_expiry_ms
+        if heart_beat_interval_ms:
+            configDic["heart_beat_interval_ms"] = heart_beat_interval_ms
+        if snapshot_distance:
+            configDic["snapshot_distance"] = snapshot_distance
+        if enable_ssl:
+            configDic["enable_ssl"] = True
+            configDic["server_cert_file"] = server_cert_file
+            configDic["server_key_file"] = server_key_file
+            configDic["root_cert_file"] = root_cert_file
+            configDic["allowed_ssl_subject_names"] = [sn for sn in allowed_ssl_subject_names]
+
+        config_ha = json.dumps(configDic, indent=2)
+        with open("config_ha_{}.json".format(id), "w") as jsonFile:
+            jsonFile.write(config_ha)
+
+    @staticmethod
+    def execCommand(cmd, json=True):
+        Utils.Print("{}".format(cmd))
+        result = None
+        try:
+            if json:
+                result = Utils.runCmdReturnJson(cmd)
+            else:
+                result = Utils.runCmdReturnStr(cmd)
+            if Utils.Debug: Utils.Print("API call result {}".format(result))
+        except subprocess.CalledProcessError as ex:
+            msg = ex.output.decode("utf-8")
+            Utils.Print("Exception failure during API call {}: {}".format(cmd, msg))
+            Utils.errorExit("API call execution failed")
+        return result
+
+    def get_producer_ha_info(self):
+        endPoint = self.endpointHttp
+        cmd = "curl -s {}/v1/producer_ha/get_info".format(endPoint)
+        result = self.execCommand(cmd, json=True)
+        return result
+
+    def get_paused(self):
+        endPoint = self.endpointHttp
+        cmd = "curl -s {}/v1/producer/paused".format(endPoint)
+        result = self.execCommand(cmd, json=False)
+        return result

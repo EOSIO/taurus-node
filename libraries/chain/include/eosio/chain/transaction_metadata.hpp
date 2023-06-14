@@ -47,13 +47,13 @@ class transaction_metadata {
          EOS_ASSERT( sigs, tx_no_signature, "signatures pruned from packed_transaction" );
          for(const signature_type& sig : *sigs)
             EOS_ASSERT(sig.variable_size() <= max, sig_variable_size_limit_exception,
-                  "signature variable length component size (${s}) greater than subjective maximum (${m})", ("s", sig.variable_size())("m", max));
+                  "signature variable length component size ({s}) greater than subjective maximum ({m})", ("s", sig.variable_size())("m", max));
          return *sigs;
       }
 
    public:
       // creation of tranaction_metadata restricted to start_recover_keys and create_no_recover_keys below, public for make_shared
-      explicit transaction_metadata( const private_type& pt, packed_transaction_ptr ptrx,
+      explicit transaction_metadata( const private_type&, packed_transaction_ptr ptrx,
                                      fc::microseconds sig_cpu_usage, flat_set<public_key_type> recovered_pub_keys,
                                      bool _implicit = false, bool _scheduled = false, bool _read_only = false)
          : _packed_trx( std::move( ptrx ) )

@@ -232,7 +232,7 @@ void undo_stack<Session>::open() {
          uint32_t totem = 0;
          fc::raw::unpack( ds, totem );
          EOS_ASSERT( totem == undo_stack_magic_number, eosio::chain::chain_exception,
-                     "Undo stack data file '${filename}' has unexpected magic number: ${actual_totem}. Expected ${expected_totem}",
+                     "Undo stack data file '{filename}' has unexpected magic number: {actual_totem}. Expected {expected_totem}",
                      ("filename", undo_stack_dat.generic_string())
                      ("actual_totem", totem)
                      ("expected_totem", undo_stack_magic_number)
@@ -243,8 +243,8 @@ void undo_stack<Session>::open() {
          fc::raw::unpack( ds, version );
          EOS_ASSERT( version >= undo_stack_min_supported_version && version <= undo_stack_max_supported_version,
                     eosio::chain::chain_exception,
-                    "Unsupported version of Undo stack data file '${filename}'. "
-                    "Undo stack data version is ${version} while code supports version(s) [${min},${max}]",
+                    "Unsupported version of Undo stack data file '{filename}'. "
+                    "Undo stack data version is {version} while code supports version(s) [{min},{max}]",
                     ("filename", undo_stack_dat.generic_string())
                     ("version", version)
                     ("min", undo_stack_min_supported_version)
@@ -305,7 +305,7 @@ void undo_stack<Session>::close() {
             out << *value;
          } else {
             fc::remove( undo_stack_dat ); // May not be used by next startup
-            elog( "Did not find value for ${k}", ("k", key.data() ) );
+            elog( "Did not find value for {k}", ("k", key.data() ) );
             return; // Do not assert as we are during shutdown
          }
       }

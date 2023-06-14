@@ -6,6 +6,7 @@
 #include <utility>
 #include <fc/variant_object.hpp>
 #include <fc/scoped_exit.hpp>
+#include <fc/io/json.hpp>
 
 namespace eosio { namespace chain {
 
@@ -41,6 +42,7 @@ struct abi_serializer {
    /// @return string_view of `t` or internal string type
    std::string_view resolve_type(const std::string_view& t)const;
    bool      is_array(const std::string_view& type)const;
+   bool      is_szarray(const std::string_view& type)const;
    bool      is_optional(const std::string_view& type)const;
    bool      is_type( const std::string_view& type, const yield_function_t& yield )const;
    bool      is_builtin_type(const std::string_view& type)const;
@@ -63,9 +65,10 @@ struct abi_serializer {
 
    fc::variant binary_to_variant( const std::string_view& type, const bytes& binary, const yield_function_t& yield, bool short_path = false )const;
    fc::variant binary_to_variant( const std::string_view& type, fc::datastream<const char*>& binary, const yield_function_t& yield, bool short_path = false )const;
+   fc::variant binary_to_log_variant( const std::string_view& type, const bytes& binary, const yield_function_t& yield, bool short_path = false )const;
 
    bytes       variant_to_binary( const std::string_view& type, const fc::variant& var, const yield_function_t& yield, bool short_path = false )const;
-   void        variant_to_binary( const std::string_view& type, const fc::variant& var, fc::datastream<char*>& ds, const yield_function_t& yield, bool short_path = false )const;
+   void        variant_to_binary( const std::string_view& type, const fc::variant& var, fc::datastream<bytes>& ds, const yield_function_t& yield, bool short_path = false )const;
 
    template<typename T, typename Resolver>
    static void to_variant( const T& o, fc::variant& vo, Resolver resolver, const yield_function_t& yield );
@@ -94,11 +97,11 @@ struct abi_serializer {
    }
 
    typedef std::function<fc::variant(fc::datastream<const char*>&, bool, bool, const abi_serializer::yield_function_t&)>  unpack_function;
-   typedef std::function<void(const fc::variant&, fc::datastream<char*>&, bool, bool, const abi_serializer::yield_function_t&)>  pack_function;
+   typedef std::function<void(const fc::variant&, fc::datastream<bytes>&, bool, bool, const abi_serializer::yield_function_t&)>  pack_function;
 
    void add_specialized_unpack_pack( const string& name, std::pair<abi_serializer::unpack_function, abi_serializer::pack_function> unpack_pack );
 
-   static constexpr size_t max_recursion_depth = 1024; // arbitrary depth to prevent infinite recursion, increased from 32 for develop-boxed branch
+   static constexpr size_t max_recursion_depth = 1024; // arbitrary depth to prevent infinite recursion, increased from 32
 
    // create standard yield function that checks for max_serialization_time and max_recursion_depth.
    // now() deadline caputered at time of this call
@@ -111,10 +114,10 @@ struct abi_serializer {
       }
       return [max_serialization_time, deadline](size_t recursion_depth) {
          EOS_ASSERT( recursion_depth < max_recursion_depth, abi_recursion_depth_exception,
-                     "recursive definition, max_recursion_depth ${r} ", ("r", max_recursion_depth) );
+                     "recursive definition, max_recursion_depth {r} ", ("r", max_recursion_depth) );
 
          EOS_ASSERT( fc::time_point::now() < deadline, abi_serialization_deadline_exception,
-                     "serialization time limit ${t}us exceeded", ("t", max_serialization_time) );
+                     "serialization time limit {t}us exceeded", ("t", max_serialization_time) );
       };
    }
 
@@ -139,7 +142,7 @@ private:
 
    bytes       _variant_to_binary( const std::string_view& type, const fc::variant& var, impl::variant_to_binary_context& ctx )const;
    void        _variant_to_binary( const std::string_view& type, const fc::variant& var,
-                                   fc::datastream<char*>& ds, impl::variant_to_binary_context& ctx )const;
+                                   fc::datastream<bytes>& ds, impl::variant_to_binary_context& ctx )const;
 
    static std::string_view _remove_bin_extension(const std::string_view& type);
    bool _is_type( const std::string_view& type, impl::abi_traverse_context& ctx )const;
@@ -413,7 +416,7 @@ namespace impl {
       }
 
       template<typename Resolver>
-      static bool add_special_logging( mutable_variant_object& mvo, const char* name, const action& act, Resolver& resolver, abi_traverse_context& ctx ) {
+      static bool add_special_logging( mutable_variant_object& mvo, const char*, const action& act, Resolver&, abi_traverse_context& ctx ) {
          if( !ctx.is_logging() ) return false;
 
          try {
@@ -462,11 +465,7 @@ namespace impl {
             } else {
                fc::mutable_variant_object sub_obj;
                sub_obj( "size", data.size() );
-               if( data.size() > impl::hex_log_max_size ) {
-                  sub_obj( "trimmed_hex", std::vector<char>(&data[0], &data[0] + impl::hex_log_max_size) );
-               } else {
-                  sub_obj( "hex", data );
-               }
+               sub_obj( "hex", data );
                mvo(name, std::move(sub_obj));
             }
          };
@@ -619,13 +618,6 @@ namespace impl {
          mvo("delay_sec", trx.delay_sec);
          add(mvo, "context_free_actions", trx.context_free_actions, resolver, ctx);
          add(mvo, "actions", trx.actions, resolver, ctx);
-
-         // process contents of block.transaction_extensions
-         auto exts = trx.validate_and_extract_extensions();
-         if (exts.count(deferred_transaction_generation_context::extension_id()) > 0) {
-            const auto& deferred_transaction_generation = std::get<deferred_transaction_generation_context>(exts.lower_bound(deferred_transaction_generation_context::extension_id())->second);
-            mvo("deferred_transaction_generation", deferred_transaction_generation);
-         }
       }
 
       /**
@@ -890,7 +882,7 @@ namespace impl {
          }
 
          EOS_ASSERT(valid_empty_data || !act.data.empty(), packed_transaction_type_exception,
-                    "Failed to deserialize data for ${account}:${name}", ("account", act.account)("name", act.name));
+                    "Failed to deserialize data for {account}:{name}", ("account", act.account.to_string())("name", act.name.to_string()));
       }
 
       template<typename Resolver>
@@ -920,28 +912,7 @@ namespace impl {
          if (vo.contains("actions")) {
             extract(vo["actions"], trx.actions, resolver, ctx);
          }
-
-         // can have "deferred_transaction_generation" (if there is a deferred transaction and the extension was "extracted" to show data),
-         // or "transaction_extensions" (either as empty or containing the packed deferred transaction),
-         // or both (when there is a deferred transaction and extension was "extracted" to show data and a redundant "transaction_extensions" was provided),
-         // or neither (only if extension was "extracted" and there was no deferred transaction to extract)
-         if (vo.contains("deferred_transaction_generation")) {
-            deferred_transaction_generation_context deferred_transaction_generation;
-            from_variant(vo["deferred_transaction_generation"], deferred_transaction_generation);
-            emplace_extension(
-               trx.transaction_extensions,
-               deferred_transaction_generation_context::extension_id(),
-               fc::raw::pack( deferred_transaction_generation )
-            );
-            // if both are present, they need to match
-            if (vo.contains("transaction_extensions")) {
-               extensions_type trx_extensions;
-               from_variant(vo["transaction_extensions"], trx_extensions);
-               EOS_ASSERT(trx.transaction_extensions == trx_extensions, packed_transaction_type_exception,
-                        "Transaction contained deferred_transaction_generation and transaction_extensions that did not match");
-            }
-         }
-         else if (vo.contains("transaction_extensions")) {
+         if (vo.contains("transaction_extensions")) {
             from_variant(vo["transaction_extensions"], trx.transaction_extensions);
          }
       }
@@ -1081,7 +1052,7 @@ void abi_serializer::to_variant( const T& o, fc::variant& vo, Resolver resolver,
    impl::abi_traverse_context ctx( yield );
    impl::abi_to_variant::add(mvo, "_", o, resolver, ctx);
    vo = std::move(mvo["_"]);
-} FC_RETHROW_EXCEPTIONS(error, "Failed to serialize: ${type}", ("type", boost::core::demangle( typeid(o).name() ) ))
+} FC_RETHROW_EXCEPTIONS(error, "Failed to serialize: {type}", ("type", boost::core::demangle( typeid(o).name() ) ))
 
 template<typename T, typename Resolver>
 void abi_serializer::to_log_variant( const T& o, fc::variant& vo, Resolver resolver, const yield_function_t& yield ) try {
@@ -1090,7 +1061,7 @@ void abi_serializer::to_log_variant( const T& o, fc::variant& vo, Resolver resol
    ctx.logging();
    impl::abi_to_variant::add(mvo, "_", o, resolver, ctx);
    vo = std::move(mvo["_"]);
-} FC_RETHROW_EXCEPTIONS(error, "Failed to serialize: ${type}", ("type", boost::core::demangle( typeid(o).name() ) ))
+} FC_RETHROW_EXCEPTIONS(error, "Failed to serialize: {type}", ("type", boost::core::demangle( typeid(o).name() ) ))
 
 template<typename T, typename Resolver>
 void abi_serializer::from_variant( const fc::variant& v, T& o, Resolver resolver, const yield_function_t& yield ) try {
@@ -1098,6 +1069,6 @@ void abi_serializer::from_variant( const fc::variant& v, T& o, Resolver resolver
    static_assert( !std::is_same_v<T, signed_block>, "use signed_block_v0" );
    impl::abi_traverse_context ctx( yield );
    impl::abi_from_variant::extract(v, o, resolver, ctx);
-} FC_RETHROW_EXCEPTIONS(error, "Failed to deserialize variant", ("variant",v))
+} FC_RETHROW_EXCEPTIONS(error, "Failed to deserialize {variant}", ("variant",fc::json::to_string(v, fc::time_point::now() + fc::exception::format_time_limit)))
 
 } } // eosio::chain

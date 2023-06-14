@@ -9,17 +9,17 @@ namespace eosio {
 
 uint64_t state_history_log_data::payload_size_at(uint64_t pos) const {
    EOS_ASSERT(file.size() >= pos + sizeof(state_history_log_header), chain::state_history_exception,
-              "corrupt ${name}: invalid entry size at at position ${pos}", ("name", filename)("pos", pos));
+              "corrupt {name}: invalid entry size at at position {pos}", ("name", filename)("pos", pos));
 
    fc::datastream<const char*> ds(file.const_data() + pos, sizeof(state_history_log_header));
    state_history_log_header    header;
    fc::raw::unpack(ds, header);
 
    EOS_ASSERT(is_ship(header.magic) && is_ship_supported_version(header.magic), chain::state_history_exception,
-              "corrupt ${name}: invalid header for entry at position ${pos}", ("name", filename)("pos", pos));
+              "corrupt {name}: invalid header for entry at position {pos}", ("name", filename)("pos", pos));
 
    EOS_ASSERT(file.size() >= pos + sizeof(state_history_log_header) + header.payload_size,
-              chain::state_history_exception, "corrupt ${name}: invalid payload size for entry at position ${pos}",
+              chain::state_history_exception, "corrupt {name}: invalid payload size for entry at position {pos}",
               ("name", filename)("pos", pos));
    return header.payload_size;
 }
@@ -51,16 +51,31 @@ state_history_log::state_history_log(const char* const name, const state_history
          this->ctx.run();
       }
       catch(...) {
-         fc_elog(logger,"catched exception from ${name} write thread", ("name", this->name));
+         fc_elog(logger,"catched exception from {name} write thread", ("name", this->name));
          eptr = std::current_exception();
          write_thread_has_exception = true;
       }
-      fc_ilog(logger,"${name} thread ended", ("name", this->name));
+      fc_ilog(logger,"{name} thread ended", ("name", this->name));
    });
    
 }
 
 void state_history_log::stop() {
+   if (thr.joinable()) {
+      work_guard.reset();
+      thr.join();
+      cached.clear();
+      if(read_log.is_open()){
+         read_log.close();
+      }
+      if(write_log.is_open()){
+         write_log.close();
+      }
+   }
+}
+
+// thread stoped but keep log files open, useful in state history unittests
+void state_history_log::light_stop() {
    if (thr.joinable()) {
       work_guard.reset();
       thr.join();
@@ -78,7 +93,7 @@ void state_history_log::read_header(state_history_log_header& header, bool asser
    version = get_ship_version(header.magic);
    if (assert_version)
       EOS_ASSERT(is_ship(header.magic) && is_ship_supported_version(header.magic), chain::state_history_exception,
-                 "corrupt ${name}.log (0)", ("name", name));
+                 "corrupt {name}.log (0)", ("name", name));
 }
 
 void state_history_log::write_header(const state_history_log_header& header) { fc::raw::pack(write_log, header); }
@@ -119,20 +134,20 @@ bool state_history_log::get_last_block(uint64_t size) {
    read_log.seek(size - sizeof(suffix));
    read_log.read((char*)&suffix, sizeof(suffix));
    if (suffix > size || suffix + state_history_log_header_serial_size > size) {
-      fc_elog(logger,"corrupt ${name}.log (2)", ("name", name));
+      fc_elog(logger,"corrupt {name}.log (2)", ("name", name));
       return false;
    }
    read_log.seek(suffix);
    read_header(header, false);
    if (!is_ship(header.magic) || !is_ship_supported_version(header.magic) ||
        suffix + state_history_log_header_serial_size + header.payload_size + sizeof(suffix) != size) {
-      fc_elog(logger,"corrupt ${name}.log (3)", ("name", name));
+      fc_elog(logger,"corrupt {name}.log (3)", ("name", name));
       return false;
    }
    _end_block    = chain::block_header::num_from_id(header.block_id) + 1;
    last_block_id = header.block_id;
    if (_begin_block >= _end_block) {
-      fc_elog(logger,"corrupt ${name}.log (4)", ("name", name));
+      fc_elog(logger,"corrupt {name}.log (4)", ("name", name));
       return false;
    }
    return true;
@@ -140,7 +155,7 @@ bool state_history_log::get_last_block(uint64_t size) {
 
 // only called from constructor indirectly
 void state_history_log::recover_blocks(uint64_t size) {
-   fc_ilog(logger,"recover ${name}.log", ("name", name));
+   fc_ilog(logger,"recover {name}.log", ("name", name));
    uint64_t pos       = 0;
    uint32_t num_found = 0;
    while (true) {
@@ -153,7 +168,7 @@ void state_history_log::recover_blocks(uint64_t size) {
       if (!is_ship(header.magic) || !is_ship_supported_version(header.magic) || header.payload_size > size ||
           pos + state_history_log_header_serial_size + header.payload_size + sizeof(suffix) > size) {
          EOS_ASSERT(!is_ship(header.magic) || is_ship_supported_version(header.magic), chain::state_history_exception,
-                    "${name}.log has an unsupported version", ("name", name));
+                    "{name}.log has an unsupported version", ("name", name));
          break;
       }
       read_log.seek(pos + state_history_log_header_serial_size + header.payload_size);
@@ -162,13 +177,13 @@ void state_history_log::recover_blocks(uint64_t size) {
          break;
       pos = pos + state_history_log_header_serial_size + header.payload_size + sizeof(suffix);
       if (!(++num_found % 10000)) {
-         fc_dlog(logger,"${num_found} blocks found, log pos = ${pos}", ("num_found", num_found)("pos", pos));
+         fc_dlog(logger,"{num_found} blocks found, log pos = {pos}", ("num_found", num_found)("pos", pos));
       }
    }
    read_log.flush();
    boost::filesystem::resize_file(read_log.get_file_path(), pos);
    read_log.flush();
-   EOS_ASSERT(get_last_block(pos), chain::state_history_exception, "recover ${name}.log failed", ("name", name));
+   EOS_ASSERT(get_last_block(pos), chain::state_history_exception, "recover {name}.log failed", ("name", name));
 }
 
 // only called from constructor
@@ -187,15 +202,15 @@ void state_history_log::open_log(bfs::path log_filename) {
       read_header(header, false);
       EOS_ASSERT(is_ship(header.magic) && is_ship_supported_version(header.magic) &&
                      state_history_log_header_serial_size + header.payload_size + sizeof(uint64_t) <= size,
-                 chain::state_history_exception, "corrupt ${name}.log (1)", ("name", name));
+                 chain::state_history_exception, "corrupt {name}.log (1)", ("name", name));
       _begin_block  = chain::block_header::num_from_id(header.block_id);
       last_block_id = header.block_id;
       if (!get_last_block(size))
          recover_blocks(size);
-      fc_ilog(logger,"${name}.log has blocks ${b}-${e}", ("name", name)("b", _begin_block)("e", _end_block - 1));
+      fc_ilog(logger,"{name}.log has blocks {b}-{e}", ("name", name)("b", _begin_block)("e", _end_block - 1));
    } else {
-      EOS_ASSERT(!size, chain::state_history_exception, "corrupt ${name}.log (5)", ("name", name));
-      fc_ilog(logger,"${name}.log is empty", ("name", name));
+      EOS_ASSERT(!size, chain::state_history_exception, "corrupt {name}.log (5)", ("name", name));
+      fc_ilog(logger,"{name}.log is empty", ("name", name));
    }
 }
 
@@ -206,7 +221,7 @@ void state_history_log::open_index(bfs::path index_filename) {
    index.seek_end(0);
    if (index.tellp() == (static_cast<int>(_end_block) - _begin_block) * sizeof(uint64_t))
       return;
-   fc_ilog(logger,"Regenerate ${name}.index", ("name", name));
+   fc_ilog(logger,"Regenerate {name}.index", ("name", name));
    index.close();
 
    state_history_log_data(read_log.get_file_path()).construct_index(index_filename);
@@ -258,25 +273,25 @@ void state_history_log::truncate(state_history_log::block_num_type block_num) {
    index.close();
    index.open("a+b");
 
-   fc_ilog(logger,"fork or replay: removed ${n} blocks from ${name}.log", ("n", num_removed)("name", name));
+   fc_ilog(logger,"fork or replay: removed {n} blocks from {name}.log", ("n", num_removed)("name", name));
 }
 
 // only called from write_entry()
 std::pair<state_history_log::block_num_type, state_history_log::file_position_type>
 state_history_log::write_entry_header(const state_history_log_header& header, const chain::block_id_type& prev_id) {
    block_num_type block_num = chain::block_header::num_from_id(header.block_id);
-   fc_dlog(logger,"write_entry_header name=${name} block_num=${block_num}",("name", name) ("block_num", block_num));
+   fc_dlog(logger,"write_entry_header name={name} block_num={block_num}",("name", name) ("block_num", block_num));
 
    EOS_ASSERT(_begin_block == _end_block || block_num <= _end_block, chain::state_history_exception,
-              "missed a block in ${name}.log, block_num=${block_num}, _end_block=${_end_block} ", ("name", name)("block_num", block_num)("_end_block", _end_block));
+              "missed a block in {name}.log, block_num={block_num}, _end_block={_end_block} ", ("name", name)("block_num", block_num)("_end_block", _end_block));
 
    if (_begin_block != _end_block && block_num > _begin_block) {
       if (block_num == _end_block) {
-         EOS_ASSERT(prev_id == last_block_id, chain::state_history_exception, "missed a fork change in ${name}.log",
+         EOS_ASSERT(prev_id == last_block_id, chain::state_history_exception, "missed a fork change in {name}.log",
                     ("name", name));
       } else {
          state_history_log_header prev = get_entry_header_i(block_num - 1);
-         EOS_ASSERT(prev_id == prev.block_id, chain::state_history_exception, "missed a fork change in ${name}.log",
+         EOS_ASSERT(prev_id == prev.block_id, chain::state_history_exception, "missed a fork change in {name}.log",
                     ("name", name));
       }
    }
@@ -351,7 +366,7 @@ void state_history_log::store_entry(const chain::block_id_type& id, const chain:
       cached.erase(cached.begin());
    }
 
-   fc_dlog(logger,"store_entry name=${name}, block_num=${block_num} cached.size = ${sz}, num_buffered_entries=${num_buffered_entries}, id=${id}",
+   fc_dlog(logger,"store_entry name={name}, block_num={block_num} cached.size = {sz}, num_buffered_entries={num_buffered_entries}, id={id}",
          ("name", name)("block_num", block_num)("sz", cached.size())("num_buffered_entries", num_buffered_entries)("id", id));
 
 }
@@ -368,7 +383,7 @@ void state_history_log::write_entry(const chain::block_id_type& id, const chain:
       this->write_payload(write_log, *data);
       lock.lock();
       write_entry_position(header, start_pos, block_num);
-      fc_dlog(logger, "entry block_num=${block_num} id=${id} written", ("block_num", block_num)("id", id));
+      fc_dlog(logger, "entry block_num={block_num} id={id} written", ("block_num", block_num)("id", id));
    } catch (...) {
       write_log.close();
       boost::filesystem::resize_file(write_log.get_file_path(), start_pos);
@@ -452,7 +467,7 @@ std::shared_ptr<std::vector<char>> state_history_traces_log::get_log_entry(block
          output.write(data.data(), data.size());
 
          ex.append_log(FC_LOG_MESSAGE(error,
-                                    "trace data for block ${block_num} has been written to ${filename} for debugging",
+                                    "trace data for block {block_num} has been written to {filename} for debugging",
                                     ("block_num", block_num)("filename", filename)));
 
          throw ex;
@@ -510,10 +525,10 @@ void state_history_chain_state_log::store(const chainbase::database& db,
    auto [begin, end] = begin_end_block_nums();
    bool fresh        = begin == end;
    if (fresh)
-      fc_ilog(logger,"Placing initial state in block ${n}", ("n", block_state->block->block_num()));
+      fc_ilog(logger,"Placing initial state in block {n}", ("n", block_state->block->block_num()));
 
    using namespace state_history;
-   std::vector<table_delta> deltas = create_deltas(db, fresh);
+   std::vector<table_delta> deltas = create_deltas(db, fresh, false);
 
    fc::datastream<std::vector<char>> raw_strm;
    fc::raw::pack(raw_strm, deltas);

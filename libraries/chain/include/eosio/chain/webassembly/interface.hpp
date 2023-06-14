@@ -293,7 +293,7 @@ namespace eosio { namespace chain { namespace webassembly {
           * @retval true if the account is privileged
           * @retval false otherwise
          */
-         bool is_privileged(account_name account) const;
+         bool is_privileged(uint64_t account) const;
 
          /**
           * Set the privileged status of an account.
@@ -542,6 +542,53 @@ namespace eosio { namespace chain { namespace webassembly {
          name get_sender() const;
 
          /**
+          * Send event data to host. Nodeos can be configured to export this event data during
+          * validation. It will be ignored during block production.
+          *
+          * The packed event data can be in any packed structure. The actual format and versioning
+          * information is left to be defined by CDT and nodeos.
+          *
+          * @ingroup system
+          * @param event - buffer to hold the packed event data
+          */
+         void push_event(span<const char> event) const;
+
+
+         /**
+          * Verifies an RSA signed message.
+          *
+          * @ingroup crypto
+          * @param message - message buffer to verify
+          * @param signature - signature as hex string
+          * @param exponent - public key exponent as hex string
+          * @param modulus - modulus as hex string (a leading zero is not allowed)
+          *
+          * @retval true if everything is OK
+          * @retval false if validation has failed
+          */
+         bool verify_rsa_sha256_sig(legacy_span<const char> message,
+                                    legacy_span<const char> signature,
+                                    legacy_span<const char> exponent,
+                                    legacy_span<const char> modulus) const;
+
+         static bool verify_rsa_sha256_sig_impl(const char* message, size_t message_len,
+                                                const char* signature, size_t signature_len,
+                                                const char* exponent, size_t exponent_len,
+                                                const char* modulus, size_t modulus_len);
+
+         bool verify_ecdsa_sig(legacy_span<const char> message,
+                               legacy_span<const char> signature,
+                               legacy_span<const char> pubkey);
+         
+         static bool verify_ecdsa_sig_impl(const char* message, size_t message_len,
+                                           const char* signature, size_t signature_len,
+                                           const char* pubkey, size_t pubkey_len);
+
+         bool is_supported_ecdsa_pubkey(legacy_span<const char> pubkey);
+
+         static bool is_supported_ecdsa_pubkey_impl(const char* pubkey, size_t pubkey_len);
+
+         /**
           * Aborts processing of this action and unwinds all pending changes.
           *
           * @ingroup context-free
@@ -609,7 +656,7 @@ namespace eosio { namespace chain { namespace webassembly {
           * @ingroup action
           * @return the name of the receiver
          */
-         name current_receiver() const;
+         uint64_t current_receiver() const;
 
          /**
           * Sets a value (packed blob char array) to be included in the action receipt.
@@ -1580,7 +1627,7 @@ namespace eosio { namespace chain { namespace webassembly {
           *
           * @return change in resource usage.
           */
-         int64_t  kv_set(uint64_t contract, span<const char> key, span<const char> value, account_name payer);
+         int64_t  kv_set(uint64_t contract, span<const char> key, span<const char> value, uint64_t payer);
 
          /**
           * Check the existence of a key.
@@ -1896,6 +1943,10 @@ namespace eosio { namespace chain { namespace webassembly {
          int32_t __letf2(uint64_t, uint64_t, uint64_t, uint64_t) const;
          int32_t __lttf2(uint64_t, uint64_t, uint64_t, uint64_t) const;
          int32_t __unordtf2(uint64_t, uint64_t, uint64_t, uint64_t) const;
+
+         // code coverage support functions 
+         uint32_t coverage_getinc(uint64_t code, uint32_t file_num, uint32_t func_or_line_num, uint32_t mode, bool inc);
+         uint64_t coverage_dump(uint64_t code, uint32_t file_num, span<const char> file_name, uint32_t max, bool append, uint32_t mode, bool reset);
 
       private:
          apply_context& context;

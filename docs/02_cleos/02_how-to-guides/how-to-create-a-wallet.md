@@ -11,11 +11,7 @@ Make sure you meet the following requirements:
 * Install the currently supported version of `cleos`.
 
 [[info | Note]]
-| `cleos` is bundled with the EOSIO software. [Installing EOSIO](../../00_install/index.md) will also install `cleos`.
-
-* Understand what an [account](https://developers.eos.io/welcome/v2.1/glossary/index/#account) is and its role in the blockchain.
-* Understand [Accounts and Permissions](https://developers.eos.io/welcome/v2.1/protocol-guides/accounts_and_permissions) in the protocol documents.
-* Understand what a [public](https://developers.eos.io/welcome/v2.1/glossary/index/#public-key) and [private](https://developers.eos.io/welcome/v2.1/glossary/index/#private-key) key pair is.
+| `cleos` is bundled with the EOSIO-Taurus software. [Installing EOSIO-Taurus](../../00_install/index.md) will also install `cleos`.
 
 ## Steps
 

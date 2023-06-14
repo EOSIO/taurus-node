@@ -4,8 +4,10 @@
 
 namespace eosio {
 
+namespace p2p {
    class net_plugin_impl;
    struct handshake_message;
+}
 
    namespace chain_apis {
       class read_only;
@@ -48,8 +50,8 @@ namespace chain {
 
          friend class eosio::chain_apis::read_only;
 
-         friend class eosio::net_plugin_impl;
-         friend struct eosio::handshake_message;
+         friend class eosio::p2p::net_plugin_impl;
+         friend struct eosio::p2p::handshake_message;
          friend class block_log;
          friend struct block_log_preamble;
          friend struct block_log_verifier;

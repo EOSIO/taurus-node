@@ -31,7 +31,7 @@ std::vector<augmented_transaction_trace> transaction_trace_cache::prepare_traces
          id = std::get<packed_transaction>(r.trx).id();
       auto it = this->cached_traces.find(id);
       EOS_ASSERT(it != this->cached_traces.end() && it->second.trace->receipt, state_history_exception,
-                 "missing trace for transaction ${id}", ("id", id));
+                 "missing trace for transaction {id}", ("id", id));
       traces.push_back(it->second);
    }
    clear();

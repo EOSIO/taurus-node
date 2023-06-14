@@ -1,39 +1,20 @@
 #pragma once
-#include <eosio/amqp/reliable_amqp_publisher.hpp>
 #include <eosio/chain/trace.hpp>
 #include <eosio/chain/transaction.hpp>
+#include <eosio/amqp/amqp_handler.hpp>
 
 namespace eosio {
 
-struct amqp_trace_plugin_impl {
-
-   enum class reliable_mode {
-      exit,
-      log,
-      queue
-   };
-
-   std::optional<reliable_amqp_publisher> amqp_trace;
-
-   std::string amqp_trace_address;
-   std::string amqp_trace_queue_name;
-   std::string amqp_trace_exchange;
-   reliable_mode pub_reliable_mode = reliable_mode::queue;
-
-public:
+namespace amqp_trace_plugin_impl {
+   // called from any thread
+   void publish_error( amqp_handler& amqp, std::string routing_key, std::string correlation_id, int64_t error_code, std::string error_message );
 
    // called from any thread
-   void publish_error( std::string routing_key, std::string correlation_id, int64_t error_code, std::string error_message );
-
-   // called from any thread
-   void publish_result( std::string routing_key, std::string correlation_id, std::string block_uuid,
+   void publish_result( amqp_handler& amqp, std::string routing_key, std::string correlation_id, std::string block_uuid,
                         const chain::packed_transaction_ptr& trx, const chain::transaction_trace_ptr& trace );
 
    // called from any thread
-   void publish_block_uuid( std::string routing_key, std::string block_uuid, const chain::block_id_type& block_id );
+   void publish_block_uuid( amqp_handler& amqp, std::string routing_key, std::string block_uuid, const chain::block_id_type& block_id );
 };
-
-std::istream& operator>>(std::istream& in, amqp_trace_plugin_impl::reliable_mode& m);
-std::ostream& operator<<(std::ostream& osm, amqp_trace_plugin_impl::reliable_mode m);
 
 } // namespace eosio

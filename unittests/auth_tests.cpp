@@ -3,6 +3,7 @@
 #include <eosio/chain/abi_serializer.hpp>
 #include <eosio/chain/permission_object.hpp>
 #include <eosio/chain/authorization_manager.hpp>
+#include <eosio/chain/to_string.hpp>
 
 #include <eosio/chain/resource_limits.hpp>
 #include <eosio/chain/resource_limits_private.hpp>
@@ -550,7 +551,6 @@ BOOST_AUTO_TEST_CASE( linkauth_special ) { try {
    validate_disallow("unlinkauth");
    validate_disallow("deleteauth");
    validate_disallow("updateauth");
-   validate_disallow("canceldelay");
 
 } FC_LOG_AND_RETHROW() }
 

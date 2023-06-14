@@ -1,0 +1,25 @@
+{
+"default_url" : "http://localhost:8888/",
+"aups" :  [
+  {
+    "alias" : "CDEST",
+    "url"   : "http://rodeos-wasm-ql-blockchain-atoms-b1fs-scratch.service.c-sin-g-atoms-b1fs-scratch.int.b1fs.net:8880" 
+  },
+  {
+    "alias" : "lh",
+    "url"   : "http://localhost:8888/"
+  },
+  {
+    "alias" : "lhip",
+    "url"   : "http://127.0.0.1:8888/"
+  },
+  {
+    "alias" : "lhs",
+    "url"   : "https://localhost:8888/"
+  },
+  {
+    "alias" : "lhips",
+    "url"   : "https://127.0.0.1:8888/"
+  }
+]
+}

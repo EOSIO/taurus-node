@@ -48,6 +48,19 @@ public:
       empty_cv_.notify_one();
    }
 
+   /// pops if queue not empty and increases pause count, otherwise returns false
+   bool pop(T& t) {
+      {
+         std::unique_lock<std::mutex> lk(mtx_);
+         if( queue_.empty() || stopped_ ) return false;
+         t = std::move(queue_.front());
+         queue_.pop_front();
+         ++paused_;
+      }
+      full_cv_.notify_one();
+      return true;
+   }
+
    /// blocks thread until item is available and queue is unpaused.
    /// pauses queue so nothing else can pull one off until unpaused.
    /// @return false if queue is stopped and t is not modified
@@ -142,6 +155,7 @@ private:
    std::thread thread_;
    std::atomic_bool running_ = true;
    bool started_ = false;
+   uint32_t current_block_ = 0;
    const chain::chain_id_type chain_id_;
    const uint32_t configured_subjective_signature_length_limit_ = 0;
    const bool allow_speculative_execution = false;
@@ -172,6 +186,21 @@ public:
    {
    }
 
+   void process(q_item& i) {
+      dlog( "posting trx: {id}", ("id", i.trx->id()) );
+      app().post( priority::low, [self=this->shared_from_this(), i{std::move( i )}]() mutable {
+         auto exception_handler = [&i, &prod_plugin=self->prod_plugin_](fc::exception_ptr ex) {
+            prod_plugin->log_failed_transaction(i.trx->id(), i.trx, ex->what());
+            i.next(ex);
+         };
+         try {
+            chain::transaction_metadata_ptr trx_meta = i.fut.get();
+            self->prod_plugin_->execute_incoming_transaction( trx_meta, i.next );
+         } CATCH_AND_CALL(exception_handler);
+         self->queue_.unpause();
+      } );
+   }
+
    /// separate run() because of shared_from_this
    void run() {
       if( !running_ ) throw std::logic_error("restart not supported");
@@ -181,29 +210,17 @@ public:
          while( self->running_ ) {
             try {
                q_item i;
-               if( self->queue_.pop_and_pause(i) ) {
-                  auto exception_handler = [&i, &prod_plugin=self->prod_plugin_](fc::exception_ptr ex) {
-                     prod_plugin->log_failed_transaction(i.trx->id(), i.trx, ex->what());
-                     i.next(ex);
-                  };
-                  chain::transaction_metadata_ptr trx_meta;
-                  try {
-                     trx_meta = i.fut.get();
-                  } CATCH_AND_CALL(exception_handler);
-
-                  if( trx_meta ) {
-                     dlog( "posting trx: ${id}", ("id", trx_meta->id()) );
-                     app().post( priority::low, [self, trx{std::move( trx_meta )}, next{std::move( i.next )}]() {
-                        self->prod_plugin_->execute_incoming_transaction( trx, next );
-                        self->queue_.unpause();
-                     } );
-                  } else {
-                     self->queue_.unpause();
+               bool cont = self->queue_.pop_and_pause(i);
+               if( cont ) {
+                  self->process( i );
+                  for ( size_t n = 0; n < 10; ++n ) { // 10 - small number to queue up without overloading post queue
+                     cont = self->queue_.pop(i);
+                     if( !cont ) break;
+                     self->process( i );
                   }
                }
                continue;
-            }
-            FC_LOG_AND_DROP();
+            } FC_LOG_AND_DROP();
             // something completely unexpected
             elog( "Unexpected error, exiting. See above errors." );
             app().quit();
@@ -228,18 +245,23 @@ public:
    }
 
    /// Should be called on each start block from app() thread
-   void on_block_start() {
+   void on_block_start(uint32_t bn) {
       started_ = true;
       if( allow_speculative_execution || prod_plugin_->is_producing_block() ) {
-         queue_.unpause();
+         if( current_block_ == 0 )
+            queue_.unpause();
+         current_block_ = bn;
       }
    }
 
    /// Should be called on each block finalize from app() thread
-   void on_block_stop() {
+   void on_block_stop(uint32_t bn) {
       if( started_ && ( allow_speculative_execution || prod_plugin_->is_producing_block()
                         || prod_plugin_->paused() ) ) {
-         queue_.pause();
+         if( current_block_ == bn ) { // may have already started the next block
+            queue_.pause();
+            current_block_ = 0;
+         }
       }
    }
 
@@ -260,7 +282,7 @@ public:
                                                                      chain::transaction_metadata::trx_type::input, configured_subjective_signature_length_limit_ );
       q_item i{ .delivery_tag = delivery_tag, .trx = trx, .fut = std::move(future), .next = std::move(next) };
       if( !queue_.push( std::move( i ) ) ) {
-         ilog( "Queue stopped, unable to process transaction ${id}, not ack'ed to AMQP", ("id", trx->id()) );
+         ilog( "Queue stopped, unable to process transaction {id}, not ack'ed to AMQP", ("id", trx->id()) );
       }
    }
 

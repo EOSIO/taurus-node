@@ -1,0 +1,14 @@
+syntax = "proto3";
+package test;
+
+// a simple one
+message ActData {
+  int32 id = 1;
+  int32 type = 2;
+  string note = 3;
+  fixed64 account = 5;
+}
+
+message ActResult {
+    int32 value = 1;
+}

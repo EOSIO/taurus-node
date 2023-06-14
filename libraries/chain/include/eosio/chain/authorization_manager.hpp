@@ -14,7 +14,6 @@ namespace eosio { namespace chain {
    struct deleteauth;
    struct linkauth;
    struct unlinkauth;
-   struct canceldelay;
 
    class authorization_manager {
       public:
@@ -67,12 +66,11 @@ namespace eosio { namespace chain {
                                                                  )const;
 
          /**
-          *  @brief Check authorizations of a vector of actions with provided keys, permission levels, and delay
+          *  @brief Check authorizations of a vector of actions with provided keys, permission levels
           *
           *  @param actions - the actions to check authorization across
           *  @param provided_keys - the set of public keys which have authorized the transaction
           *  @param provided_permissions - the set of permissions which have authorized the transaction (empty permission name acts as wildcard)
-          *  @param provided_delay - the delay satisfied by the transaction
           *  @param checktime - the function that can be called to track CPU usage and time during the process of checking authorization
           *  @param allow_unused_keys - true if method should not assert on unused keys
           */
@@ -80,7 +78,6 @@ namespace eosio { namespace chain {
          check_authorization( const vector<action>&                actions,
                               const flat_set<public_key_type>&     provided_keys,
                               const flat_set<permission_level>&    provided_permissions = flat_set<permission_level>(),
-                              fc::microseconds                     provided_delay = fc::microseconds(0),
                               const std::function<void()>&         checktime = std::function<void()>(),
                               bool                                 allow_unused_keys = false,
                               const flat_set<permission_level>&    satisfied_authorizations = flat_set<permission_level>()
@@ -88,13 +85,12 @@ namespace eosio { namespace chain {
 
 
          /**
-          *  @brief Check authorizations of a permission with provided keys, permission levels, and delay
+          *  @brief Check authorizations of a permission with provided keys, permission levels
           *
           *  @param account - the account owner of the permission
           *  @param permission - the permission name to check for authorization
           *  @param provided_keys - a set of public keys
           *  @param provided_permissions - the set of permissions which can be considered satisfied (empty permission name acts as wildcard)
-          *  @param provided_delay - the delay considered to be satisfied for the authorization check
           *  @param checktime - the function that can be called to track CPU usage and time during the process of checking authorization
           *  @param allow_unused_keys - true if method does not require all keys to be used
           */
@@ -103,14 +99,12 @@ namespace eosio { namespace chain {
                               permission_name                      permission,
                               const flat_set<public_key_type>&     provided_keys,
                               const flat_set<permission_level>&    provided_permissions = flat_set<permission_level>(),
-                              fc::microseconds                     provided_delay = fc::microseconds(0),
                               const std::function<void()>&         checktime = std::function<void()>(),
                               bool                                 allow_unused_keys = false
                             )const;
 
          flat_set<public_key_type> get_required_keys( const transaction& trx,
-                                                      const flat_set<public_key_type>& candidate_keys,
-                                                      fc::microseconds provided_delay = fc::microseconds(0)
+                                                      const flat_set<public_key_type>& candidate_keys
                                                     )const;
 
 
@@ -124,7 +118,6 @@ namespace eosio { namespace chain {
          void             check_deleteauth_authorization( const deleteauth& del, const vector<permission_level>& auths )const;
          void             check_linkauth_authorization( const linkauth& link, const vector<permission_level>& auths )const;
          void             check_unlinkauth_authorization( const unlinkauth& unlink, const vector<permission_level>& auths )const;
-         fc::microseconds check_canceldelay_authorization( const canceldelay& cancel, const vector<permission_level>& auths )const;
 
          std::optional<permission_name> lookup_linked_permission( account_name authorizer_account,
                                                                   scope_name code_account,

@@ -1,0 +1,6 @@
+if( EOSIO_COMPILE_TEST_CONTRACTS )
+   add_contract( longrunning longrunning longrunning.cpp )
+else()
+   configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/longrunning.wasm ${CMAKE_CURRENT_BINARY_DIR}/longrunning.wasm COPYONLY )
+   configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/longrunning.abi  ${CMAKE_CURRENT_BINARY_DIR}/longrunning.abi  COPYONLY )
+endif()

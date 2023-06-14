@@ -2,6 +2,7 @@
 #include <boost/test/included/unit_test.hpp>
 #include <list>
 #include <boost/filesystem.hpp>
+#include <fstream>
 
 #include <eosio/trace_api/configuration_utils.hpp>
 #include <eosio/trace_api/test_common.hpp>
@@ -24,7 +25,7 @@ struct temp_file_fixture {
 
    std::string create_temp_file( const std::string& contents ) {
       auto path = bfs::temp_directory_path() / bfs::unique_path();
-      auto os = bfs::ofstream(path, std::ios_base::out);
+      auto os = std::ofstream(path.c_str(), std::ios_base::out);
       os << contents;
       os.close();
       return paths.emplace_back(std::move(path)).generic_string();

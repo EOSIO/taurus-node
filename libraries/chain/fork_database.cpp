@@ -60,9 +60,10 @@ namespace eosio { namespace chain {
    }
 
    struct fork_database_impl {
-      fork_database_impl( fork_database& self, const fc::path& data_dir )
+      fork_database_impl( fork_database& self, const fc::path& data_dir, bool persistent )
       :self(self)
       ,datadir(data_dir)
+      ,persistent(persistent)
       {}
 
       fork_database&        self;
@@ -70,6 +71,7 @@ namespace eosio { namespace chain {
       block_state_ptr       root; // Only uses the block_header_state portion
       block_state_ptr       head;
       fc::path              datadir;
+      bool                  persistent;
 
       void add( const block_state_ptr& n,
                 bool ignore_duplicate, bool validate,
@@ -79,8 +81,8 @@ namespace eosio { namespace chain {
    };
 
 
-   fork_database::fork_database( const fc::path& data_dir )
-   :my( new fork_database_impl( *this, data_dir ) )
+   fork_database::fork_database( const fc::path& data_dir, bool persistent )
+   :my( new fork_database_impl( *this, data_dir, persistent ) )
    {}
 
 
@@ -103,7 +105,7 @@ namespace eosio { namespace chain {
             uint32_t totem = 0;
             fc::raw::unpack( ds, totem );
             EOS_ASSERT( totem == magic_number, fork_database_exception,
-                        "Fork database file '${filename}' has unexpected magic number: ${actual_totem}. Expected ${expected_totem}",
+                        "Fork database file '{filename}' has unexpected magic number: {actual_totem}. Expected {expected_totem}",
                         ("filename", fork_db_dat.generic_string())
                         ("actual_totem", totem)
                         ("expected_totem", magic_number)
@@ -114,8 +116,8 @@ namespace eosio { namespace chain {
             fc::raw::unpack( ds, version );
             EOS_ASSERT( version >= min_supported_version && version <= max_supported_version,
                         fork_database_exception,
-                       "Unsupported version of fork database file '${filename}'. "
-                       "Fork database version is ${version} while code supports version(s) [${min},${max}]",
+                       "Unsupported version of fork database file '{filename}'. "
+                       "Fork database version is {version} while code supports version(s) [{min},{max}]",
                        ("filename", fork_db_dat.generic_string())
                        ("version", version)
                        ("min", min_supported_version)
@@ -123,6 +125,8 @@ namespace eosio { namespace chain {
             );
 
             block_header_state bhs;
+            my->index.clear();
+
             fc::raw::unpack( ds, bhs );
             reset( bhs );
 
@@ -132,7 +136,7 @@ namespace eosio { namespace chain {
                fc::raw::unpack( ds, s );
                // do not populate transaction_metadatas, they will be created as needed in apply_block with appropriate key recovery
                s.header_exts = s.block->validate_and_extract_header_extensions();
-               my->add( std::make_shared<block_state>( move( s ) ), false, true, validator );
+               my->add( std::make_shared<block_state>( std::move( s ) ), false, true, validator );
             }
             block_id_type head_id;
             fc::raw::unpack( ds, head_id );
@@ -142,38 +146,42 @@ namespace eosio { namespace chain {
             } else {
                my->head = get_block( head_id );
                EOS_ASSERT( my->head, fork_database_exception,
-                           "could not find head while reconstructing fork database from file; '${filename}' is likely corrupted",
+                           "could not find head while reconstructing fork database from file; '{filename}' is likely corrupted",
                            ("filename", fork_db_dat.generic_string()) );
             }
 
             auto candidate = my->index.get<by_lib_block_num>().begin();
             if( candidate == my->index.get<by_lib_block_num>().end() || !(*candidate)->is_valid() ) {
                EOS_ASSERT( my->head->id == my->root->id, fork_database_exception,
-                           "head not set to root despite no better option available; '${filename}' is likely corrupted",
+                           "head not set to root despite no better option available; '{filename}' is likely corrupted",
                            ("filename", fork_db_dat.generic_string()) );
             } else {
                EOS_ASSERT( !first_preferred( **candidate, *my->head ), fork_database_exception,
-                           "head not set to best available option available; '${filename}' is likely corrupted",
+                           "head not set to best available option available; '{filename}' is likely corrupted",
                            ("filename", fork_db_dat.generic_string()) );
             }
-         } FC_CAPTURE_AND_RETHROW( (fork_db_dat) )
+         } FC_CAPTURE_AND_RETHROW( (fork_db_dat.string()) )
 
          fc::remove( fork_db_dat );
       }
    }
 
    void fork_database::close() {
+      if (!my->persistent) return;
       auto fork_db_dat = my->datadir / config::forkdb_filename;
+      auto fork_db_dat_tmp = my->datadir / (std::string{"."} + config::forkdb_filename);
 
       if( !my->root ) {
          if( my->index.size() > 0 ) {
-            elog( "fork_database is in a bad state when closing; not writing out '${filename}'",
+            elog( "fork_database is in a bad state when closing; not writing out '{filename}'",
                   ("filename", fork_db_dat.generic_string()) );
          }
          return;
       }
 
-      std::ofstream out( fork_db_dat.generic_string().c_str(), std::ios::out | std::ios::binary | std::ofstream::trunc );
+      // write to a temporary file first
+      std::ofstream out( fork_db_dat_tmp.generic_string().c_str(), std::ios::out | std::ios::binary | std::ofstream::trunc );
+
       fc::raw::pack( out, magic_number );
       fc::raw::pack( out, max_supported_version ); // write out current version which is always max_supported_version
       fc::raw::pack( out, *static_cast<block_header_state*>(&*my->root) );
@@ -218,11 +226,20 @@ namespace eosio { namespace chain {
       if( my->head ) {
          fc::raw::pack( out, my->head->id );
       } else {
-         elog( "head not set in fork database; '${filename}' will be corrupted",
+         elog( "head not set in fork database; '{filename}' will be corrupted",
                ("filename", fork_db_dat.generic_string()) );
       }
 
-      my->index.clear();
+      out.flush();
+      out.close();
+
+      // atomically move the file
+      boost::system::error_code ec;
+      boost::filesystem::rename(fork_db_dat_tmp, fork_db_dat, ec);
+      EOS_ASSERT(!ec, chain::snapshot_finalization_exception,
+                 "Unable to persist fork_db file: [code: {ec}] {message}",
+                 ("ec", ec.value())("message", ec.message()));
+
    }
 
    fork_database::~fork_database() {
@@ -387,8 +404,8 @@ namespace eosio { namespace chain {
       auto first_branch = (first == my->root->id) ? my->root : get_block(first);
       auto second_branch = (second == my->root->id) ? my->root : get_block(second);
 
-      EOS_ASSERT(first_branch, fork_db_block_not_found, "block ${id} does not exist", ("id", first));
-      EOS_ASSERT(second_branch, fork_db_block_not_found, "block ${id} does not exist", ("id", second));
+      EOS_ASSERT(first_branch, fork_db_block_not_found, "block {id} does not exist", ("id", first));
+      EOS_ASSERT(second_branch, fork_db_block_not_found, "block {id} does not exist", ("id", second));
 
       while( first_branch->block_num > second_branch->block_num )
       {
@@ -396,7 +413,7 @@ namespace eosio { namespace chain {
          const auto& prev = first_branch->header.previous;
          first_branch = (prev == my->root->id) ? my->root : get_block( prev );
          EOS_ASSERT( first_branch, fork_db_block_not_found,
-                     "block ${id} does not exist",
+                     "block {id} does not exist",
                      ("id", prev)
          );
       }
@@ -407,7 +424,7 @@ namespace eosio { namespace chain {
          const auto& prev = second_branch->header.previous;
          second_branch = (prev == my->root->id) ? my->root : get_block( prev );
          EOS_ASSERT( second_branch, fork_db_block_not_found,
-                     "block ${id} does not exist",
+                     "block {id} does not exist",
                      ("id", prev)
          );
       }
@@ -423,11 +440,11 @@ namespace eosio { namespace chain {
          const auto &second_prev = second_branch->header.previous;
          second_branch = get_block( second_prev );
          EOS_ASSERT( first_branch, fork_db_block_not_found,
-                     "block ${id} does not exist",
+                     "block {id} does not exist",
                      ("id", first_prev)
          );
          EOS_ASSERT( second_branch, fork_db_block_not_found,
-                     "block ${id} does not exist",
+                     "block {id} does not exist",
                      ("id", second_prev)
          );
       }
@@ -464,23 +481,23 @@ namespace eosio { namespace chain {
       }
    }
 
-   bool fork_database::is_head_block(uint32_t blocknum)  {
-      return my->head->block && my->head->block->block_num() == blocknum;
+   bool fork_database::is_head_block(const block_id_type& id)  {
+      return my->head->block && my->head->id == id;
    }
 
-   void fork_database::remove_head(uint32_t blocknum) {
-      EOS_ASSERT(is_head_block(blocknum), fork_database_exception, "trying to remove non-head block ${block_num}",
-                 ("blocknum", blocknum));
-      auto itr      = my->index.find(my->head->id);
-      auto prev_id = my->head->prev();
-      auto prev_itr = my->index.find( prev_id );
-      EOS_ASSERT(prev_itr != my->index.end(), fork_database_exception,
-                 "Unable to remove block ${block_num} because no previous block exists", ("blocknum", blocknum));
+   void fork_database::remove_head(const block_id_type& id) {
+      EOS_ASSERT(is_head_block(id), fork_database_exception, "trying to remove non-head block");
+      auto itr      = my->index.find(id);
       if( itr != my->index.end() ) {
          my->index.erase(itr);
       }
-      my->head = *prev_itr;
-      return;
+      auto candidate = my->index.get<by_lib_block_num>().begin();
+      if( candidate == my->index.get<by_lib_block_num>().end() || !(*candidate)->is_valid() ) {
+         my->head = my->root;
+      }
+      else {
+         my->head = *candidate;
+      }
    }
 
    void fork_database::mark_valid( const block_state_ptr& h ) {

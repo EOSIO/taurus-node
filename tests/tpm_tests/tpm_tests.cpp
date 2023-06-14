@@ -68,7 +68,7 @@ BOOST_AUTO_TEST_CASE(basic_test) try {
 
 BOOST_AUTO_TEST_CASE(bad_tcti) try {
    BOOST_CHECK_THROW(tpm_key("lalalalala", fc::crypto::public_key(), {}), fc::exception);
-   BOOST_CHECK_THROW(get_all_persistent_keys("trolololololol").size(), fc::exception);
+   BOOST_CHECK_THROW((void) get_all_persistent_keys("trolololololol").size(), fc::exception);
 } FC_LOG_AND_RETHROW();
 
 BOOST_AUTO_TEST_CASE(existing_non_ecc) try {

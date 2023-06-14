@@ -7,7 +7,7 @@ Logging for `nodeos` is controlled by the `logging.json` file. CLI options can b
 
 ## Appenders
 
-The logging library built into EOSIO supports two appender types:
+The logging library built into EOSIO-Taurus supports two appender types:
 
 - [Console](#console)
 - [GELF](#gelf) (Graylog Extended Log Format)
@@ -75,7 +75,7 @@ Example:
 
 ## Loggers
 
-The logging library built into EOSIO currently supports the following loggers:
+The logging library built into EOSIO-Taurus currently supports the following loggers:
 
 - `default` - the default logger, always enabled.
 - `net_plugin_impl` - detailed logging for the net plugin.

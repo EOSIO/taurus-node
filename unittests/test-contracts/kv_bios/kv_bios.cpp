@@ -2,12 +2,14 @@
 #include <eosio/name.hpp>
 #include <eosio/privileged.hpp>
 
-extern "C" __attribute__((eosio_wasm_import)) void set_resource_limit(int64_t, int64_t, int64_t);
-extern "C" __attribute__((eosio_wasm_import)) uint32_t get_kv_parameters_packed(void* params, uint32_t size, uint32_t max_version);
-extern "C" __attribute__((eosio_wasm_import)) void set_kv_parameters_packed(const char* params, uint32_t size);
-#ifdef USE_EOSIO_CDT_1_7_X
-extern "C" __attribute__((eosio_wasm_import)) uint32_t read_action_data( void* msg, uint32_t len );
-extern "C" __attribute__((eosio_wasm_import))    uint32_t action_data_size();
+#if defined( __eosio_cdt_major__) &&  __eosio_cdt_major__ <= 2
+extern "C" __attribute__((import_name("set_resource_limit"))) void set_resource_limit(int64_t, int64_t, int64_t);
+extern "C" __attribute__((import_name("get_kv_parameters_packed"))) uint32_t get_kv_parameters_packed(void* params, uint32_t size, uint32_t max_version);
+extern "C" __attribute__((import_name("set_kv_parameters_packed"))) void set_kv_parameters_packed(const char* params, uint32_t size);
+#else
+using eosio::internal_use_do_not_use::set_resource_limit;
+using eosio::internal_use_do_not_use::get_kv_parameters_packed;
+using eosio::internal_use_do_not_use::set_kv_parameters_packed; 
 #endif
 
 using namespace eosio;

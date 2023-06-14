@@ -139,16 +139,6 @@ namespace eosio { namespace chain {
          return 0;
       const int64_t resource_delta = erase_table_usage(resource_manager, kv->payer, key, kv->kv_key.size(), kv->kv_value.size());
 
-      if (auto dm_logger = resource_manager._context->control.get_deep_mind_logger()) {
-         fc_dlog(*dm_logger, "KV_OP REM ${action_id} ${db} ${payer} ${key} ${odata}",
-            ("action_id", resource_manager._context->get_action_id())
-            ("contract", name{ contract })
-            ("payer", kv->payer)
-            ("key", fc::to_hex(kv->kv_key.data(), kv->kv_key.size()))
-            ("odata", fc::to_hex(kv->kv_value.data(), kv->kv_value.size()))
-         );
-      }
-
       tracker.remove(*kv);
       return resource_delta;
    }
@@ -165,17 +155,6 @@ namespace eosio { namespace chain {
       if (kv) {
          const auto resource_delta = update_table_usage(resource_manager, kv->payer, payer, key, key_size, kv->kv_value.size(), value_size);
 
-         if (auto dm_logger = resource_manager._context->control.get_deep_mind_logger()) {
-            fc_dlog(*dm_logger, "KV_OP UPD ${action_id} ${db} ${payer} ${key} ${odata}:${ndata}",
-               ("action_id", resource_manager._context->get_action_id())
-               ("contract", name{ contract })
-               ("payer", payer)
-               ("key", fc::to_hex(kv->kv_key.data(), kv->kv_key.size()))
-               ("odata", fc::to_hex(kv->kv_value.data(), kv->kv_value.size()))
-               ("ndata", fc::to_hex(value, value_size))
-            );
-         }
-
          db.modify(*kv, [&](auto& obj) {
             obj.kv_value.assign(value, value_size);
             obj.payer = payer;
@@ -189,16 +168,6 @@ namespace eosio { namespace chain {
             obj.kv_value.assign(value, value_size);
             obj.payer       = payer;
          });
-
-         if (auto dm_logger = resource_manager._context->control.get_deep_mind_logger()) {
-            fc_dlog(*dm_logger, "KV_OP INS ${action_id} ${db} ${payer} ${key} ${ndata}",
-               ("action_id", resource_manager._context->get_action_id())
-               ("contract", name{ contract })
-               ("payer", payer)
-               ("key", fc::to_hex(key, key_size))
-               ("ndata", fc::to_hex(value, value_size))
-            );
-         }
 
          return resource_delta;
       }
@@ -269,12 +238,7 @@ namespace eosio { namespace chain {
 
    namespace {
       void kv_resource_manager_update_ram(apply_context& context, int64_t delta, const kv_resource_trace& trace, account_name payer) {
-         std::string event_id;
-         if (context.control.get_deep_mind_logger() != nullptr) {
-            event_id = STORAGE_EVENT_ID("${id}", ("id", fc::to_hex(trace.key.data(), trace.key.size())));
-         }
-
-         context.update_db_usage(payer, delta, storage_usage_trace(context.get_action_id(), std::move(event_id), "kv", trace.op_to_string()));
+         context.update_db_usage(payer, delta);
       }
    }
    kv_resource_manager create_kv_resource_manager(apply_context& context) {

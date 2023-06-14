@@ -223,16 +223,16 @@ try:
     cluster.validateAccounts(None)
 
     Print("Create new account %s via %s" % (testeraAccount.name, cluster.defproduceraAccount.name))
-    transId=node.createInitializeAccount(testeraAccount, cluster.defproduceraAccount, stakedDeposit=0, waitForTransBlock=False, exitOnError=True)
+    node.createInitializeAccount(testeraAccount, cluster.defproduceraAccount, stakedDeposit=0, waitForTransBlock=False, exitOnError=True)
 
     Print("Create new account %s via %s" % (testerbAccount.name, cluster.defproduceraAccount.name))
-    transId=node.createInitializeAccount(testerbAccount, cluster.defproduceraAccount, stakedDeposit=0, waitForTransBlock=False, exitOnError=True)
+    node.createInitializeAccount(testerbAccount, cluster.defproduceraAccount, stakedDeposit=0, waitForTransBlock=False, exitOnError=True)
 
     Print("Create new account %s via %s" % (currencyAccount.name, cluster.defproduceraAccount.name))
-    transId=node.createInitializeAccount(currencyAccount, cluster.defproduceraAccount, buyRAM=200000, stakedDeposit=5000, exitOnError=True)
+    node.createInitializeAccount(currencyAccount, cluster.defproduceraAccount, buyRAM=200000, stakedDeposit=5000, exitOnError=True)
 
     Print("Create new account %s via %s" % (exchangeAccount.name, cluster.defproduceraAccount.name))
-    transId=node.createInitializeAccount(exchangeAccount, cluster.defproduceraAccount, buyRAM=200000, waitForTransBlock=True, exitOnError=True)
+    node.createInitializeAccount(exchangeAccount, cluster.defproduceraAccount, buyRAM=200000, waitForTransBlock=True, exitOnError=True)
 
     Print("Validating accounts after user accounts creation")
     accounts=[testeraAccount, currencyAccount, exchangeAccount]
@@ -344,7 +344,7 @@ try:
     Print("push create action to currency1111 contract")
     contract="currency1111"
     action="create"
-    data="{\"issuer\":\"currency1111\",\"maximum_supply\":\"100000.0000 CUR\",\"can_freeze\":\"0\",\"can_recall\":\"0\",\"can_whitelist\":\"0\"}"
+    data="{\"issuer\":\"currency1111\",\"maximum_supply\":\"100000.0000 CUR\"}"
     opts="--permission currency1111@active"
     trans=node.pushMessage(contract, action, data, opts)
     try:
@@ -467,7 +467,7 @@ try:
         raise
 
     Print("Test for block decoded packed transaction (issue 2932)")
-    blockId=node.getBlockIdByTransId(transId)
+    blockId=node.getBlockNumByTransId(transId)
     assert(blockId)
     block=node.getBlock(blockId, exitOnError=True)
 
@@ -516,11 +516,15 @@ try:
     action="transfer"
     data="{\"from\":\"defproducera\",\"to\":\"currency1111\",\"quantity\":"
     data +="\"00.0151 CUR\",\"memo\":\"test\"}"
-    opts="--permission defproducera@active"
-    trans=node.pushMessage(contract, action, data, opts, True)
-    if trans is None or trans[0]:
-        cmdError("%s push message currency1111 transfer should have failed" % (ClientName))
-        errorExit("Failed to reject invalid transfer message to currency1111 contract")
+    # test error with return-failure-trace being true and false
+    opts = { "--permission defproducera@active" : True, 
+             "--return-failure-trace false --permission defproducera@active" : False }
+    for opt, hasTrace in opts.items():
+        success, trans=node.pushMessage(contract, action, data, opt, True)
+        if Utils.Debug: Print("node.pushMessage returned: ", json.dumps(trans, indent=1))
+        if success:
+            cmdError("%s push message currency1111 transfer should have failed" % (ClientName))
+            errorExit("Failed to reject invalid transfer message to currency1111 contract")
 
     Print("read current contract balance")
     amountStr=node.getTableAccountBalance("currency1111", defproduceraAccount.name)
@@ -745,4 +749,5 @@ try:
 finally:
     TestHelper.shutdown(cluster, walletMgr, testSuccessful, killEosInstances, killWallet, keepLogs, killAll, dumpErrorDetails)
 
-exit(0)
+exitCode = 0 if testSuccessful else 1
+exit(exitCode)

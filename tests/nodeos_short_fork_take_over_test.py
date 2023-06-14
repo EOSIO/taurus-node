@@ -22,6 +22,11 @@ import signal
 # node being started.
 #
 ###############################################################
+
+# give it 30 mins to run
+Utils.set_timeout(30*60)
+
+
 Print=Utils.Print
 
 from core_symbol import CORE_SYMBOL
@@ -257,12 +262,12 @@ try:
             (headBlockNum, libNumAroundDivergence)=getMinHeadAndLib(prodNodes)
 
         # track the block number and producer from each producing node
-        # we use timeout 70 here because of case when chain break, call to getBlockProducerByNum
+        # we use timeout 20 here because of case when chain break, call to getBlockProducerByNum
         # and call of producer_plugin::schedule_delayed_production_loop happens nearly immediately
-        # for 10 producers wait cycle is 10 * (12*0.5) = 60 seconds.
-        # for 11 producers wait cycle is 11 * (12*0.5) = 66 seconds.
-        blockProducer0=prodNodes[0].getBlockProducerByNum(blockNum, timeout=70)
-        blockProducer1=prodNodes[1].getBlockProducerByNum(blockNum, timeout=70)
+        # for 1 producer  wait cycle is 1 * (12*0.5) = 6 seconds.
+        # for 2 producers wait cycle is 2 * (12*0.5) = 12 seconds.
+        blockProducer0=prodNodes[0].getBlockProducerByNum(blockNum, timeout=20)
+        blockProducer1=prodNodes[1].getBlockProducerByNum(blockNum, timeout=20)
         Print("blockNum = {} blockProducer0 = {} blockProducer1 = {}".format(blockNum, blockProducer0, blockProducer1))
         blockProducers0.append({"blockNum":blockNum, "prod":blockProducer0})
         blockProducers1.append({"blockNum":blockNum, "prod":blockProducer1})
@@ -341,7 +346,7 @@ try:
         info=prodNode.getInfo()
         Print("node info: %s" % (info))
 
-    Print("killing node1(defproducerc) so that bridge node will frist connect to node0 (defproducera, defproducerb)")
+    Print("killing node1(defproducerc) so that bridge node will first connect to node0 (defproducera, defproducerb)")
     node1.kill(killSignal=15)
     time.sleep(2)
     if node1.verifyAlive():
@@ -351,8 +356,8 @@ try:
     if not nonProdNode.relaunch():
         errorExit("Failure - (non-production) node %d should have restarted" % (nonProdNode.nodeNum))
 
-    Print("Relaunch node 1 (defproducerc) and let it connect to brigde node that already synced up with node 0")
-    time.sleep(10)
+    Print("Relaunch node 1 (defproducerc) and let it connect to bridge node that already synced up with node 0")
+    time.sleep(30)
     if not node1.relaunch(chainArg=" --enable-stale-production "):
         errorExit("Failure - (non-production) node 1 should have restarted")
 
@@ -433,8 +438,9 @@ finally:
         Print("Compare Blocklog")
         cluster.compareBlockLogs()
         Print(Utils.FileDivider)
-        Print("Compare Blocklog")
+        Print("Print Blocklog")
         cluster.printBlockLog()
         Print(Utils.FileDivider)
 
-exit(0)
+exitCode = 0 if testSuccessful else 1
+exit(exitCode)

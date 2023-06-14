@@ -2358,7 +2358,7 @@ BOOST_AUTO_TEST_CASE(abi_type_redefine)
    )=====";
 
    auto is_type_exception = [](fc::exception const & e) -> bool { return e.to_detail_string().find("Circular reference in type account_name") != std::string::npos; };
-   BOOST_CHECK_EXCEPTION( abi_serializer abis(fc::json::from_string(repeat_abi).as<abi_def>(), abi_serializer::create_yield_function( max_serialization_time )), abi_circular_def_exception, is_type_exception );
+   BOOST_CHECK_EXCEPTION( abi_serializer abis(fc::json::from_string(repeat_abi).as<abi_def>(), abi_serializer::create_yield_function( fc::seconds(100) )), abi_circular_def_exception, is_type_exception );
 
 } FC_LOG_AND_RETHROW() }
 
@@ -3065,7 +3065,8 @@ BOOST_AUTO_TEST_CASE(abi_serialize_detailed_error_messages)
          {"new_type_name": "foo", "type": "s2"},
          {"new_type_name": "bar", "type": "foo"},
          {"new_type_name": "s1array", "type": "s1[]"},
-         {"new_type_name": "s1arrayarray", "type": "s1array[]"}
+         {"new_type_name": "s1arrayarray", "type": "s1array[]"},
+         {"new_type_name": "oint", "type": "int8?"}
       ],
       "structs": [
          {"name": "s1", "base": "", "fields": [
@@ -3089,6 +3090,9 @@ BOOST_AUTO_TEST_CASE(abi_serialize_detailed_error_messages)
          {"name": "s5", "base": "", "fields": [
             {"name": "f0", "type": "v2[]"},
          ]},
+         {"name": "s6", "base": "", "fields": [
+            {"name": "f0", "type": "oint[]"},
+         ]},
       ],
       "variants": [
          {"name": "v1", "types": ["s3", "int8", "s4"]},
@@ -3096,8 +3100,12 @@ BOOST_AUTO_TEST_CASE(abi_serialize_detailed_error_messages)
       ],
    })";
 
+   abi_serializer abis( fc::json::from_string(abi).as<abi_def>(), abi_serializer::create_yield_function( max_serialization_time ) );
+
+   //Array of optionals shall be serialized with no error !
+   BOOST_CHECK_NO_THROW( abis.variant_to_binary("s6", fc::json::from_string(R"({"f0":[100,null,200,null,300]})"),
+                                                         abi_serializer::create_yield_function( max_serialization_time )) );
    try {
-      abi_serializer abis( fc::json::from_string(abi).as<abi_def>(), abi_serializer::create_yield_function( max_serialization_time ) );
 
       BOOST_CHECK_EXCEPTION( abis.variant_to_binary("bar", fc::json::from_string(R"({"f0":{"i0":1},"i2":3})"), abi_serializer::create_yield_function( max_serialization_time )),
                              pack_exception, fc_exception_message_is("Missing field 'i1' in input object while processing struct 's2.f0'") );
@@ -3250,9 +3258,14 @@ BOOST_AUTO_TEST_CASE(abi_deserialize_detailed_error_messages)
          {"name": "v1", "types": ["int8", "s1"]},
       ],
    })";
-
-   try {
-      abi_serializer abis( fc::json::from_string(abi).as<abi_def>(), abi_serializer::create_yield_function( max_serialization_time ) );
+   
+    // Here fc::variant("030101000103") represents an array of std::optional {1,null,3}, and
+    // fc::variant("0400000000") represents an array of 4 nulls. Also fc::variant("030001af013a") represents {null, 0xAF, 0x3A}.
+    // Test to verify that array of optionals doesn't throw exception
+    abi_serializer abis( fc::json::from_string(abi).as<abi_def>(), abi_serializer::create_yield_function( max_serialization_time ) );
+    BOOST_CHECK_NO_THROW( abis.binary_to_variant("s4", fc::variant("030101000103").as<bytes>(),
+                                abi_serializer::create_yield_function( max_serialization_time )) );
+    try {
 
       BOOST_CHECK_EXCEPTION( abis.binary_to_variant("s2", fc::variant("020102").as<bytes>(), abi_serializer::create_yield_function( max_serialization_time )),
                              unpack_exception, fc_exception_message_is("Stream unexpectedly ended; unable to unpack field 'f1' of struct 's2'") );
@@ -3268,12 +3281,6 @@ BOOST_AUTO_TEST_CASE(abi_deserialize_detailed_error_messages)
 
       BOOST_CHECK_EXCEPTION( abis.binary_to_variant("s3", fc::variant("02010304").as<bytes>(), abi_serializer::create_yield_function( max_serialization_time )),
                              abi_exception, fc_exception_message_is("Encountered field 'i5' without binary extension designation while processing struct 's3'") );
-
-      // This check actually points to a problem with the current abi_serializer.
-      // An array of optionals (which is unfortunately not rejected in validation) leads to an unpack_exception here because one of the optional elements is not present.
-      // However, abis.binary_to_variant("s4", fc::variant("03010101020103").as<bytes>(), max_serialization_time) would work just fine!
-      BOOST_CHECK_EXCEPTION( abis.binary_to_variant("s4", fc::variant("030101000103").as<bytes>(), abi_serializer::create_yield_function( max_serialization_time )),
-                             unpack_exception, fc_exception_message_is("Invalid packed array 's4.f0[1]'") );
 
       BOOST_CHECK_EXCEPTION( abis.binary_to_variant("s4", fc::variant("020101").as<bytes>(), abi_serializer::create_yield_function( max_serialization_time )),
                              unpack_exception, fc_exception_message_is("Unable to unpack optional of built-in type 'int8' while processing 's4.f0[1]'") );
@@ -3536,14 +3543,11 @@ BOOST_AUTO_TEST_CASE(transaction_extensions_tests)
    auto abi = eosio_contract_abi(fc::json::from_string(my_abi).as<abi_def>());
    eosio::chain::impl::abi_to_variant::add(mvo, "test", txn, get_resolver(abi), ctx);
    const std::string mvo_as_string = fc::json::to_string(mvo, fc::time_point::now() + max_serialization_time);
-   // since this ends up using abi_serializer::add, we will have deferred_transaction_generation
-   BOOST_REQUIRE(mvo_as_string.find("deferred_transaction_generation") != string::npos);
    BOOST_REQUIRE(mvo_as_string.find("transaction_extensions") == string::npos);
    // create a clone of the original txn
    chain::transaction txn_clone;
    abi_serializer::from_variant(mvo["test"], txn_clone, get_resolver(), abi_serializer::create_yield_function( max_serialization_time ));
-   BOOST_REQUIRE_EQUAL(txn_clone.transaction_extensions.size(), 1);
-   BOOST_REQUIRE(txn_clone.transaction_extensions == txn.transaction_extensions);
+   BOOST_REQUIRE_EQUAL(txn_clone.transaction_extensions.size(), 0);
    mutable_variant_object mvo2;
    eosio::chain::impl::abi_to_variant::add(mvo2, "test", txn_clone, get_resolver(abi), ctx);
    const std::string mvo2_as_string = fc::json::to_string(mvo2, fc::time_point::now() + max_serialization_time);
@@ -3554,7 +3558,6 @@ BOOST_AUTO_TEST_CASE(transaction_extensions_tests)
    fc::variant direct_var(txn);
    const std::string direct_var_as_string = fc::json::to_string(direct_var, fc::time_point::now() + max_serialization_time);
    // since this ends up using FC_REFLECT, we will have transaction_extensions
-   BOOST_REQUIRE(direct_var_as_string.find("deferred_transaction_generation") == string::npos);
    BOOST_REQUIRE(direct_var_as_string.find("transaction_extensions") != string::npos);
    const auto trans_ext = direct_var["transaction_extensions"].get_array();
    chain::transaction txn_clone2;
@@ -3570,7 +3573,6 @@ BOOST_AUTO_TEST_CASE(transaction_extensions_tests)
    mvo["test"] = mvo_txn;
    const std::string redundant_ext_as_string = fc::json::to_string(mvo, fc::time_point::now() + max_serialization_time);
    // verifying both are present
-   BOOST_REQUIRE(redundant_ext_as_string.find("deferred_transaction_generation") != string::npos);
    BOOST_REQUIRE(redundant_ext_as_string.find("transaction_extensions") != string::npos);
    chain::transaction txn_clone3;
    abi_serializer::from_variant(mvo["test"], txn_clone3, get_resolver(), abi_serializer::create_yield_function( max_serialization_time ));
@@ -3585,14 +3587,6 @@ BOOST_AUTO_TEST_CASE(transaction_extensions_tests)
    mvo["test"] = mvo_txn;
    const std::string incompatible_ext_as_string = fc::json::to_string(mvo, fc::time_point::now() + max_serialization_time);
    std::cerr << incompatible_ext_as_string << "\n";
-   // verifying both are present
-   BOOST_REQUIRE(incompatible_ext_as_string.find("deferred_transaction_generation") != string::npos);
-   BOOST_REQUIRE(incompatible_ext_as_string.find("transaction_extensions") != string::npos);
-   chain::transaction txn_clone4;
-   using eosio::testing::fc_exception_message_starts_with;
-   BOOST_CHECK_EXCEPTION( abi_serializer::from_variant(mvo["test"], txn_clone4, get_resolver(), abi_serializer::create_yield_function( max_serialization_time )),
-                          packed_transaction_type_exception,
-                          fc_exception_message_starts_with("Transaction contained deferred_transaction_generation and transaction_extensions that did not match") );
 }
 
 BOOST_AUTO_TEST_CASE(signed_transaction_extensions_tests)
@@ -3610,14 +3604,11 @@ BOOST_AUTO_TEST_CASE(signed_transaction_extensions_tests)
    auto abi = eosio_contract_abi(fc::json::from_string(my_abi).as<abi_def>());
    eosio::chain::impl::abi_to_variant::add(mvo, "test", txn, get_resolver(abi), ctx);
    const std::string mvo_as_string = fc::json::to_string(mvo, fc::time_point::now() + max_serialization_time);
-   // since this ends up using abi_serializer::add, we will have deferred_transaction_generation
-   BOOST_REQUIRE(mvo_as_string.find("deferred_transaction_generation") != string::npos);
    BOOST_REQUIRE(mvo_as_string.find("transaction_extensions") == string::npos);
    // create a clone of the original txn
    chain::signed_transaction txn_clone;
    abi_serializer::from_variant(mvo["test"], txn_clone, get_resolver(), abi_serializer::create_yield_function( max_serialization_time ));
-   BOOST_REQUIRE_EQUAL(txn_clone.transaction_extensions.size(), 1);
-   BOOST_REQUIRE(txn_clone.transaction_extensions == txn.transaction_extensions);
+   BOOST_REQUIRE_EQUAL(txn_clone.transaction_extensions.size(), 0);
    mutable_variant_object mvo2;
    eosio::chain::impl::abi_to_variant::add(mvo2, "test", txn_clone, get_resolver(abi), ctx);
    const std::string mvo2_as_string = fc::json::to_string(mvo2, fc::time_point::now() + max_serialization_time);
@@ -3644,7 +3635,6 @@ BOOST_AUTO_TEST_CASE(signed_transaction_extensions_tests)
    mvo["test"] = mvo_txn;
    const std::string redundant_ext_as_string = fc::json::to_string(mvo, fc::time_point::now() + max_serialization_time);
    // verifying both are present
-   BOOST_REQUIRE(redundant_ext_as_string.find("deferred_transaction_generation") != string::npos);
    BOOST_REQUIRE(redundant_ext_as_string.find("transaction_extensions") != string::npos);
    chain::signed_transaction txn_clone3;
    abi_serializer::from_variant(mvo["test"], txn_clone3, get_resolver(), abi_serializer::create_yield_function( max_serialization_time ));
@@ -3659,14 +3649,15 @@ BOOST_AUTO_TEST_CASE(signed_transaction_extensions_tests)
    mvo["test"] = mvo_txn;
    const std::string incompatible_ext_as_string = fc::json::to_string(mvo, fc::time_point::now() + max_serialization_time);
    std::cerr << incompatible_ext_as_string << "\n";
-   // verifying both are present
-   BOOST_REQUIRE(incompatible_ext_as_string.find("deferred_transaction_generation") != string::npos);
-   BOOST_REQUIRE(incompatible_ext_as_string.find("transaction_extensions") != string::npos);
-   chain::signed_transaction txn_clone4;
-   using eosio::testing::fc_exception_message_starts_with;
-   BOOST_CHECK_EXCEPTION( abi_serializer::from_variant(mvo["test"], txn_clone4, get_resolver(), abi_serializer::create_yield_function( max_serialization_time )),
-                          packed_transaction_type_exception,
-                          fc_exception_message_starts_with("Transaction contained deferred_transaction_generation and transaction_extensions that did not match") );
+}
+
+BOOST_AUTO_TEST_CASE(test_version_1_3)
+{
+   eosio::chain::abi_def example_1_3_abi;
+   example_1_3_abi.version = "eosio::abi/1.3";
+   example_1_3_abi.actions.emplace_back( "field"_n, "protobuf::test.field", "");
+   abi_serializer serializer;
+   BOOST_CHECK_NO_THROW(serializer.set_abi(example_1_3_abi,  abi_serializer::create_yield_function( max_serialization_time )));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

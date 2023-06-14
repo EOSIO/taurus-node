@@ -1,5 +1,5 @@
 ## Goal
-Create a keypair consisting of a public and a private key for signing transactions in the EOSIO blockchain.
+Create a keypair consisting of a public and a private key for signing transactions in the EOSIO-Taurus blockchain.
 
 ## Before you begin
 Before you follow the steps to create a new key pair, make sure the following items are fulfilled:
@@ -8,7 +8,7 @@ Before you follow the steps to create a new key pair, make sure the following it
 * Install the currently supported version of `cleos`
 
 [[info | Note]]
-| The cleos tool is bundled with the EOSIO software. [Installing EOSIO](../../00_install/index.md) will also install the cleos tool. 
+| The cleos tool is bundled with the EOSIO-Taurus software. [Installing EOSIO-Taurus](../../00_install/index.md) will also install the cleos tool.
 
 * Acquire functional understanding of asymmetric cryptography (public and private keypair) in the context of blockchain
 

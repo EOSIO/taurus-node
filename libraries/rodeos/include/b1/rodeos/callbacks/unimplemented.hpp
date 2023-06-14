@@ -24,7 +24,7 @@ struct unimplemented_callbacks {
    uint32_t get_kv_parameters_packed(eosio::vm::span<char>, uint32_t) { return unimplemented<uint32_t>("get_kv_parameters_packed"); }
    void set_kv_parameters_packed(eosio::vm::span<const char>) { return unimplemented<void>("set_kv_parameters_packed"); }
 
-   int  is_privileged(int64_t) { return unimplemented<int>("is_privileged"); }
+   bool is_privileged(uint64_t) { return unimplemented<int>("is_privileged"); }
    void set_privileged(int64_t, int) { return unimplemented<void>("set_privileged"); }
    void preactivate_feature(int) { return unimplemented<void>("preactivate_feature"); }
 
@@ -97,6 +97,7 @@ struct unimplemented_callbacks {
    int64_t publication_time() { return unimplemented<int64_t>("publication_time"); }
    int     is_feature_activated(int) { return unimplemented<int>("is_feature_activated"); }
    int64_t get_sender() { return unimplemented<int64_t>("get_sender"); }
+   void push_event(eosio::vm::span<const char>) { return unimplemented<void>("push_event"); }
 
    // context_free_system_api
    void eosio_assert_code(int, int64_t) { return unimplemented<void>("eosio_assert_code"); }
@@ -193,6 +194,7 @@ struct unimplemented_callbacks {
       RODEOS_REGISTER_CALLBACK(Rft, Derived, publication_time);
       RODEOS_REGISTER_CALLBACK(Rft, Derived, is_feature_activated);
       RODEOS_REGISTER_CALLBACK(Rft, Derived, get_sender);
+      RODEOS_REGISTER_CALLBACK(Rft, Derived, push_event);
 
       // context_free_system_api
       RODEOS_REGISTER_CALLBACK(Rft, Derived, eosio_assert_code);

@@ -5,11 +5,14 @@
 
 #pragma push_macro("N")
 #undef N
-#include "llvm/IR/Module.h"
 #pragma pop_macro("N")
 #include <vector>
 #include <map>
 
+
+namespace llvm {
+   class Module;
+}
 namespace eosio { namespace chain { namespace eosvmoc {
 
 struct instantiated_code {

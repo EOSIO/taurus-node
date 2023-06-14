@@ -40,8 +40,8 @@ void test_action::test_dummy_action() {
    int total = 0;
 
    // get_action
-   total = get_action( 1, 0, buffer, 0 );
-   total = get_action( 1, 0, buffer, static_cast<size_t>(total) );
+   total = eosio::internal_use_do_not_use::get_action( 1, 0, buffer, 0 );
+   total = eosio::internal_use_do_not_use::get_action( 1, 0, buffer, static_cast<size_t>(total) );
    eosio_assert( total > 0, "get_action failed" );
    eosio::action act = eosio::get_action( 1, 0 );
    eosio_assert( act.authorization.back().actor == "testapi"_n, "incorrect permission actor" );
@@ -147,8 +147,13 @@ void test_action::test_cf_action() {
       eosio::send_deferred( "testapi"_n.value, "testapi"_n, "hello", 6, 0 );
       eosio_assert( false, "transaction_api should not be allowed" );
    } else if ( cfa.payload == 212 ) {
-      set_action_return_value("hi", 2);
+      char msg[] = "hi";
+      set_action_return_value(msg, 2);
       eosio_assert( false, "set_action_return_value should not be allowed" );
+   } else if ( cfa.payload == 213 ) {
+      char msg[] = "hi";
+      eosio::internal_use_do_not_use::push_event( msg, 2 );
+      eosio_assert( false, "push_event should not be allowed" );
    }
 
 }
@@ -347,4 +352,13 @@ void test_action::test_action_ordinal_foo(uint64_t receiver, uint64_t code, uint
 void test_action::test_action_ordinal_bar(uint64_t receiver, uint64_t code, uint64_t action) {
    print("exec 11");
    set_action_return_value( &eosio::pack(11.42f)[0], eosio::pack_size(11.42f) );
+}
+
+void test_action::test_push_event(uint64_t receiver, uint64_t code, uint64_t action) {
+   event_wrapper e;
+   e.tag = "testevent"_n;
+   e.route = "event_route";
+   e.data = eosio::pack(std::string("event test"));
+   auto p = eosio::pack(e);
+   eosio::internal_use_do_not_use::push_event(p.data(), p.size());
 }

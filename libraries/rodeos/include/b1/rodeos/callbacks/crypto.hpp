@@ -2,6 +2,7 @@
 
 #include <b1/rodeos/callbacks/vm_types.hpp>
 #include <eosio/chain/config.hpp>
+#include <eosio/chain/webassembly/interface.hpp>
 #include <fc/crypto/public_key.hpp>
 #include <fc/crypto/ripemd160.hpp>
 #include <fc/crypto/sha1.hpp>
@@ -123,6 +124,31 @@ struct crypto_callbacks {
       *hash_val = fc::ripemd160::hash(data.data(), data.size());
    }
 
+   bool verify_rsa_sha256_sig(legacy_span<const char> message,
+                              legacy_span<const char> signature,
+                              legacy_span<const char> exponent,
+                              legacy_span<const char> modulus) {
+      using namespace eosio::chain::webassembly;
+      return interface::verify_rsa_sha256_sig_impl(message.data(), message.size(),
+                                                   signature.data(), signature.size(),
+                                                   exponent.data(), exponent.size(),
+                                                   modulus.data(), modulus.size());
+   }
+
+   bool verify_ecdsa_sig(legacy_span<const char> message,
+                         legacy_span<const char> signature,
+                         legacy_span<const char> pubkey) {
+      using namespace eosio::chain::webassembly;
+      return interface::verify_ecdsa_sig_impl(message.data(), message.size(),
+                                              signature.data(), signature.size(),
+                                              pubkey.data(), pubkey.size());
+   }
+
+   bool is_supported_ecdsa_pubkey(legacy_span<const char> pubkey) {
+      using namespace eosio::chain::webassembly;
+      return interface::is_supported_ecdsa_pubkey_impl(pubkey.data(), pubkey.size());
+   }
+
    template <typename Rft>
    static void register_callbacks() {
       RODEOS_REGISTER_CALLBACK(Rft, Derived, assert_recover_key);
@@ -135,6 +161,9 @@ struct crypto_callbacks {
       RODEOS_REGISTER_CALLBACK(Rft, Derived, sha256);
       RODEOS_REGISTER_CALLBACK(Rft, Derived, sha512);
       RODEOS_REGISTER_CALLBACK(Rft, Derived, ripemd160);
+      RODEOS_REGISTER_CALLBACK(Rft, Derived, verify_rsa_sha256_sig);
+      RODEOS_REGISTER_CALLBACK(Rft, Derived, verify_ecdsa_sig);
+      RODEOS_REGISTER_CALLBACK(Rft, Derived, is_supported_ecdsa_pubkey);
    } // register_callbacks()
 };   // crypto_callbacks
 

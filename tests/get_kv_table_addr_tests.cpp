@@ -35,7 +35,7 @@ using namespace eosio::testing;
 using namespace fc;
 
 BOOST_FIXTURE_TEST_CASE( get_kv_table_addr_test, TESTER ) try {
-   eosio::chain_apis::read_only::get_table_rows_result result;
+   eosio::chain_apis::table_query::get_table_rows_result result;
    auto chk_result = [&](int row, int data) {
       if( data == 1 )
       {
@@ -102,8 +102,8 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_addr_test, TESTER ) try {
    push_action("kvaddrbook"_n, "test"_n, "kvaddrbook"_n, arg );
 
 
-   eosio::chain_apis::read_only plugin(*(this->control), {}, fc::microseconds::maximum());
-   eosio::chain_apis::read_only::get_kv_table_rows_params p;
+   eosio::chain_apis::table_query plugin(*(this->control), fc::microseconds::maximum());
+   eosio::chain_apis::table_query::get_kv_table_rows_params p;
 
    p.code = "kvaddrbook"_n;
    p.table = ""_n;
@@ -115,7 +115,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_addr_test, TESTER ) try {
    p.json = false;
    p.reverse = false;
    p.limit = 30;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(24u, result.rows.size()); // 4 records, each with 6 indices
    for (const auto& v: result.rows) {
      BOOST_REQUIRE(v.get_object().contains("data"));
@@ -131,7 +131,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_addr_test, TESTER ) try {
    p.upper_bound = "";
    p.json = true;
    p.reverse = false;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 2);
 
@@ -141,7 +141,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_addr_test, TESTER ) try {
    p.lower_bound = "aaa";
    p.upper_bound = "";
    p.reverse = false;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(4u, result.rows.size());
    chk_result(0, 1);
    chk_result(1, 2);
@@ -154,7 +154,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_addr_test, TESTER ) try {
    p.lower_bound = "john";
    p.upper_bound = "";
    p.reverse = false;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(3u, result.rows.size());
    chk_result(0, 2);
    chk_result(1, 3);
@@ -166,7 +166,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_addr_test, TESTER ) try {
    p.lower_bound = "john";
    p.upper_bound = "lois";
    p.reverse = false;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    chk_result(0, 2);
 
@@ -176,7 +176,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_addr_test, TESTER ) try {
    p.lower_bound = "";
    p.upper_bound = "steve";
    p.reverse = true;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(4u, result.rows.size());
    chk_result(0, 4);
    chk_result(1, 3);
@@ -189,7 +189,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_addr_test, TESTER ) try {
    p.lower_bound = "john";
    p.upper_bound = "steve";
    p.reverse = true;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(3u, result.rows.size());
    chk_result(0, 4);
    chk_result(1, 3);
@@ -200,7 +200,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_addr_test, TESTER ) try {
    p.lower_bound = "";
    p.upper_bound = "aaaa";
    p.reverse = true;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(0u, result.rows.size());
 
    p.index_name = "accname"_n;
@@ -209,7 +209,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_addr_test, TESTER ) try {
    p.lower_bound = "steve";
    p.upper_bound = "john";
    p.reverse = true;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(0u, result.rows.size());
 
    p.index_name = "accname"_n;
@@ -218,7 +218,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_addr_test, TESTER ) try {
    p.lower_bound = "";
    p.upper_bound = "john";
    p.reverse = true;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    chk_result(0, 2);
    chk_result(1, 1);

@@ -45,32 +45,11 @@ static constexpr unsigned int DJBH(const char* cp)
   return hash;
 }
 
-static constexpr unsigned long long WASM_TEST_ACTION(const char* cls, const char* method)
-{
-  return static_cast<unsigned long long>(DJBH(cls)) << 32 | static_cast<unsigned long long>(DJBH(method));
-}
-
 struct u128_action {
   unsigned __int128  values[3]; //16*3
 };
 
 using namespace eosio::chain::literals;
-
-// Deferred Transaction Trigger Action
-struct dtt_action {
-   static uint64_t get_name() {
-      return WASM_TEST_ACTION("test_transaction", "send_deferred_tx_with_dtt_action");
-   }
-   static uint64_t get_account() {
-      return "testapi"_n.to_uint64_t();
-   }
-
-   uint64_t       payer = "testapi"_n.to_uint64_t();
-   uint64_t       deferred_account = "testapi"_n.to_uint64_t();
-   uint64_t       deferred_action = WASM_TEST_ACTION("test_transaction", "deferred_print");
-   uint64_t       permission_name = "active"_n.to_uint64_t();
-   uint32_t       delay_sec = 2;
-};
 
 struct invalid_access_action {
    uint64_t code;
@@ -80,7 +59,6 @@ struct invalid_access_action {
 };
 
 FC_REFLECT( u128_action, (values) )
-FC_REFLECT( dtt_action, (payer)(deferred_account)(deferred_action)(permission_name)(delay_sec) )
 FC_REFLECT( invalid_access_action, (code)(val)(index)(store) )
 
 #include <eosio/testing/backing_store_tester_macros.hpp>
@@ -115,6 +93,19 @@ struct test_api_action {
 FC_REFLECT_TEMPLATE((uint64_t T), test_api_action<T>, BOOST_PP_SEQ_NIL)
 
 template<uint64_t NAME>
+struct test_pause_action {
+   static account_name get_account() {
+      return "pause"_n;
+   }
+
+   static action_name get_name() {
+      return action_name(NAME);
+   }
+};
+
+FC_REFLECT_TEMPLATE((uint64_t T), test_pause_action<T>, BOOST_PP_SEQ_NIL)
+
+template<uint64_t NAME>
 struct test_chain_action {
 	static account_name get_account() {
 		return account_name(config::system_account_name);
@@ -142,6 +133,14 @@ struct test_permission_last_used_action {
 };
 
 FC_REFLECT( test_permission_last_used_action, (account)(permission)(last_used_time) )
+
+struct test_event_wrapper {
+   name       tag;
+   std::string       route;
+   std::vector<char> data;
+};
+FC_REFLECT(test_event_wrapper, (tag)(route)(data));
+
 
 constexpr uint64_t TEST_METHOD(const char* CLASS, const char *METHOD) {
   return ( (uint64_t(DJBH(CLASS))<<32) | uint32_t(DJBH(METHOD)) );
@@ -258,9 +257,9 @@ bool is_page_memory_error(page_memory_error const &e) { return true; }
 bool is_unsatisfied_authorization(unsatisfied_authorization const & e) { return true;}
 bool is_wasm_execution_error(eosio::chain::wasm_execution_error const& e) {return true;}
 bool is_tx_net_usage_exceeded(const tx_net_usage_exceeded& e) { return true; }
-bool is_block_net_usage_exceeded(const tx_cpu_usage_exceeded& e) { return true; }
+bool is_block_net_usage_exceeded(const block_net_usage_exceeded& e) { return true; }
 bool is_tx_cpu_usage_exceeded(const tx_cpu_usage_exceeded& e) { return true; }
-bool is_block_cpu_usage_exceeded(const tx_cpu_usage_exceeded& e) { return true; }
+bool is_block_cpu_usage_exceeded(const block_cpu_usage_exceeded& e) { return true; }
 bool is_deadline_exception(const deadline_exception& e) { return true; }
 
 auto is_deadline_exception_or_wasm_execution_error(validating_tester& tester) {
@@ -533,7 +532,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(action_tests, TESTER_T, backing_store_ts) { try {
    CALL_TEST_FUNCTION( t, "test_action", "test_current_receiver", fc::raw::pack("testapi"_n));
 
    // test send_action_sender
-   CALL_TEST_FUNCTION( t, "test_transaction", "send_action_sender", fc::raw::pack("testapi"_n));
+   // CALL_TEST_FUNCTION( t, "test_transaction", "send_action_sender", fc::raw::pack("testapi"_n));
 
    t.produce_block();
 
@@ -588,6 +587,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(ram_billing_in_notify_tests, TYPE_T, backing_store
    const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::action_return_value); // testapi requires this
    BOOST_REQUIRE(d);
    chain.preactivate_protocol_features( {*d} );
+   const auto& d2 = pfm.get_builtin_digest(builtin_protocol_feature_t::configurable_wasm_limits); // needed to avoid 'Too many function defs' when using CDT 3.0
+   BOOST_REQUIRE(d2);
+   chain.preactivate_protocol_features( {*d2} );
+   const auto& d3 = pfm.get_builtin_digest(builtin_protocol_feature_t::event_generation); // testapi requires this since it uses push_event
+   BOOST_REQUIRE(d3);
+   chain.preactivate_protocol_features( {*d3} );
 
    chain.produce_blocks(2);
    chain.create_account( "testapi"_n );
@@ -684,7 +689,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(cf_action_tests, TESTER_T, backing_store_ts) { try
 
          trx.actions.push_back(act1);
          // attempt to access non context free api
-         for (uint32_t i = 200; i <= 212; ++i) {
+         for (uint32_t i = 200; i <= 213; ++i) {
             trx.context_free_actions.clear();
             trx.context_free_data.clear();
             cfa.payload = i;
@@ -772,82 +777,6 @@ BOOST_FIXTURE_TEST_CASE(cfa_stateful_api, TESTER)  try {
 
    BOOST_REQUIRE_EQUAL( validate(), true );
 } FC_LOG_AND_RETHROW()
-
-BOOST_AUTO_TEST_CASE_TEMPLATE(deferred_cfa_failed, TESTER_T, backing_store_ts) { try {
-   TESTER_T t;
-
-   t.create_account( "testapi"_n );
-   t.produce_blocks(1);
-   t.set_code( "testapi"_n, contracts::test_api_wasm() );
-
-   account_name a = "testapi2"_n;
-   account_name creator = config::system_account_name;
-
-   signed_transaction trx;
-
-   trx.actions.emplace_back( vector<permission_level>{{creator,config::active_name}},
-                                 newaccount{
-                                 .creator  = creator,
-                                 .name     = a,
-                                 .owner    = authority( t.get_public_key( a, "owner" ) ),
-                                 .active   = authority( t.get_public_key( a, "active" ) )
-                                 });
-   action act({}, test_api_action<TEST_METHOD("test_transaction", "stateful_api")>{});
-   trx.context_free_actions.push_back(act);
-   t.set_transaction_headers(trx, 10, 2);
-   trx.sign( t.get_private_key( creator, "active" ), t.control->get_chain_id()  );
-
-   BOOST_CHECK_EXCEPTION(t.push_transaction( trx ), fc::exception,
-      [&](const fc::exception &e) {
-         return expect_assert_message(e, "only context free api's can be used in this context");
-      });
-
-   t.produce_blocks(10);
-
-   // CFA failed, testapi2 not created
-   t.create_account( "testapi2"_n );
-
-   BOOST_REQUIRE_EQUAL( t.validate(), true );
-} FC_LOG_AND_RETHROW() }
-
-BOOST_AUTO_TEST_CASE_TEMPLATE(deferred_cfa_success, TESTER_T, backing_store_ts) { try {
-   TESTER_T t;
-
-   t.create_account( "testapi"_n );
-   t.produce_blocks(1);
-   t.set_code( "testapi"_n, contracts::test_api_wasm() );
-
-   account_name a = "testapi2"_n;
-   account_name creator = config::system_account_name;
-
-   signed_transaction trx;
-
-   trx.actions.emplace_back( vector<permission_level>{{creator,config::active_name}},
-                                 newaccount{
-                                 .creator  = creator,
-                                 .name     = a,
-                                 .owner    = authority( t.get_public_key( a, "owner" ) ),
-                                 .active   = authority( t.get_public_key( a, "active" ) )
-                                 });
-   action act({}, test_api_action<TEST_METHOD("test_transaction", "context_free_api")>{});
-   trx.context_free_actions.push_back(act);
-   t.set_transaction_headers(trx, 10, 2);
-   trx.sign( t.get_private_key( creator, "active" ), t.control->get_chain_id()  );
-   auto trace = t.push_transaction( trx );
-   BOOST_REQUIRE(trace != nullptr);
-   if (trace) {
-      BOOST_REQUIRE_EQUAL(transaction_receipt_header::status_enum::delayed, trace->receipt->status);
-      BOOST_REQUIRE_EQUAL(1, trace->action_traces.size());
-   }
-   t.produce_blocks(10);
-
-   // CFA success, testapi2 created
-   BOOST_CHECK_EXCEPTION(t.create_account( "testapi2"_n ), fc::exception,
-      [&](const fc::exception &e) {
-         return expect_assert_message(e, "Cannot create account named testapi2, as that name is already taken");
-      });
-   BOOST_REQUIRE_EQUAL( t.validate(), true );
-} FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(light_validation_skip_cfa, TYPE_T, backing_store_type_suite) { try {
    TYPE_T bs_type;
@@ -950,21 +879,28 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_pass_tests, TESTER_T, backing_store_ts) 
    BOOST_REQUIRE_EQUAL( t.validate(), true );
 } FC_LOG_AND_RETHROW() }
 
-template<class T>
-void call_test(TESTER& test, T ac, uint32_t billed_cpu_time_us , uint32_t max_cpu_usage_ms = 200, std::vector<char> payload = {} ) {
+template<class T, typename Tester>
+void call_test(Tester& test, T ac, uint32_t billed_cpu_time_us, uint32_t max_cpu_usage_ms, uint32_t max_block_cpu_ms, std::vector<char> payload = {}, name account = "testapi"_n ) {
    signed_transaction trx;
 
-   auto pl = vector<permission_level>{{"testapi"_n, config::active_name}};
+   auto pl = vector<permission_level>{{account, config::active_name}};
    action act(pl, ac);
    act.data = payload;
 
    trx.actions.push_back(act);
    test.set_transaction_headers(trx);
-   auto sigs = trx.sign(test.get_private_key("testapi"_n, "active"), test.control->get_chain_id());
+   auto sigs = trx.sign(test.get_private_key(account, "active"), test.control->get_chain_id());
    flat_set<public_key_type> keys;
    trx.get_signature_keys(test.control->get_chain_id(), fc::time_point::maximum(), keys);
-   auto res = test.push_transaction( trx, fc::time_point::now() + fc::milliseconds(max_cpu_usage_ms), billed_cpu_time_us );
-   BOOST_CHECK_EQUAL(res->receipt->status, transaction_receipt::executed);
+
+   auto ptrx = std::make_shared<packed_transaction>( std::move(trx), true );
+   auto fut = transaction_metadata::start_recover_keys( std::move( ptrx ), test.control->get_thread_pool(),
+                                                        test.control->get_chain_id(), fc::microseconds::maximum(),
+                                                        transaction_metadata::trx_type::input );
+   auto res = test.control->push_transaction( fut.get(), fc::time_point::now() + fc::milliseconds(max_block_cpu_ms),
+                                              fc::milliseconds(max_cpu_usage_ms), billed_cpu_time_us, billed_cpu_time_us > 0, 0 );
+   if( res->except_ptr ) std::rethrow_exception( res->except_ptr );
+   if( res->except ) throw *res->except;
    test.produce_block();
 };
 
@@ -979,18 +915,36 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_fail_tests, TESTER_T, backing_store_ts) 
    ilog( "produce block" );
    t.produce_blocks(1);
 
-   int64_t x; int64_t net; int64_t cpu;
-   t.control->get_resource_limits_manager().get_account_limits( "testapi"_n, x, net, cpu );
-   wdump((net)(cpu));
+   int64_t ram_bytes; int64_t net; int64_t cpu;
+   auto& rl = t.control->get_resource_limits_manager();
+   rl.get_account_limits( "testapi"_n, ram_bytes, net, cpu );
+   idump(("account")(net)(cpu));
+   auto net_limit = rl.get_block_net_limit();
+   auto cpu_limit = rl.get_block_cpu_limit();
+   idump(("block")(net_limit)(cpu_limit));
 
    BOOST_CHECK_EXCEPTION( call_test( t, test_api_action<TEST_METHOD("test_checktime", "checktime_failure")>{},
-                                     5000, 200, fc::raw::pack(10000000000000000000ULL) ),
+                                     5000, 200, 200, fc::raw::pack(10000000000000000000ULL) ),
                           deadline_exception, is_deadline_exception );
 
    BOOST_CHECK_EXCEPTION( call_test( t, test_api_action<TEST_METHOD("test_checktime", "checktime_failure")>{},
-                                     0, 200, fc::raw::pack(10000000000000000000ULL) ),
+                                     0, 200, 200, fc::raw::pack(10000000000000000000ULL) ),
                           tx_cpu_usage_exceeded, is_tx_cpu_usage_exceeded );
 
+   // test override_chain_cpu_limits
+   cpu_limit = rl.get_block_cpu_limit();
+   BOOST_CHECK( cpu_limit <= 775000 ); // verify block cpu limit lower than allowed otherwise not testing deadline
+   auto before = fc::time_point::now();
+   t.control->set_override_chain_cpu_limits(true);
+   BOOST_CHECK_EXCEPTION(  call_test( t, test_api_action<TEST_METHOD("test_checktime", "checktime_failure")>{},
+                                     0, 775, 775, fc::raw::pack(10000000000000000000ULL) ),
+                           tx_cpu_usage_exceeded, is_tx_cpu_usage_exceeded );
+   auto after = fc::time_point::now();
+   BOOST_CHECK( (after - before).count() >= 775*1000 );
+   dlog("elapsed {e}", ("e", (after - before).count()));
+   t.control->set_override_chain_cpu_limits(false);
+
+   // test block_cpu_usage restriction
    uint32_t time_left_in_block_us = config::default_max_block_cpu_usage - config::default_min_transaction_cpu_usage;
    std::string dummy_string = "nonce";
    uint32_t increment = config::default_max_transaction_cpu_usage / 3;
@@ -998,13 +952,301 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_fail_tests, TESTER_T, backing_store_ts) 
       t.push_dummy( "testapi"_n, dummy_string + std::to_string(i), increment );
       time_left_in_block_us -= increment;
    }
+
+   net_limit = rl.get_block_net_limit();
+   cpu_limit = rl.get_block_cpu_limit();
+   idump(("block")(net_limit)(cpu_limit));
+   BOOST_CHECK( cpu_limit <= 200000 ); // verify block cpu limit lower than 200 otherwise not testing block_cpu limit
+
    BOOST_CHECK_EXCEPTION( call_test( t, test_api_action<TEST_METHOD("test_checktime", "checktime_failure")>{},
-                                    0, 200, fc::raw::pack(10000000000000000000ULL) ),
+                                    0, 200, 200, fc::raw::pack(10000000000000000000ULL) ),
                           block_cpu_usage_exceeded, is_block_cpu_usage_exceeded );
 
    BOOST_REQUIRE_EQUAL( t.validate(), true );
 } FC_LOG_AND_RETHROW() }
 
+BOOST_AUTO_TEST_CASE(checktime_pause_override_test) { try {
+
+   fc::temp_directory tempdir;
+   auto conf_genesis = tester::default_config( tempdir );
+
+   auto& cfg = conf_genesis.second.initial_configuration;
+
+   cfg.max_block_cpu_usage        = 150'000;
+   cfg.max_transaction_cpu_usage  = 24'999; // needs to be large enough for create_account and set_code
+   cfg.min_transaction_cpu_usage  = 1;
+
+   tester t( conf_genesis.first, conf_genesis.second );
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc || t.get_config().wasm_runtime == wasm_interface::vm_type::native_module ) {
+      // eos_vm_oc wasm_runtime does not tier-up and completes compile before continuing execution.
+      // A completely different test with different constraints would be needed to test with eos_vm_oc.
+      // Since non-tier-up is not a normal valid nodeos runtime, just skip this test for eos_vm_oc.
+      // native_module loads very quickly so can't really tell difference by timing.
+      return;
+   }
+   t.execute_setup_policy( setup_policy::full );
+
+   t.produce_blocks(2);
+
+   ilog( "create account" );
+   t.create_account( "pause"_n );
+   ilog( "set code" );
+   t.set_code( "pause"_n, contracts::test_api_wasm() );
+   ilog( "produce block" );
+   t.produce_blocks(1);
+
+   int64_t ram_bytes; int64_t net; int64_t cpu;
+   auto& rl = t.control->get_resource_limits_manager();
+   rl.get_account_limits( "pause"_n, ram_bytes, net, cpu );
+   BOOST_CHECK_EQUAL( cpu, -1 );
+   auto cpu_limit = rl.get_block_cpu_limit();
+   BOOST_CHECK( cpu_limit <= 150'000 );
+
+   // Verify that the restriction on the transaction of 24'999 is honored even though there is wall overrideclock time to
+   // load the wasm. If this test fails it is possible that the wasm loaded faster or slower than expected.
+   auto before = fc::time_point::now();
+   BOOST_CHECK_EXCEPTION( call_test( t, test_pause_action<TEST_METHOD("test_checktime", "checktime_failure")>{},
+                                     0, 9999, 500, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
+                          tx_cpu_usage_exceeded, is_tx_cpu_usage_exceeded );
+   auto after = fc::time_point::now();
+   // Test that it runs longer than specified limit of 24'999 to allow for wasm load time.
+   auto dur = (after - before).count();
+   dlog("elapsed {e}us", ("e", dur) );
+   BOOST_CHECK( dur > 25500 );
+
+   BOOST_CHECK_EXCEPTION( call_test( t, test_pause_action<TEST_METHOD("test_checktime", "checktime_failure")>{},
+                                     0, 5, 50, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
+                          tx_cpu_usage_exceeded, is_tx_cpu_usage_exceeded );
+
+   // test override_chain_cpu_limits
+   auto new_cpu_limit = rl.get_block_cpu_limit();
+   BOOST_CHECK_EQUAL( cpu_limit, new_cpu_limit ); // should be unchanged by failed transactions
+   before = fc::time_point::now();
+   t.control->set_override_chain_cpu_limits(true);
+   BOOST_CHECK_EXCEPTION(  call_test( t, test_pause_action<TEST_METHOD("test_checktime", "checktime_failure")>{},
+                                      0, 515, 200, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
+                           tx_cpu_usage_exceeded, is_tx_cpu_usage_exceeded );
+   after = fc::time_point::now();
+   BOOST_CHECK( (after - before).count() >= 515'000 );
+   dlog("elapsed {e}", ("e", (after - before).count()));
+
+   BOOST_REQUIRE_EQUAL( t.validate(), true );
+} FC_LOG_AND_RETHROW() }
+
+BOOST_AUTO_TEST_CASE(checktime_pause_max_trx_cpu_extended_test) { try {
+   fc::temp_directory tempdir;
+   auto conf_genesis = tester::default_config( tempdir );
+   auto& cfg = conf_genesis.second.initial_configuration;
+
+   cfg.max_block_cpu_usage        = 150'000;
+   cfg.max_transaction_cpu_usage  = 24'999; // needs to be large enough for create_account and set_code
+   cfg.min_transaction_cpu_usage  = 1;
+
+   tester t( conf_genesis.first, conf_genesis.second );
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc || t.get_config().wasm_runtime == wasm_interface::vm_type::native_module ) {
+      // eos_vm_oc wasm_runtime does not tier-up and completes compile before continuing execution.
+      // A completely different test with different constraints would be needed to test with eos_vm_oc.
+      // Since non-tier-up is not a normal valid nodeos runtime, just skip this test for eos_vm_oc.
+      // native_module loads very quickly so can't really tell difference by timing.
+      return;
+   }
+   t.execute_setup_policy( setup_policy::full );
+   t.produce_blocks(2);
+   t.create_account( "pause"_n );
+   t.set_code( "pause"_n, contracts::test_api_wasm() );
+   t.produce_blocks(1);
+
+   int64_t ram_bytes; int64_t net; int64_t cpu;
+   auto& rl = t.control->get_resource_limits_manager();
+   rl.get_account_limits( "pause"_n, ram_bytes, net, cpu );
+   BOOST_CHECK_EQUAL( cpu, -1 );
+   auto cpu_limit = rl.get_block_cpu_limit();
+   idump(("cpu_limit")(cpu_limit));
+   BOOST_CHECK( cpu_limit <= 150'000 );
+
+   // Test deadline is extended when max_transaction_cpu_time is the limiting factor
+
+   // First call to contract which should cause the WASM to load and trx_context.pause_billing_timer() to be called.
+   // Verify that the restriction on the transaction of 24'999 is honored even though there is wall clock time to
+   // load the wasm. If this test fails it is possible that the wasm loaded faster or slower than expected.
+   auto before = fc::time_point::now();
+   BOOST_CHECK_EXCEPTION( call_test( t, test_pause_action<TEST_METHOD("test_checktime", "checktime_failure")>{},
+                                     0, 9999, 500, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
+                          tx_cpu_usage_exceeded, is_tx_cpu_usage_exceeded );
+   auto after = fc::time_point::now();
+   // Test that it runs longer than specified limit of 24'999 to allow for wasm load time.
+   auto dur = (after - before).count();
+   dlog("elapsed {e}us", ("e", dur) );
+   BOOST_CHECK( dur >= 24'999 ); // should never fail
+   // This assumes that loading the WASM takes at least 1.0 ms
+   // If this check fails but duration is >= 24'999 (previous check did not fail), then the check here is likely
+   // because WASM took less than 1.0 ms to load.
+   BOOST_CHECK_MESSAGE( dur > 26'000, "elapsed " << dur << "us" );
+#ifdef __APPLE__
+   BOOST_CHECK_MESSAGE( dur < 250'000, "elapsed " << dur << "us" ); // Should not run to block_cpu_usage deadline
+#else
+   BOOST_CHECK_MESSAGE( dur < 150'000, "elapsed " << dur << "us" ); // Should not run to block_cpu_usage deadline
+#endif
+
+   // Test hitting max_transaction_time throws tx_cpu_usage_exceeded
+   BOOST_CHECK_EXCEPTION( call_test( t, test_pause_action<TEST_METHOD("test_checktime", "checktime_failure")>{},
+                                     0, 5, 50, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
+                          tx_cpu_usage_exceeded, is_tx_cpu_usage_exceeded );
+
+   // Test hitting block deadline throws deadline_exception
+   BOOST_CHECK_EXCEPTION( call_test( t, test_pause_action<TEST_METHOD("test_checktime", "checktime_failure")>{},
+                                     0, 50, 5, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
+                          deadline_exception, is_deadline_exception );
+
+   BOOST_REQUIRE_EQUAL( t.validate(), true );
+} FC_LOG_AND_RETHROW() }
+
+BOOST_AUTO_TEST_CASE(checktime_pause_max_trx_extended_test) { try {
+   fc::temp_directory tempdir;
+   auto conf_genesis = tester::default_config( tempdir );
+   auto& cfg = conf_genesis.second.initial_configuration;
+
+   cfg.max_block_cpu_usage        = 350'000;
+   cfg.max_transaction_cpu_usage  = 250'000; // needs to be large enough for create_account and set_code
+   cfg.min_transaction_cpu_usage  = 1;
+
+   tester t( conf_genesis.first, conf_genesis.second );
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc || t.get_config().wasm_runtime == wasm_interface::vm_type::native_module ) {
+      // eos_vm_oc wasm_runtime does not tier-up and completes compile before continuing execution.
+      // A completely different test with different constraints would be needed to test with eos_vm_oc.
+      // Since non-tier-up is not a normal valid nodeos runtime, just skip this test for eos_vm_oc.
+      // native_module loads very quickly so can't really tell difference by timing.
+      return;
+   }
+   t.execute_setup_policy( setup_policy::full );
+   t.produce_blocks(2);
+   t.create_account( "pause"_n );
+   t.set_code( "pause"_n, contracts::test_api_wasm() );
+   t.produce_blocks(1);
+
+   // Test deadline is extended when max_transaction_time is the limiting factor
+
+   // First call to contract which should cause the WASM to load and trx_context.pause_billing_timer() to be called.
+   // Verify that the restriction on the max_transaction_time of 25ms is honored even though there is wall clock time to
+   // load the wasm. If this test fails it is possible that the wasm loaded faster or slower than expected.
+   auto before = fc::time_point::now();
+   BOOST_CHECK_EXCEPTION( call_test( t, test_pause_action<TEST_METHOD("test_checktime", "checktime_failure")>{},
+                                     0, 25, 500, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
+                          tx_cpu_usage_exceeded, is_tx_cpu_usage_exceeded );
+   auto after = fc::time_point::now();
+   // Test that it runs longer than specified limit of 24'999 to allow for wasm load time.
+   auto dur = (after - before).count();
+   dlog("elapsed {e}us", ("e", dur) );
+   BOOST_CHECK( dur >= 25'000 ); // should never fail
+   // This assumes that loading the WASM takes at least 1.0 ms
+   // If this check fails but duration is >= 25'000 (previous check did not fail), then the check here is likely
+   // because WASM took less than 1.0 ms to load.
+   BOOST_CHECK_MESSAGE( dur > 26'000, "elapsed " << dur << "us" );
+   BOOST_CHECK_MESSAGE( dur < 250'000, "elapsed " << dur << "us" ); // Should not run to max_transaction_cpu_usage deadline
+
+   BOOST_REQUIRE_EQUAL( t.validate(), true );
+} FC_LOG_AND_RETHROW() }
+
+BOOST_AUTO_TEST_CASE(checktime_pause_block_deadline_not_extended_test) { try {
+   fc::temp_directory tempdir;
+   auto conf_genesis = tester::default_config( tempdir );
+   auto& cfg = conf_genesis.second.initial_configuration;
+
+   cfg.max_block_cpu_usage        = 350'000;
+   cfg.max_transaction_cpu_usage  = 250'000; // needs to be large enough for create_account and set_code
+   cfg.min_transaction_cpu_usage  = 1;
+
+   tester t( conf_genesis.first, conf_genesis.second );
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc || t.get_config().wasm_runtime == wasm_interface::vm_type::native_module ) {
+      // eos_vm_oc wasm_runtime does not tier-up and completes compile before continuing execution.
+      // A completely different test with different constraints would be needed to test with eos_vm_oc.
+      // Since non-tier-up is not a normal valid nodeos runtime, just skip this test for eos_vm_oc.
+      // native_module loads very quickly so can't really tell difference by timing.
+      return;
+   }
+   t.execute_setup_policy( setup_policy::full );
+   t.produce_blocks(2);
+   t.create_account( "pause"_n );
+   t.set_code( "pause"_n, contracts::test_api_wasm() );
+   t.produce_blocks(1);
+
+   // Test block deadline is not extended when it is the limiting factor
+   // Specify large enough time so that WASM is completely loaded.
+
+   // First call to contract which should cause the WASM to load and trx_context.pause_billing_timer() to be called.
+   auto before = fc::time_point::now();
+   BOOST_CHECK_EXCEPTION( call_test( t, test_pause_action<TEST_METHOD("test_checktime", "checktime_failure")>{},
+                                     0, 150, 75, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
+                          deadline_exception, is_deadline_exception );
+   auto after = fc::time_point::now();
+   // WASM load times on my machine are around 35ms
+   auto dur = (after - before).count();
+   dlog("elapsed {e}us", ("e", dur) );
+   BOOST_CHECK( dur >= 75'000 ); // should never fail
+   // If this check fails but duration is >= 75'000 (previous check did not fail), then the check here is likely
+   // because it took longer than 5 ms for checktime to trigger, trace to be created, and to get to the now() call.
+#ifdef __APPLE__
+   // MacOS needs more. this may require investigation
+   BOOST_CHECK_MESSAGE( dur < 200'000, "elapsed " << dur << "us" );
+#else
+   BOOST_CHECK_MESSAGE( dur < 85'000, "elapsed " << dur << "us" );
+#endif
+   BOOST_REQUIRE_EQUAL( t.validate(), true );
+} FC_LOG_AND_RETHROW() }
+
+
+BOOST_AUTO_TEST_CASE(checktime_pause_block_deadline_not_extended_while_loading_test) { try {
+   fc::temp_directory tempdir;
+   auto conf_genesis = tester::default_config( tempdir );
+   auto& cfg = conf_genesis.second.initial_configuration;
+
+   cfg.max_block_cpu_usage        = 350'000;
+   cfg.max_transaction_cpu_usage  = 250'000; // needs to be large enough for create_account and set_code
+   cfg.min_transaction_cpu_usage  = 1;
+
+   tester t( conf_genesis.first, conf_genesis.second );
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc || t.get_config().wasm_runtime == wasm_interface::vm_type::native_module ) {
+      // eos_vm_oc wasm_runtime does not tier-up and completes compile before continuing execution.
+      // A completely different test with different constraints would be needed to test with eos_vm_oc.
+      // Since non-tier-up is not a normal valid nodeos runtime, just skip this test for eos_vm_oc.
+      // native_module loads very quickly so can't really tell difference by timing.
+      return;
+   }
+   t.execute_setup_policy( setup_policy::full );
+   t.produce_blocks(2);
+   t.create_account( "pause"_n );
+   t.set_code( "pause"_n, contracts::test_api_wasm() );
+   t.produce_blocks(1);
+
+   // Test block deadline is not extended when it is the limiting factor
+   // This test is different from the previous in that not enough time is provided to load the WASM.
+   // The block deadline will kick in once the timer is unpaused after loading the WASM.
+   // This is difficult to determine as checktime is not checked until WASM has completed loading.
+   // We want to test that blocktime is enforced immediately after timer is unpaused.
+
+   // First call to contract which should cause the WASM to load and trx_context.pause_billing_timer() to be called.
+   auto before = fc::time_point::now();
+   BOOST_CHECK_EXCEPTION( call_test( t, test_pause_action<TEST_METHOD("test_checktime", "checktime_failure")>{},
+                                     0, 150, 5, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
+                          deadline_exception, is_deadline_exception );
+   auto after = fc::time_point::now();
+   // Test that it runs longer than specified limit of 10ms to allow for wasm load time.
+   // WASM load times on my machine are around 35ms
+   auto dur = (after - before).count();
+   dlog("elapsed {e}us", ("e", dur) );
+   BOOST_CHECK( dur >= 5'000 ); // should never fail
+   // WASM load times on my machine was 35ms.
+   // Since checktime only kicks in after WASM is loaded this needs to be large enough to load the WASM, but should be
+   // considerably lower than the 150ms max_transaction_time
+#if !defined(__APPLE__)
+   BOOST_CHECK_MESSAGE( dur < 60'000, "elapsed " << dur << "us" );
+   BOOST_REQUIRE_MESSAGE( dur < 150'000, "elapsed " << dur << "us" ); // should never fail
+#else
+   BOOST_REQUIRE_MESSAGE( dur < 500'000, "elapsed " << dur << "us" ); // should never fail
+#endif
+
+   BOOST_REQUIRE_EQUAL( t.validate(), true );
+} FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_intrinsic, TESTER_T, backing_store_ts) { try {
    TESTER_T t;
@@ -1055,12 +1297,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_intrinsic, TESTER_T, backing_store_ts) {
 
         //initialize cache
         BOOST_CHECK_EXCEPTION( call_test( t, test_api_action<TEST_METHOD("doesn't matter", "doesn't matter")>{},
-                                          5000, 10 ),
+                                          5000, 10, 10 ),
                                chain_exception, is_deadline_exception_or_wasm_execution_error(t) );
 
         //it will always call
         BOOST_CHECK_EXCEPTION( call_test( t, test_api_action<TEST_METHOD("doesn't matter", "doesn't matter")>{},
-                                          5000, 10 ),
+                                          5000, 10, 10 ),
                                chain_exception, is_deadline_exception_or_wasm_execution_error(t) );
 } FC_LOG_AND_RETHROW() }
 
@@ -1092,12 +1334,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_grow_memory, TESTER_T, backing_store_ts)
         // initialize cache, the call would occasionally throw wasm_execution_error when eos-vm-oc is used, due
         // to optimized compiler timeout
         BOOST_CHECK_EXCEPTION( call_test( t, test_api_action<TEST_METHOD("doesn't matter", "doesn't matter")>{},
-                                          5000, 10 ),
+                                          5000, 10, 10 ),
                                chain_exception, is_deadline_exception_or_wasm_execution_error(t) );
 
         //it will always call
         BOOST_CHECK_EXCEPTION( call_test( t, test_api_action<TEST_METHOD("doesn't matter", "doesn't matter")>{},
-                                          5000, 10 ),
+                                          5000, 10, 10 ),
                                chain_exception, is_deadline_exception_or_wasm_execution_error(t) );
 } FC_LOG_AND_RETHROW() }
 
@@ -1111,7 +1353,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_hashing_fail, TESTER_T, backing_store_ts
 
         //hit deadline exception, but cache the contract
         BOOST_CHECK_EXCEPTION( call_test( t, test_api_action<TEST_METHOD("test_checktime", "checktime_sha1_failure")>{},
-                                          5000, 3 ),
+                                          5000, 3, 3 ),
                                deadline_exception, is_deadline_exception );
 
         //the contract should be cached, now we should get deadline_exception because of calls to checktime() from hashing function
@@ -1120,35 +1362,35 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_hashing_fail, TESTER_T, backing_store_ts
         // CI environment, this is likely to be the imprecision of the VM timer itself. Need futher investigation if the
         // problem comes up even after max_cpu_usage_ms is changed from 3 to 1. 
         BOOST_CHECK_EXCEPTION( call_test( t, test_api_action<TEST_METHOD("test_checktime", "checktime_sha1_failure")>{},
-                                          5000, 1 ),
+                                          5000, 1, 1 ),
                                deadline_exception, is_deadline_exception );
 
         BOOST_CHECK_EXCEPTION( call_test( t, test_api_action<TEST_METHOD("test_checktime", "checktime_assert_sha1_failure")>{},
-                                          5000, 3 ),
+                                          5000, 3, 3 ),
                                deadline_exception, is_deadline_exception );
 
         BOOST_CHECK_EXCEPTION( call_test( t, test_api_action<TEST_METHOD("test_checktime", "checktime_sha256_failure")>{},
-                                          5000, 3 ),
+                                          5000, 3, 3 ),
                                deadline_exception, is_deadline_exception );
 
         BOOST_CHECK_EXCEPTION( call_test( t, test_api_action<TEST_METHOD("test_checktime", "checktime_assert_sha256_failure")>{},
-                                          5000, 3 ),
+                                          5000, 3, 3 ),
                                deadline_exception, is_deadline_exception );
 
         BOOST_CHECK_EXCEPTION( call_test( t, test_api_action<TEST_METHOD("test_checktime", "checktime_sha512_failure")>{},
-                                          5000, 3 ),
+                                          5000, 3, 3 ),
                                deadline_exception, is_deadline_exception );
 
         BOOST_CHECK_EXCEPTION( call_test( t, test_api_action<TEST_METHOD("test_checktime", "checktime_assert_sha512_failure")>{},
-                                          5000, 3 ),
+                                          5000, 3, 3 ),
                                deadline_exception, is_deadline_exception );
 
         BOOST_CHECK_EXCEPTION( call_test( t, test_api_action<TEST_METHOD("test_checktime", "checktime_ripemd160_failure")>{},
-                                          5000, 3 ),
+                                          5000, 3, 3 ),
                                deadline_exception, is_deadline_exception );
 
         BOOST_CHECK_EXCEPTION( call_test( t, test_api_action<TEST_METHOD("test_checktime", "checktime_assert_ripemd160_failure")>{},
-                                          5000, 3 ),
+                                          5000, 3, 3 ),
                                deadline_exception, is_deadline_exception );
 
    BOOST_REQUIRE_EQUAL( t.validate(), true );
@@ -1171,7 +1413,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_start, TESTER_T, backing_store_ts) { try
    t.produce_blocks(1);
 
    BOOST_CHECK_EXCEPTION( call_test( t, test_api_action<TEST_METHOD("doesn't matter", "doesn't matter")>{},
-                                     5000, 3 ),
+                                     5000, 3, 3 ),
                           deadline_exception, is_deadline_exception );
 } FC_LOG_AND_RETHROW() }
 
@@ -1221,52 +1463,6 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(transaction_tests, TESTER_T, backing_store_ts) { t
 
    //   test send_transaction
       CALL_TEST_FUNCTION(t, "test_transaction", "send_transaction", {});
-
-   // test send_transaction_empty
-   BOOST_CHECK_EXCEPTION(CALL_TEST_FUNCTION(t, "test_transaction", "send_transaction_empty", {}), tx_no_auths,
-         [](const fc::exception& e) {
-            return expect_assert_message(e, "transaction must have at least one authorization");
-         }
-      );
-
-   {
-      t.produce_blocks(10);
-      transaction_trace_ptr trace;
-      auto c = t.control->applied_transaction.connect([&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> x) {
-         auto& t = std::get<0>(x);
-         if (t && t->receipt && t->receipt->status != transaction_receipt::executed) { trace = t; }
-      } );
-      block_state_ptr bsp;
-      auto c2 = t.control->accepted_block.connect([&](const block_state_ptr& b) { bsp = b; });
-
-      // test error handling on deferred transaction failure
-      auto test_trace = CALL_TEST_FUNCTION(t, "test_transaction", "send_transaction_trigger_error_handler", {});
-
-      BOOST_REQUIRE(trace);
-      BOOST_CHECK_EQUAL(trace->receipt->status, transaction_receipt::soft_fail);
-
-      std::set<transaction_id_type> block_ids;
-      for( const auto& receipt : bsp->block->transactions ) {
-         transaction_id_type id;
-         if( std::holds_alternative<packed_transaction>(receipt.trx) ) {
-            const auto& pt = std::get<packed_transaction>(receipt.trx);
-            id = pt.id();
-         } else {
-            id = std::get<transaction_id_type>(receipt.trx);
-         }
-         block_ids.insert( id );
-      }
-
-      BOOST_CHECK_EQUAL(2, block_ids.size() ); // originating trx and deferred
-      BOOST_CHECK_EQUAL(1, block_ids.count( test_trace->id ) ); // originating
-      BOOST_CHECK( !test_trace->failed_dtrx_trace );
-      BOOST_CHECK_EQUAL(0, block_ids.count( trace->id ) ); // onerror id, not in block
-      BOOST_CHECK_EQUAL(1, block_ids.count( trace->failed_dtrx_trace->id ) ); // deferred id since trace moved to failed_dtrx_trace
-      BOOST_CHECK( trace->action_traces.at(0).act.name == "onerror"_n );
-
-      c.disconnect();
-      c2.disconnect();
-   }
 
    // test test_transaction_size
    CALL_TEST_FUNCTION(t, "test_transaction", "test_transaction_size", fc::raw::pack(54) ); // TODO: Need a better way to test this.
@@ -1318,7 +1514,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(transaction_tests, TESTER_T, backing_store_ts) { t
       ptrx = std::make_shared<packed_transaction>( pkt, true );
 
       auto fut = transaction_metadata::start_recover_keys( std::move( ptrx ), t.control->get_thread_pool(), t.control->get_chain_id(), time_limit, transaction_metadata::trx_type::input );
-      auto r = t.control->push_transaction( fut.get(), fc::time_point::maximum(), t.DEFAULT_BILLED_CPU_TIME_US, true, 0 );
+      auto r = t.control->push_transaction( fut.get(), fc::time_point::maximum(), fc::microseconds::maximum(), t.DEFAULT_BILLED_CPU_TIME_US, true, 0 );
       if( r->except_ptr ) std::rethrow_exception( r->except_ptr );
       if( r->except) throw *r->except;
       tx_trace = r;
@@ -1383,453 +1579,6 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(inline_action_objective_limit, TYPE_T, backing_sto
                          }
    );
 
-} FC_LOG_AND_RETHROW() }
-
-BOOST_AUTO_TEST_CASE_TEMPLATE(deferred_inline_action_subjective_limit_failure, TYPE_T, backing_store_type_suite) { try {
-   TYPE_T bs_type;
-   const uint32_t _4k = 4 * 1024;
-   tester chain(setup_policy::full, db_read_mode::SPECULATIVE, {_4k + 100}, {_4k}, {bs_type});
-   chain.produce_blocks(2);
-   chain.create_accounts( {"testapi"_n, "testapi2"_n, "alice"_n} );
-   chain.set_code( "testapi"_n, contracts::test_api_wasm() );
-   chain.set_code( "testapi2"_n, contracts::test_api_wasm() );
-   chain.produce_block();
-
-   transaction_trace_ptr trace;
-   auto c = chain.control->applied_transaction.connect([&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> x) {
-         auto& t = std::get<0>(x);
-         if (t->scheduled) { trace = t; }
-      } );
-   CALL_TEST_FUNCTION(chain, "test_transaction", "send_deferred_transaction_4k_action", {} );
-   BOOST_CHECK(!trace);
-   BOOST_CHECK_EXCEPTION(chain.produce_block( fc::seconds(2) ), fc::exception,
-                         [](const fc::exception& e) {
-                            return expect_assert_message(e, "inline action too big for nonprivileged account");
-                         }
-   );
-
-   //check that it populates exception fields
-   BOOST_REQUIRE(trace);
-   BOOST_REQUIRE(trace->except);
-   BOOST_REQUIRE(trace->error_code);
-
-   BOOST_REQUIRE_EQUAL(1, trace->action_traces.size());
-   c.disconnect();
-
-} FC_LOG_AND_RETHROW() }
-
-BOOST_AUTO_TEST_CASE_TEMPLATE(deferred_inline_action_subjective_limit, TYPE_T, backing_store_type_suite) { try {
-   TYPE_T bs_type;
-   const uint32_t _4k = 4 * 1024;
-   tester chain(setup_policy::full, db_read_mode::SPECULATIVE, {_4k + 100}, {_4k + 1}, {bs_type});
-   tester chain2(setup_policy::full, db_read_mode::SPECULATIVE, {_4k + 100}, {_4k}, {bs_type});
-   signed_block_ptr block;
-   for (int n=0; n < 2; ++n) {
-      block = chain.produce_block();
-      chain2.push_block(block);
-   }
-   chain.create_accounts( {"testapi"_n, "testapi2"_n, "alice"_n} );
-   chain.set_code( "testapi"_n, contracts::test_api_wasm() );
-   chain.set_code( "testapi2"_n, contracts::test_api_wasm() );
-   block = chain.produce_block();
-   chain2.push_block(block);
-
-   transaction_trace_ptr trace;
-   auto c = chain.control->applied_transaction.connect([&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> x) {
-      auto& t = std::get<0>(x);
-      if (t->scheduled) { trace = t; }
-   } );
-   block = CALL_TEST_FUNCTION_WITH_BLOCK(chain, "test_transaction", "send_deferred_transaction_4k_action", {} ).second;
-   chain2.push_block(block);
-   BOOST_CHECK(!trace);
-   block = chain.produce_block( fc::seconds(2) );
-   chain2.push_block(block);
-
-   //check that it gets executed afterwards
-   BOOST_REQUIRE(trace);
-
-   //confirm printed message
-   BOOST_TEST(!trace->action_traces.empty());
-   BOOST_TEST(trace->action_traces.back().console == "exec 8");
-   c.disconnect();
-
-   for (int n=0; n < 10; ++n) {
-      block = chain.produce_block();
-      chain2.push_block(block);
-   }
-
-} FC_LOG_AND_RETHROW() }
-
-BOOST_AUTO_TEST_CASE_TEMPLATE(deferred_transaction_tests, TESTER_T, backing_store_ts) { try {
-   TESTER_T t;
-   t.produce_blocks(2);
-   t.create_accounts( {"testapi"_n, "testapi2"_n, "alice"_n} );
-   t.set_code( "testapi"_n, contracts::test_api_wasm() );
-   t.set_code( "testapi2"_n, contracts::test_api_wasm() );
-   t.produce_blocks(1);
-
-   //schedule
-   {
-      transaction_trace_ptr trace;
-      auto c = t.control->applied_transaction.connect([&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> x) {
-         auto& t = std::get<0>(x);
-         if (t->scheduled) { trace = t; }
-      } );
-      CALL_TEST_FUNCTION(t, "test_transaction", "send_deferred_transaction", {} );
-      BOOST_CHECK(!trace);
-      t.produce_block( fc::seconds(2) );
-
-      //check that it gets executed afterwards
-      BOOST_REQUIRE(trace);
-
-      //confirm printed message
-      BOOST_TEST(!trace->action_traces.empty());
-      BOOST_TEST(trace->action_traces.back().console == "deferred executed\n");
-      c.disconnect();
-   }
-
-   t.produce_blocks(10);
-
-   //schedule twice without replace_existing flag (second deferred transaction should replace first one)
-   {
-      transaction_trace_ptr trace;
-      uint32_t count = 0;
-      auto c = t.control->applied_transaction.connect([&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> x) {
-         auto& t = std::get<0>(x);
-         if (t && t->scheduled) { trace = t; ++count; }
-      } );
-      CALL_TEST_FUNCTION(t, "test_transaction", "send_deferred_transaction", {});
-      BOOST_CHECK_THROW(CALL_TEST_FUNCTION(t, "test_transaction", "send_deferred_transaction", {}), deferred_tx_duplicate);
-      t.produce_blocks( 3 );
-
-      //check that only one deferred transaction executed
-      auto dtrxs = t.get_scheduled_transactions();
-      BOOST_CHECK_EQUAL(dtrxs.size(), 1);
-      for (const auto& trx: dtrxs) {
-         t.control->push_scheduled_transaction(trx, fc::time_point::maximum(), 0, false);
-      }
-      BOOST_CHECK_EQUAL(1, count);
-      BOOST_REQUIRE(trace);
-      BOOST_CHECK_EQUAL( 1, trace->action_traces.size() );
-      c.disconnect();
-   }
-
-   t.produce_blocks(10);
-
-   //schedule twice with replace_existing flag (second deferred transaction should replace first one)
-   {
-      transaction_trace_ptr trace;
-      uint32_t count = 0;
-      auto c = t.control->applied_transaction.connect([&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> x) {
-         auto& t = std::get<0>(x);
-         if (t && t->scheduled) { trace = t; ++count; }
-      } );
-      CALL_TEST_FUNCTION(t, "test_transaction", "send_deferred_transaction_replace", {});
-      CALL_TEST_FUNCTION(t, "test_transaction", "send_deferred_transaction_replace", {});
-      t.produce_blocks( 3 );
-
-      //check that only one deferred transaction executed
-      auto billed_cpu_time_us = t.control->get_global_properties().configuration.min_transaction_cpu_usage;
-      auto dtrxs = t.get_scheduled_transactions();
-      BOOST_CHECK_EQUAL(dtrxs.size(), 1);
-      for (const auto& trx: dtrxs) {
-         t.control->push_scheduled_transaction(trx, fc::time_point::maximum(), billed_cpu_time_us, true);
-      }
-      BOOST_CHECK_EQUAL(1, count);
-      BOOST_CHECK(trace);
-      BOOST_CHECK_EQUAL( 1, trace->action_traces.size() );
-      c.disconnect();
-   }
-
-   t.produce_blocks(10);
-
-   //schedule and cancel
-   {
-      transaction_trace_ptr trace;
-      auto c = t.control->applied_transaction.connect([&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> x) {
-         auto& t = std::get<0>(x);
-         if (t && t->scheduled) { trace = t; }
-      } );
-      CALL_TEST_FUNCTION(t, "test_transaction", "send_deferred_transaction", {});
-      CALL_TEST_FUNCTION(t, "test_transaction", "cancel_deferred_transaction_success", {});
-      t.produce_block( fc::seconds(2) );
-      BOOST_CHECK(!trace);
-      c.disconnect();
-   }
-
-   t.produce_blocks(10);
-
-   //cancel_deferred() return zero if no scheduled transaction found
-   {
-      CALL_TEST_FUNCTION(t, "test_transaction", "cancel_deferred_transaction_not_found", {});
-   }
-
-   t.produce_blocks(10);
-
-   //repeated deferred transactions
-   {
-      vector<transaction_trace_ptr> traces;
-      auto c = t.control->applied_transaction.connect([&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> x) {
-         auto& t = std::get<0>(x);
-         if (t && t->scheduled) {
-            traces.push_back( t );
-         }
-      } );
-
-      CALL_TEST_FUNCTION(t, "test_transaction", "repeat_deferred_transaction", fc::raw::pack( (uint32_t)5 ) );
-
-      t.produce_block();
-
-      c.disconnect();
-
-      BOOST_CHECK_EQUAL( traces.size(), 5 );
-   }
-
-   t.produce_blocks(10);
-
-   {
-      // Trigger a tx which in turn sends a deferred tx with payer != receiver
-      // Payer is alice in this case, this tx should fail since we don't have the authorization of alice
-      dtt_action dtt_act1;
-      dtt_act1.payer = "alice"_n.to_uint64_t();
-      BOOST_CHECK_THROW(CALL_TEST_FUNCTION(t, "test_transaction", "send_deferred_tx_with_dtt_action", fc::raw::pack(dtt_act1)), action_validate_exception);
-
-      // Send a tx which in turn sends a deferred tx with the deferred tx's receiver != this tx receiver
-      // This will include the authorization of the receiver, and impose any related delay associated with the authority
-      // We set the authorization delay to be 10 sec here, and since the deferred tx delay is set to be 5 sec, so this tx should fail
-      dtt_action dtt_act2;
-      dtt_act2.deferred_account = "testapi2"_n.to_uint64_t();
-      dtt_act2.permission_name = "additional"_n.to_uint64_t();
-      dtt_act2.delay_sec = 5;
-
-      auto auth = authority(t.get_public_key(name("testapi"), name(dtt_act2.permission_name).to_string()), 10);
-      auth.accounts.push_back( permission_level_weight{{"testapi"_n, config::eosio_code_name}, 1} );
-
-      t.push_action(config::system_account_name, updateauth::get_name(), name("testapi"), fc::mutable_variant_object()
-              ("account", "testapi")
-              ("permission", name(dtt_act2.permission_name))
-              ("parent", "active")
-              ("auth", auth)
-      );
-      t.push_action(config::system_account_name, linkauth::get_name(), name("testapi"), fc::mutable_variant_object()
-              ("account", "testapi")
-              ("code", name(dtt_act2.deferred_account))
-              ("type", name(dtt_act2.deferred_action))
-              ("requirement", name(dtt_act2.permission_name)));
-      BOOST_CHECK_THROW(CALL_TEST_FUNCTION(t, "test_transaction", "send_deferred_tx_with_dtt_action", fc::raw::pack(dtt_act2)), unsatisfied_authorization);
-
-      // But if the deferred transaction has a sufficient delay, then it should work.
-      dtt_act2.delay_sec = 10;
-      CALL_TEST_FUNCTION(t, "test_transaction", "send_deferred_tx_with_dtt_action", fc::raw::pack(dtt_act2));
-
-      // If the deferred tx receiver == this tx receiver, the authorization checking would originally be bypassed.
-      // But not anymore. With the RESTRICT_ACTION_TO_SELF protocol feature activated, it should now objectively
-      // fail because testapi@additional permission is not unilaterally satisfied by testapi@eosio.code.
-      dtt_action dtt_act3;
-      dtt_act3.deferred_account = "testapi"_n.to_uint64_t();
-      dtt_act3.permission_name = "additional"_n.to_uint64_t();
-      t.push_action(config::system_account_name, linkauth::get_name(), name("testapi"), fc::mutable_variant_object()
-            ("account", "testapi")
-            ("code", name(dtt_act3.deferred_account))
-            ("type", name(dtt_act3.deferred_action))
-            ("requirement", name(dtt_act3.permission_name)));
-      BOOST_CHECK_THROW(CALL_TEST_FUNCTION(t, "test_transaction", "send_deferred_tx_with_dtt_action", fc::raw::pack(dtt_act3)), unsatisfied_authorization);
-
-      // But it should again work if the deferred transaction has a sufficient delay.
-      dtt_act3.delay_sec = 10;
-      CALL_TEST_FUNCTION(t, "test_transaction", "send_deferred_tx_with_dtt_action", fc::raw::pack(dtt_act3));
-
-      // If we make testapi account to be priviledged account:
-      // - the deferred transaction will work no matter who is the payer
-      // - the deferred transaction will not care about the delay of the authorization
-      t.push_action(config::system_account_name, "setpriv"_n, config::system_account_name,  mutable_variant_object()
-                                                          ("account", "testapi")
-                                                          ("is_priv", 1));
-      CALL_TEST_FUNCTION(t, "test_transaction", "send_deferred_tx_with_dtt_action", fc::raw::pack(dtt_act1));
-      CALL_TEST_FUNCTION(t, "test_transaction", "send_deferred_tx_with_dtt_action", fc::raw::pack(dtt_act2));
-   }
-
-   BOOST_REQUIRE_EQUAL( t.validate(), true );
-} FC_LOG_AND_RETHROW() }
-
-BOOST_AUTO_TEST_CASE_TEMPLATE(more_deferred_transaction_tests, TYPE_T, backing_store_type_suite) { try {
-   TYPE_T bs_type;
-   fc::temp_directory tempdir;
-   validating_tester chain( tempdir, true, {bs_type} );
-   chain.execute_setup_policy( setup_policy::preactivate_feature_and_new_bios );
-
-   const auto& pfm = chain.control->get_protocol_feature_manager();
-   auto d = pfm.get_builtin_digest( builtin_protocol_feature_t::replace_deferred );
-   BOOST_REQUIRE( d );
-
-   chain.preactivate_protocol_features( {*d} );
-   chain.produce_block();
-
-   const auto& index = chain.control->db().get_index<generated_transaction_multi_index,by_id>();
-
-   auto print_deferred = [&index]() {
-      for( const auto& gto : index ) {
-         wlog("id = ${id}, trx_id = ${trx_id}", ("id", gto.id)("trx_id", gto.trx_id));
-      }
-   };
-
-   const auto& contract_account = account_name("tester");
-   const auto& test_account = account_name("alice");
-
-   chain.create_accounts( {contract_account, test_account} );
-   chain.set_code( contract_account, contracts::deferred_test_wasm() );
-   chain.set_abi( contract_account, contracts::deferred_test_abi().data() );
-   chain.produce_block();
-
-   BOOST_REQUIRE_EQUAL(0, index.size());
-
-   chain.push_action( contract_account, "delayedcall"_n, test_account, fc::mutable_variant_object()
-      ("payer",     test_account)
-      ("sender_id", 0)
-      ("contract",  contract_account)
-      ("payload",   42)
-      ("delay_sec", 1000)
-      ("replace_existing", false)
-   );
-
-   BOOST_REQUIRE_EQUAL(1, index.size());
-   print_deferred();
-
-   signed_transaction trx;
-   trx.actions.emplace_back(
-      chain.get_action( contract_account, "delayedcall"_n,
-                  vector<permission_level>{{test_account, config::active_name}},
-                  fc::mutable_variant_object()
-                     ("payer",     test_account)
-                     ("sender_id", 0)
-                     ("contract",  contract_account)
-                     ("payload",   13)
-                     ("delay_sec", 1000)
-                     ("replace_existing", true)
-      )
-   );
-   trx.actions.emplace_back(
-      chain.get_action( contract_account, "delayedcall"_n,
-                  vector<permission_level>{{test_account, config::active_name}},
-                  fc::mutable_variant_object()
-                     ("payer",     test_account)
-                     ("sender_id", 1)
-                     ("contract",  contract_account)
-                     ("payload",   42)
-                     ("delay_sec", 1000)
-                     ("replace_existing", false)
-      )
-   );
-   trx.actions.emplace_back(
-      chain.get_action( contract_account, "fail"_n,
-                  vector<permission_level>{},
-                  fc::mutable_variant_object()
-      )
-   );
-   chain.set_transaction_headers(trx);
-   trx.sign( chain.get_private_key( test_account, "active" ), chain.control->get_chain_id() );
-   BOOST_REQUIRE_EXCEPTION(
-      chain.push_transaction( trx ),
-      eosio_assert_message_exception,
-      eosio_assert_message_is("fail")
-   );
-
-   BOOST_REQUIRE_EQUAL(1, index.size());
-   print_deferred();
-
-   chain.produce_blocks(2);
-
-   chain.push_action( contract_account, "delayedcall"_n, test_account, fc::mutable_variant_object()
-      ("payer",     test_account)
-      ("sender_id", 1)
-      ("contract",  contract_account)
-      ("payload",   101)
-      ("delay_sec", 1000)
-      ("replace_existing", false)
-   );
-
-   chain.push_action( contract_account, "delayedcall"_n, test_account, fc::mutable_variant_object()
-      ("payer",     test_account)
-      ("sender_id", 2)
-      ("contract",  contract_account)
-      ("payload",   102)
-      ("delay_sec", 1000)
-      ("replace_existing", false)
-   );
-
-   BOOST_REQUIRE_EQUAL(3, index.size());
-   print_deferred();
-
-   BOOST_REQUIRE_THROW(
-      chain.push_action( contract_account, "delayedcall"_n, test_account, fc::mutable_variant_object()
-         ("payer",     test_account)
-         ("sender_id", 2)
-         ("contract",  contract_account)
-         ("payload",   101)
-         ("delay_sec", 1000)
-         ("replace_existing", true)
-      ),
-      fc::exception
-   );
-
-   BOOST_REQUIRE_EQUAL(3, index.size());
-   print_deferred();
-
-   signed_transaction trx2;
-   trx2.actions.emplace_back(
-      chain.get_action( contract_account, "delayedcall"_n,
-                  vector<permission_level>{{test_account, config::active_name}},
-                  fc::mutable_variant_object()
-                     ("payer",     test_account)
-                     ("sender_id", 1)
-                     ("contract",  contract_account)
-                     ("payload",   100)
-                     ("delay_sec", 1000)
-                     ("replace_existing", true)
-      )
-   );
-   trx2.actions.emplace_back(
-      chain.get_action( contract_account, "delayedcall"_n,
-                  vector<permission_level>{{test_account, config::active_name}},
-                  fc::mutable_variant_object()
-                     ("payer",     test_account)
-                     ("sender_id", 2)
-                     ("contract",  contract_account)
-                     ("payload",   101)
-                     ("delay_sec", 1000)
-                     ("replace_existing", true)
-      )
-   );
-   trx2.actions.emplace_back(
-      chain.get_action( contract_account, "delayedcall"_n,
-                  vector<permission_level>{{test_account, config::active_name}},
-                  fc::mutable_variant_object()
-                     ("payer",     test_account)
-                     ("sender_id", 1)
-                     ("contract",  contract_account)
-                     ("payload",   102)
-                     ("delay_sec", 1000)
-                     ("replace_existing", true)
-      )
-   );
-   trx2.actions.emplace_back(
-      chain.get_action( contract_account, "fail"_n,
-                  vector<permission_level>{},
-                  fc::mutable_variant_object()
-      )
-   );
-   chain.set_transaction_headers(trx2);
-   trx2.sign( chain.get_private_key( test_account, "active" ), chain.control->get_chain_id() );
-   BOOST_REQUIRE_EXCEPTION(
-      chain.push_transaction( trx2 ),
-      eosio_assert_message_exception,
-      eosio_assert_message_is("fail")
-   );
-
-   BOOST_REQUIRE_EQUAL(3, index.size());
-   print_deferred();
-
-   BOOST_REQUIRE_EQUAL( chain.validate(), true );
 } FC_LOG_AND_RETHROW() }
 
 /*************************************************************************************
@@ -3818,5 +3567,50 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(action_results_tests, TESTER_T, backing_store_ts) 
                        action_validate_exception);
 
 } FC_LOG_AND_RETHROW() }
+
+BOOST_AUTO_TEST_CASE_TEMPLATE(push_event_test, TYPE_T, backing_store_type_suite) { try {
+   TYPE_T bs_type;
+   fc::temp_directory tempdir;
+   validating_tester chain( tempdir, true, {bs_type} );
+   chain.execute_setup_policy( setup_policy::preactivate_feature_and_new_bios );
+   const auto& pfm = chain.control->get_protocol_feature_manager();
+   const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::action_return_value); // testapi requires this
+   BOOST_REQUIRE(d);
+   chain.preactivate_protocol_features( {*d} );
+   const auto& d2 = pfm.get_builtin_digest(builtin_protocol_feature_t::configurable_wasm_limits); // needed to avoid 'Too many function defs' when using CDT 3.0
+   BOOST_REQUIRE(d2);
+   chain.preactivate_protocol_features( {*d2} );
+   const auto& d3 = pfm.get_builtin_digest(builtin_protocol_feature_t::event_generation); // testapi requires this since it uses push_event
+   BOOST_REQUIRE(d3);
+   chain.preactivate_protocol_features( {*d3} );
+
+   chain.produce_blocks(2);
+   chain.create_account( "testapi"_n );
+   chain.produce_blocks(1);
+   chain.set_code( "testapi"_n, contracts::test_api_wasm() );
+   chain.produce_blocks(1);
+
+   std::vector<char> event_data;
+   chain.validating_node->set_push_event_function([&event_data](const char* d, size_t s){
+      event_data = std::vector<char>(d, d+s);
+   });
+
+   transaction_trace_ptr txn_trace =
+         CALL_TEST_FUNCTION_NO_THROW( chain, "test_action", "test_push_event", {});
+
+   chain.produce_blocks(1);
+
+   BOOST_TEST_REQUIRE( !event_data.empty() );
+
+   // see test_action.cpp test_push_event
+   test_event_wrapper e = fc::raw::unpack<test_event_wrapper>(event_data);
+   BOOST_TEST(e.tag == "testevent"_n);
+   BOOST_TEST(e.route == "event_route");
+   auto test_event_data = fc::raw::pack(std::string("event test"));
+   BOOST_TEST(e.data.size() == test_event_data.size());
+   BOOST_TEST(e.data == test_event_data);
+
+} FC_LOG_AND_RETHROW() }
+
 
 BOOST_AUTO_TEST_SUITE_END()

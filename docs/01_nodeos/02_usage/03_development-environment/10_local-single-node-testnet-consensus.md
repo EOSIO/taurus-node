@@ -5,7 +5,7 @@ link_text: Local Single-Node Testnet With Consensus Protocol
 
 ## Goal
 
-This section describes how to set up a single-node blockchain configuration running on a single host with [consensus protocol](https://developers.eos.io/welcome/v2.1/protocol/consensus_protocol) enabled.  This is referred to as a _**single host, single-node testnet with consensus**_.  We will set up one node on your local computer and have it produce blocks. The following diagram depicts the desired single host testnet.
+This section describes how to set up a single-node blockchain configuration running on a single host with consensus protocol enabled.  This is referred to as a _**single host, single-node testnet with consensus**_.  We will set up one node on your local computer and have it produce blocks. The following diagram depicts the desired single host testnet.
 
 ![Single host single node testnet](single-host-single-node-testnet.png)
 
@@ -13,7 +13,7 @@ This section describes how to set up a single-node blockchain configuration runn
 
 ## Before you begin
 
-* [Install the EOSIO software](../../../00_install/index.md) before starting this section.
+* [Install the EOSIO-Taurus software](../../../00_install/index.md) before starting this section.
 * It is assumed that `nodeos`, `cleos`, and `keosd` are accessible through the path
 * Know how to pass [Nodeos options](../../02_usage/00_nodeos-options.md) to enable or disable functionality.
 
@@ -21,13 +21,17 @@ This section describes how to set up a single-node blockchain configuration runn
 
 Open one "terminal" window and perform the following steps:
 
-1. [Add the development key to the wallet](#1-add-the-development-key-to-the-wallet)
-2. [Start the Producer Node](#2-start-the-producer-node)
-3. [Preactivate Protocol Features](#3-preactivate-protocol-features)
-4. [Get the System Smart Contracts](#4-get-the-system-smart-contracts)
-5. [Install eosio.boot System Contract](#5-install-eosioboot-system-contract)
-6. [Activate the Remaining Protocol Features](#6-activate-the-remaining-protocol-features)
-7. [Install eosio.bios System Contract](#7-install-eosiobios-system-contract)
+- [Goal](#goal)
+- [Before you begin](#before-you-begin)
+- [Steps](#steps)
+  - [1. Add the development key to the wallet](#1-add-the-development-key-to-the-wallet)
+  - [2. Start the Producer Node](#2-start-the-producer-node)
+  - [3. Preactivate Protocol Features](#3-preactivate-protocol-features)
+  - [4. Get the System Smart Contracts](#4-get-the-system-smart-contracts)
+    - [4.1 Use the Prebuilt System Smart Contracts](#41-use-the-prebuilt-system-smart-contracts)
+  - [5. Install eosio.boot System Contract](#5-install-eosioboot-system-contract)
+  - [6. Activate the Remaining Protocol Features](#6-activate-the-remaining-protocol-features)
+  - [7. Install eosio.bios System Contract](#7-install-eosiobios-system-contract)
 
 ### 1. Add the development key to the wallet
 
@@ -80,16 +84,14 @@ curl --request POST \
 
 All of the protocol upgrade features introduced in v1.8 and on subsequent versions also require an updated version of the system smart contract which can make use of those protocol features.
 
-Two updated reference system smart contracts, `eosio.boot` and `eosio.bios`, are available in both source and binary form within the [`eos`](https://github.com/EOSIO/eos.git) repository. You can build them from source or deploy the binaries directly.
+Two updated reference system smart contracts, `eosio.boot` and `eosio.bios`, are available in both source and binary form within the taurus-node repository. You can build them from source or deploy the binaries directly.
 
 #### 4.1 Use the Prebuilt System Smart Contracts
 
 To use the prebuilt system smart contract execute the following commands from a terminal:
 
 ```sh
-cd ~
-git clone https://github.com/EOSIO/eos.git
-cd ./eos/contracts/contracts/
+cd ./taurus-node/contracts/contracts/
 pwd
 ```
 
@@ -98,9 +100,7 @@ Note the path printed at the command prompt, we will refer to it later as `EOSIO
 Alternatively you can build the system smart contracts from source with the following commands:
 
 ```sh
-cd ~
-git clone https://github.com/EOSIO/eos.git
-cd ./eos/contracts/contracts/
+cd ./taurus-node/contracts/contracts/
 mkdir build
 cd build
 cmake ..
@@ -129,10 +129,10 @@ executed transaction: 2150ed87e4564cd3fe98ccdea841dc9ff67351f9315b6384084e8572a3
 
 ### 6. Activate the Remaining Protocol Features
 
-After you deploy the `eosio.boot` contract, run the following commands from a terminal to enable the rest of the features which are highly recommended to enable an EOSIO-based blockchain.
+After you deploy the `eosio.boot` contract, run the following commands from a terminal to enable the rest of the features which are highly recommended to enable an EOSIO-Taurus based blockchain.
 
 [[info | Optional Step]]
-|These features are optional. You can choose to enable or continue without these features; however they are highly recommended for an EOSIO-based blockchain.
+|These features are optional. You can choose to enable or continue without these features; however they are highly recommended for an EOSIO-Taurus based blockchain.
 
 ```sh
 echo KV_DATABASE
@@ -182,6 +182,12 @@ cleos push action eosio activate '["4fca8bd82bbd181e714e283f83e1b45d95ca5af40fb8
 
 echo WTMSIG_BLOCK_SIGNATURES
 cleos push action eosio activate '["299dcb6af692324b899b39f16d5a530a33062804e41f09dc97e9f156b4476707"]' -p eosio
+
+echo VERIFY_ECDSA_SIG
+cleos push action eosio activate '["fe3fb515e05e40f47d7a2058836200dd4b478241bdcb36bf175f9a40a056b5e3"]' -p eosio
+
+echo VERIFY_RSA_SHA256_SIG
+cleos push action eosio activate '["00bca72bd868bc602036e6dea1ede57665b57203e3daaf18e6992e77d0d0341c"]' -p eosio
 ```
 
 ### 7. Install eosio.bios System Contract

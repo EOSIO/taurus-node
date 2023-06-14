@@ -4,7 +4,7 @@
 
 #include <eosio/ship_protocol.hpp>
 
-#include <abieos.hpp>
+#include <eosio/abieos.hpp>
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/local/stream_protocol.hpp>
@@ -23,6 +23,17 @@ enum request_flags {
    request_traces            = 4,
    request_deltas            = 8,
    request_block_header      = 16
+};
+
+class retriable_failure : public std::exception {
+private:
+   std::string msg;
+public:
+   retriable_failure() : msg("ship client retriable failure") { }
+   retriable_failure(const std::string& msg_) : msg(std::string{"ship client retriable failure: "} + msg_) { }
+   const char* what() const noexcept {
+      return msg.c_str();
+   }
 };
 
 struct connection_callbacks {
@@ -186,11 +197,14 @@ struct connection : connection_base {
    void catch_and_close(F f) {
       try {
          f();
+      } catch (const retriable_failure& e) {
+         elog("{e}", ("e", e.what()));
+         close(true, false);
       } catch (const eosio::chain::unsupported_feature& e) {
-         elog("${e}", ("e", e.what()));
+         elog("{e}", ("e", e.what()));
          close(false, true /* quitting */);
       } catch (const std::exception& e) {
-         elog("${e}", ("e", e.what()));
+         elog("{e}", ("e", e.what()));
          close(false, false);
       } catch (...) {
          elog("unknown exception");
@@ -207,13 +221,13 @@ struct connection : connection_base {
 
    void on_fail(error_code ec, const char* what) {
       try {
-         elog("${w}: ${m}", ("w", what)("m", ec.message()));
+         elog("{w}: {m}", ("w", what)("m", ec.message()));
          close(true, false);
       } catch (...) { elog("exception while closing"); }
    }
 
    void close(bool retry, bool quitting) {
-      ilog("closing state-history socket, retry: ${r}, quitting: ${q}", ("r", retry) ("q", quitting));
+      ilog("closing state-history socket, retry: {r}, quitting: {q}", ("r", retry) ("q", quitting));
       derived_connection().stream.next_layer().close();
       if (callbacks)
          callbacks->closed(retry, quitting);
@@ -226,14 +240,14 @@ struct tcp_connection : connection<tcp_connection>, std::enable_shared_from_this
      connection<tcp_connection>(callbacks), config(config), resolver(ioc), stream(ioc) {}
 
    void connect() {
-      ilog("connect to ${h}:${p}", ("h", config.host)("p", config.port));
+      ilog("connect to {h}:{p}", ("h", config.host)("p", config.port));
       resolver.async_resolve( //
          config.host, config.port,
          [self = shared_from_this(), this](error_code ec, tcp::resolver::results_type results) {
             enter_callback(ec, "resolve", [&] {
                boost::asio::async_connect( //
                   stream.next_layer(), results.begin(), results.end(),
-                  [self = shared_from_this(), this](error_code ec, auto&) {
+                  [self = shared_from_this(), this](error_code ec, auto) {
                      enter_callback(ec, "connect", [&] {
                         ws_handshake(config.host);
                      });
@@ -252,7 +266,7 @@ struct unix_connection : connection<unix_connection>, std::enable_shared_from_th
      connection<unix_connection>(callbacks), config(config), stream(ioc) {}
 
    void connect() {
-      ilog("connect to unix path ${p}", ("p", config.path));
+      ilog("connect to unix path {p}", ("p", config.path));
       stream.next_layer().async_connect(config.path, [self = shared_from_this(), this](error_code ec) {
          enter_callback(ec, "connect", [&] {
             ws_handshake("");

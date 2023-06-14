@@ -1,152 +1,121 @@
 {
   "includes": [],
-  "appenders": [{
-      "name": "stderr",
-      "type": "console",
-      "args": {
-        "stream": "std_error",
-        "level_colors": [{
-            "level": "debug",
-            "color": "green"
-          },{
-            "level": "warn",
-            "color": "brown"
-          },{
-            "level": "error",
-            "color": "red"
-          }
-        ],
-        "flush": true
-      },
-      "enabled": true
-    },{
-      "name": "stdout",
-      "type": "console",
-      "args": {
-        "stream": "std_out",
-        "level_colors": [{
-            "level": "debug",
-            "color": "green"
-          },{
-            "level": "warn",
-            "color": "brown"
-          },{
-            "level": "error",
-            "color": "red"
-          }
-        ],
-        "flush": true
-      },
-      "enabled": true
-    },{
-      "name": "net",
-      "type": "gelf",
-      "args": {
-        "endpoint": "10.10.10.10:12201",
-        "host": "host_name"
-      },
-      "enabled": true
+  "sinks": [{
+    "name": "stderr_color_st",
+    "type": "stderr_color_sink_st",
+    "args": {
+      "level_colors": [{
+        "level": "debug",
+        "color": "green"
+      },{
+        "level": "info",
+        "color": "reset"
+      },{
+        "level": "warn",
+        "color": "yellow"
+      },{
+        "level": "error",
+        "color": "red"
+      }
+      ]
     }
+  },{
+    "name": "daily_file_sink",
+    "type": "daily_file_sink_mt",
+    "args": {
+      "base_filename": "./logs/daily.log",
+      "rotation_hour": 0,
+      "rotation_minute": 0,
+      "truncate": false,
+      "max_files": 0
+    }
+  },{
+    "name": "rotate_file_sink",
+    "type": "rotating_file_sink_mt",
+    "args": {
+      "base_filename": "./logs/rotate.log",
+      "max_size": 10,
+      "max_file": 10
+    }
+  }
   ],
   "loggers": [{
-      "name": "default",
-      "level": "debug",
-      "enabled": true,
-      "additivity": false,
-      "appenders": [
-        "stderr",
-        "net"
-      ]
-    },{
-      "name": "net_plugin_impl",
-      "level": "info",
-      "enabled": true,
-      "additivity": false,
-      "appenders": [
-        "stderr",
-        "net"
-      ]
-    },{
-      "name": "http_plugin",
-      "level": "debug",
-      "enabled": true,
-      "additivity": false,
-      "appenders": [
-        "stderr",
-        "net"
-      ]
-    },{
-      "name": "producer_plugin",
-      "level": "debug",
-      "enabled": true,
-      "additivity": false,
-      "appenders": [
-        "stderr",
-        "net"
-      ]
-    },{
-      "name": "transaction_success_tracing",
-      "level": "debug",
-      "enabled": true,
-      "additivity": false,
-      "appenders": [
-        "stderr",
-        "net"
-      ]
-    },{
-      "name": "transaction_failure_tracing",
-      "level": "debug",
-      "enabled": true,
-      "additivity": false,
-      "appenders": [
-        "stderr",
-        "net"
-      ]
-    },{
-      "name": "transaction_trace_success",
-      "level": "info",
-      "enabled": true,
-      "additivity": false,
-      "appenders": [
-        "stderr",
-        "net"
-      ]
-    },{
-      "name": "transaction_trace_failure",
-      "level": "info",
-      "enabled": true,
-      "additivity": false,
-      "appenders": [
-        "stderr",
-        "net"
-      ]
-    },{
-      "name": "transaction",
-      "level": "info",
-      "enabled": true,
-      "additivity": false,
-      "appenders": [
-        "stderr",
-        "net"
-      ]
-    },{
-      "name": "state_history",
-      "level": "debug",
-      "enabled": true,
-      "additivity": false,
-      "appenders": [
-        "stderr",
-        "net"
-      ]
-    },{
-      "name": "trace_api",
-      "level": "debug",
-      "enabled": true,
-      "additivity": false,
-      "appenders": [
-        "stderr",
-        "net"
-      ]
-    }
+    "name": "default",
+    "level": "debug",
+    "sinks": [
+      "stderr_color_st"
+    ],
+    "sync_type": "sync"
+  },{
+    "name": "net_plugin_impl",
+    "level": "info",
+    "sinks": [
+      "stderr_color_st"
+    ],
+    "sync_type": "sync"
+  },{
+    "name": "http_plugin",
+    "level": "debug",
+    "sinks": [
+      "stderr_color_st"
+    ],
+    "sync_type": "sync"
+  },{
+    "name": "producer_plugin",
+    "level": "debug",
+    "sinks": [
+      "stderr_color_st"
+    ],
+    "sync_type": "sync"
+  },{
+    "name": "transaction_success_tracing",
+    "level": "debug",
+    "sinks": [
+      "stderr_color_st"
+    ],
+    "sync_type": "sync"
+  },{
+    "name": "transaction_failure_tracing",
+    "level": "debug",
+    "sinks": [
+      "stderr_color_st"
+    ],
+    "sync_type": "sync"
+  },{
+    "name": "transaction_trace_success",
+    "level": "info",
+    "sinks": [
+      "stderr_color_st"
+    ],
+    "sync_type": "sync"
+  },{
+    "name": "transaction_trace_failure",
+    "level": "info",
+    "sinks": [
+      "stderr_color_st"
+    ],
+    "sync_type": "sync"
+  },{
+    "name": "transaction",
+    "level": "info",
+    "sinks": [
+      "stderr_color_st"
+    ],
+    "sync_type": "sync"
+  },{
+    "name": "state_history",
+    "level": "debug",
+    "sinks": [
+      "stderr_color_st"
+    ],
+    "sync_type": "sync"
+  },{
+    "name": "trace_api",
+    "level": "debug",
+    "sinks": [
+      "stderr_color_st"
+    ],
+    "sync_type": "sync"
+  }
   ]
 }

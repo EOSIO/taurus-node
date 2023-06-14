@@ -13,6 +13,7 @@
 #include <boost/iostreams/device/mapped_file.hpp>
 #include <fc/io/cfile.hpp>
 #include "test_cfd_transaction.hpp"
+#include "eosio_system_tester.hpp"
 
 using namespace eosio;
 using namespace testing;
@@ -36,7 +37,7 @@ class replay_tester : public base_tester {
    template <typename OnAppliedTrx>
    replay_tester(controller::config config, const genesis_state& genesis, OnAppliedTrx&& on_applied_trx) {
       cfg = config;
-      base_tester::open(make_protocol_feature_set(), genesis.compute_chain_id(), [&genesis,&control=this->control, &on_applied_trx]() {        
+      base_tester::open(make_protocol_feature_set(), genesis.compute_chain_id(), [&genesis,&control=this->control, &on_applied_trx]() {
          control->applied_transaction.connect(on_applied_trx);
          control->startup( [](){}, []() { return false; }, genesis );
       });
@@ -94,7 +95,7 @@ struct restart_from_block_log_test_fixture {
    }
 };
 
-   
+
 
 void  light_validation_restart_from_block_log_test_case(bool do_prune, uint32_t stride) {
 
@@ -114,7 +115,7 @@ void  light_validation_restart_from_block_log_test_case(bool do_prune, uint32_t 
 
    BOOST_REQUIRE(trace->receipt);
    BOOST_CHECK_EQUAL(trace->receipt->status, transaction_receipt::executed);
-   BOOST_CHECK_EQUAL(2, trace->action_traces.size());
+   BOOST_CHECK_EQUAL(2U, trace->action_traces.size());
 
    BOOST_CHECK(trace->action_traces.at(0).context_free);            // cfa
    BOOST_CHECK_EQUAL("test\n", trace->action_traces.at(0).console); // cfa executed
@@ -126,7 +127,7 @@ void  light_validation_restart_from_block_log_test_case(bool do_prune, uint32_t 
 
    const auto&                      blocks_dir = chain.get_config().blog.log_dir;
 
-   if (do_prune) {    
+   if (do_prune) {
       block_log                        blog(chain.get_config().blog);
       std::vector<transaction_id_type> ids{trace->id};
       BOOST_CHECK(blog.prune_transactions(trace->block_num, ids) == 1);
@@ -353,7 +354,7 @@ BOOST_AUTO_TEST_CASE(test_split_log) {
    BOOST_CHECK(bfs::exists( blocks_dir / "blocks-121-140.index" ));
 
    BOOST_CHECK( ! chain.control->fetch_block_by_number(40) );
-   
+
    BOOST_CHECK( chain.control->fetch_block_by_number(81)->block_num() == 81 );
    BOOST_CHECK( chain.control->fetch_block_by_number(90)->block_num() == 90 );
    BOOST_CHECK( chain.control->fetch_block_by_number(100)->block_num() == 100 );
@@ -428,7 +429,7 @@ void split_log_replay(uint32_t replay_max_retained_block_files) {
          },
          true);
    chain.produce_blocks(150);
-   
+
    controller::config copied_config = chain.get_config();
    auto               genesis       = chain::block_log::extract_genesis_state(chain.get_config().blog.log_dir);
    BOOST_REQUIRE(genesis);
@@ -492,7 +493,7 @@ BOOST_AUTO_TEST_CASE(test_restart_without_blocks_log_file) {
          },
          true);
    chain.produce_blocks(160);
-   
+
    controller::config copied_config = chain.get_config();
    auto               genesis       = chain::block_log::extract_genesis_state(chain.get_config().blog.log_dir);
    BOOST_REQUIRE(genesis);
@@ -567,7 +568,7 @@ struct blocklog_version_setter {
 BOOST_AUTO_TEST_CASE(test_split_from_v1_log) {
    namespace bfs = boost::filesystem;
    fc::temp_directory temp_dir;
-   blocklog_version_setter set_version(1); 
+   blocklog_version_setter set_version(1);
    tester chain(
          temp_dir,
          [](controller::config& config) {
@@ -584,7 +585,7 @@ BOOST_AUTO_TEST_CASE(test_split_from_v1_log) {
 }
 
 void trim_blocklog_front(uint32_t version) {
-   blocklog_version_setter set_version(version); 
+   blocklog_version_setter set_version(version);
    tester chain;
    chain.produce_blocks(10);
    chain.produce_blocks(20);
@@ -605,7 +606,7 @@ void trim_blocklog_front(uint32_t version) {
    block_log old_log(chain.get_config().blog);
    block_log new_log({ .log_dir = temp1.path});
    // double check if the version has been set to the desired version
-   BOOST_CHECK(old_log.version() == version); 
+   BOOST_CHECK(old_log.version() == version);
    BOOST_CHECK(new_log.first_block_num() == 10);
    BOOST_CHECK(new_log.head()->block_num() == old_log.head()->block_num());
 
@@ -613,8 +614,8 @@ void trim_blocklog_front(uint32_t version) {
    BOOST_CHECK(fc::file_size(temp1.path / "blocks.index") == old_index_size - sizeof(uint64_t) * num_blocks_trimmed);
 }
 
-BOOST_AUTO_TEST_CASE(test_trim_blocklog_front) { 
-   trim_blocklog_front(block_log::max_supported_version); 
+BOOST_AUTO_TEST_CASE(test_trim_blocklog_front) {
+   trim_blocklog_front(block_log::max_supported_version);
 }
 
 BOOST_AUTO_TEST_CASE(test_trim_blocklog_front_v1) {
@@ -629,4 +630,148 @@ BOOST_AUTO_TEST_CASE(test_trim_blocklog_front_v3) {
    trim_blocklog_front(3);
 }
 
+
+BOOST_AUTO_TEST_CASE(test_stride_0) {
+   fc::temp_directory temp_dir;
+   auto [config, genesis] = tester::default_config(temp_dir);
+   config.blog.stride = 0;
+   tester chain(config, genesis);
+
+   BOOST_REQUIRE_NO_THROW(chain.produce_blocks(160));
+   auto blocks_dir = chain.get_config().blog.log_dir;
+
+   // when stride is zero, `blocks.log` and `blocks.index` are not generated,
+   // only `reversible` directory is created
+   for (const auto& p : bfs::directory_iterator{blocks_dir} ) {
+      BOOST_CHECK(bfs::is_directory(p.path()));
+      BOOST_CHECK_EQUAL(p.path().filename(), "reversible");
+   }
+}
+
+BOOST_AUTO_TEST_CASE(test_db_persistent_false_from_genesis) {
+   fc::temp_directory temp_dir;
+   auto [config, genesis] = tester::default_config(temp_dir);
+   config.db_map_mode = pinnable_mapped_file::map_mode::heap;
+   config.db_persistent = false;
+   tester chain(config, genesis);
+
+   BOOST_REQUIRE_NO_THROW(chain.produce_blocks(160));
+
+   chain.close();
+   BOOST_CHECK(  bfs::file_size(chain.get_config().state_dir/"shared_memory.bin") == 0 );
+}
+
+BOOST_AUTO_TEST_CASE(test_db_persistent_false) {
+   fc::temp_directory temp_dir;
+   auto [config, genesis] = tester::default_config(temp_dir);
+   tester chain(config, genesis);
+
+   BOOST_REQUIRE_NO_THROW(chain.create_account("replay1"_n));
+   BOOST_REQUIRE_NO_THROW(chain.produce_blocks(1));
+   BOOST_REQUIRE_NO_THROW(chain.create_account("replay2"_n));
+   BOOST_REQUIRE_NO_THROW(chain.produce_blocks(1));
+   BOOST_REQUIRE_NO_THROW(chain.create_account("replay3"_n));
+   BOOST_REQUIRE_NO_THROW(chain.produce_blocks(1));
+   BOOST_REQUIRE_NO_THROW(chain.produce_blocks(160));
+
+   BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay1"_n));
+   BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay2"_n));
+   BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay3"_n));
+
+   chain.close();
+   auto sz = bfs::file_size(chain.get_config().state_dir/"shared_memory.bin");
+
+   config.db_map_mode = pinnable_mapped_file::map_mode::heap;
+   config.db_persistent = false;
+   tester from_state_chain(config);
+   BOOST_REQUIRE_NO_THROW(from_state_chain.control->get_account("replay1"_n));
+   BOOST_REQUIRE_NO_THROW(from_state_chain.control->get_account("replay2"_n));
+   BOOST_REQUIRE_NO_THROW(from_state_chain.control->get_account("replay3"_n));
+   from_state_chain.close();
+   auto new_sz = bfs::file_size(chain.get_config().state_dir/"shared_memory.bin");
+   BOOST_CHECK(sz == new_sz);
+}
+
+
+BOOST_AUTO_TEST_CASE(test_db_on_dirty) {
+   fc::temp_directory temp_dir;
+   auto [config, genesis] = tester::default_config(temp_dir);
+   config.db_map_mode = pinnable_mapped_file::map_mode::heap;
+   tester chain(config, genesis);
+
+   BOOST_REQUIRE_NO_THROW(chain.create_account("replay1"_n));
+   BOOST_REQUIRE_NO_THROW(chain.produce_blocks(1));
+   BOOST_REQUIRE_NO_THROW(chain.create_account("replay2"_n));
+   BOOST_REQUIRE_NO_THROW(chain.produce_blocks(1));
+   BOOST_REQUIRE_NO_THROW(chain.create_account("replay3"_n));
+   BOOST_REQUIRE_NO_THROW(chain.produce_blocks(1));
+   BOOST_REQUIRE_NO_THROW(chain.produce_blocks(160));
+
+   BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay1"_n));
+   BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay2"_n));
+   BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay3"_n));
+
+   {
+      // the database will be dirty because `chain` is not closed.
+      BOOST_REQUIRE_THROW(tester from_state_chain(config, genesis), std::system_error);
+   }
+
+   config.db_on_invalid = pinnable_mapped_file::on_dirty_mode::delete_on_dirty;
+   tester from_state_chain(config, genesis);
+   BOOST_REQUIRE_NO_THROW(from_state_chain.control->get_account("replay1"_n));
+   BOOST_REQUIRE_NO_THROW(from_state_chain.control->get_account("replay2"_n));
+   BOOST_REQUIRE_NO_THROW(from_state_chain.control->get_account("replay3"_n));
+
+}
+
+#ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
+BOOST_AUTO_TEST_CASE(test_eosvmoc_cache_persistent_false_from_genesis) {
+   fc::temp_directory temp_dir;
+   auto [config, genesis] = tester::default_config(temp_dir);
+   if (config.wasm_runtime != chain::wasm_interface::vm_type::eos_vm_oc)
+      return;
+
+   config.eosvmoc_config.map_mode = pinnable_mapped_file::map_mode::heap;
+   config.eosvmoc_config.persistent = false;
+   eosio_system::eosio_system_tester<tester> chain(config, genesis);
+   chain.setup();
+   chain.close();
+
+   auto code_cache_file = chain.get_config().state_dir/"code_cache.bin";
+
+   BOOST_CHECK(!bfs::exists(code_cache_file) || bfs::file_size(code_cache_file) == 0);
+}
+
+BOOST_AUTO_TEST_CASE(test_eosvmoc_cache_persistent_false) {
+   fc::temp_directory temp_dir;
+   auto [config, genesis] = tester::default_config(temp_dir);
+   if (config.wasm_runtime != chain::wasm_interface::vm_type::eos_vm_oc)
+      return;
+   {
+      config.eosvmoc_config.map_mode = pinnable_mapped_file::map_mode::mapped;
+      eosio_system::eosio_system_tester<tester> chain(config, genesis);
+      chain.setup();
+
+      chain.transfer( name("eosio"), name("alice1111111"), core_from_string("1.0000"));
+      chain.produce_blocks(10);
+      chain.close();
+   }
+
+   remove_existing_states(config);
+   bfs::remove_all(config.blog.log_dir/"reversible");
+
+   config.eosvmoc_config.map_mode = pinnable_mapped_file::map_mode::heap;
+   config.eosvmoc_config.persistent = false;
+   {
+      eosio_system::eosio_system_tester<tester> from_state_chain(config, genesis);
+      auto code_cache_file = config.state_dir/"code_cache.bin";
+      bfs::remove(code_cache_file);
+      from_state_chain.transfer( name("eosio"), name("alice1111111"), core_from_string("1.0000"));
+      from_state_chain.produce_blocks(10);
+      from_state_chain.close();
+      BOOST_CHECK(!bfs::exists(code_cache_file));
+   }
+}
+
+#endif
 BOOST_AUTO_TEST_SUITE_END()

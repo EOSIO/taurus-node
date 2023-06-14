@@ -43,6 +43,8 @@ struct unapplied_transaction {
    unapplied_transaction() = delete;
    unapplied_transaction& operator=(const unapplied_transaction&) = delete;
    unapplied_transaction(unapplied_transaction&&) = default;
+   unapplied_transaction(transaction_metadata_ptr trx_meta, fc::time_point expiry, trx_enum_type trx_type, bool return_failure_trace = false, next_func_t next = {}) 
+      : trx_meta(trx_meta), expiry(expiry), trx_type(trx_type), return_failure_trace(return_failure_trace), next(next) {}
 };
 
 /**
@@ -111,7 +113,7 @@ public:
          if( itr->next ) {
             itr->next( std::static_pointer_cast<fc::exception>(
                   std::make_shared<expired_tx_exception>(
-                        FC_LOG_MESSAGE( error, "expired transaction ${id}, expiration ${e}, block time ${bt}",
+                        FC_LOG_MESSAGE( error, "expired transaction {id}, expiration {e}, block time {bt}",
                                         ("id", itr->id())("e", itr->trx_meta->packed_trx()->expiration())
                                         ("bt", pending_block_time) ) ) ) );
          }
@@ -131,17 +133,10 @@ public:
             if( itr != idx.end() ) {
                if( itr->next ) {
                   itr->next( std::static_pointer_cast<fc::exception>( std::make_shared<tx_duplicate>(
-                                FC_LOG_MESSAGE( info, "duplicate transaction ${id}", ("id", itr->trx_meta->id())))));
+                                FC_LOG_MESSAGE( info, "duplicate transaction {id}", ("id", itr->trx_meta->id())))));
                }
-               if( itr->trx_type != trx_enum_type::persisted &&
-                   itr->trx_type != trx_enum_type::incoming_persisted ) {
-                  removed( itr );
-                  idx.erase( itr );
-               } else if( itr->next ) {
-                  idx.modify( itr, [](auto& un){
-                     un.next = nullptr;
-                  } );
-               }
+               removed( itr );
+               idx.erase( itr );
             }
          }
       }
@@ -191,21 +186,11 @@ public:
                { trx, expiry, persist_until_expired ? trx_enum_type::incoming_persisted : trx_enum_type::incoming, return_failure_trace, std::move( next ) } );
          if( insert_itr.second ) added( insert_itr.first );
       } else {
-         if( !(itr->trx_meta == trx) && next ) {
-            // next will be updated in modify() below, notify previous next of duplicate
+         if( itr->trx_meta == trx ) return; // same trx meta pointer
+         if( next ) {
             next( std::static_pointer_cast<fc::exception>( std::make_shared<tx_duplicate>(
-                  FC_LOG_MESSAGE( info, "duplicate transaction ${id}", ("id", trx->id()) ) ) ) );
-            return;
+                  FC_LOG_MESSAGE( info, "duplicate transaction {id}", ("id", trx->id()) ) ) ) );
          }
-
-         if (itr->trx_type != trx_enum_type::incoming && itr->trx_type != trx_enum_type::incoming_persisted)
-            ++incoming_count;
-
-         queue.get<by_trx_id>().modify( itr, [persist_until_expired, return_failure_trace, next{std::move(next)}](auto& un) mutable {
-            un.trx_type = persist_until_expired ? trx_enum_type::incoming_persisted : trx_enum_type::incoming;
-            un.return_failure_trace = return_failure_trace;
-            un.next = std::move( next );
-         } );
       }
    }
 
@@ -224,7 +209,7 @@ public:
    iterator incoming_begin() { return queue.get<by_type>().lower_bound( trx_enum_type::incoming_persisted ); }
    iterator incoming_end() { return queue.get<by_type>().end(); } // if changed to upper_bound, verify usage performance
 
-   /// caller's responsibilty to call next() if applicable
+   /// caller's responsibility to call next() if applicable
    iterator erase( iterator itr ) {
       removed( itr );
       return queue.get<by_type>().erase( itr );
@@ -237,8 +222,8 @@ private:
       if( itr->trx_type == trx_enum_type::incoming || itr->trx_type == trx_enum_type::incoming_persisted ) {
          ++incoming_count;
          EOS_ASSERT( size_in_bytes + size < max_transaction_queue_size, tx_resource_exhaustion,
-                     "Transaction ${id}, size ${s} bytes would exceed configured "
-                     "incoming-transaction-queue-size-mb ${qs}, current queue size ${cs} bytes",
+                     "Transaction {id}, size {s} bytes would exceed configured "
+                     "incoming-transaction-queue-size-mb {qs}, current queue size {cs} bytes",
                      ("id", itr->trx_meta->id())("s", size)("qs", max_transaction_queue_size/(1024*1024))
                      ("cs", size_in_bytes) );
       }

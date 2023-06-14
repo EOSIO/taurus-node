@@ -10,12 +10,7 @@ Make sure you meet the following requirements:
 * Install the currently supported version of `cleos`.
 
 [[info | Note]]
-| `cleos` is bundled with the EOSIO software. [Installing EOSIO](../../00_install/index.md) will also install `cleos`.
-
-* Ensure the reference system contracts from [`eosio.contracts`](https://github.com/EOSIO/eosio.contracts) repository is deployed and used to manage system resources.
-* Understand what an [account](https://developers.eos.io/welcome/v2.1/glossary/index/#account) is and its role in the blockchain.
-* Understand [CPU bandwidth](https://developers.eos.io/welcome/v2.1/glossary/index/#cpu) in an EOSIO blockchain.
-* Understand [NET bandwidth](https://developers.eos.io/welcome/v2.1/glossary/index/#net) in an EOSIO blockchain.
+| `cleos` is bundled with the EOSIO-Taurus software. [Installing EOSIO-Taurus](../../00_install/index.md) will also install `cleos`.
 
 ## Steps
 

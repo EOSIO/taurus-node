@@ -1,0 +1,6 @@
+if( EOSIO_COMPILE_TEST_CONTRACTS )
+   add_contract( pushevent pushevent pushevent.cpp)
+else()
+   configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/pushevent.wasm ${CMAKE_CURRENT_BINARY_DIR}/pushevent.wasm COPYONLY )
+   configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/pushevent.abi  ${CMAKE_CURRENT_BINARY_DIR}/pushevent.abi  COPYONLY )
+endif()

@@ -16,6 +16,9 @@ struct genesis_state {
 
    static const string eosio_root_key;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+
    chain_config_v0   initial_configuration = {
       .max_block_net_usage                  = config::default_max_block_net_usage,
       .target_block_net_usage_pct           = config::default_target_block_net_usage_pct,
@@ -51,6 +54,8 @@ struct genesis_state {
       .max_pages                = config::default_max_wasm_pages,
       .max_call_depth           = config::default_max_wasm_call_depth
    };
+
+#pragma GCC diagnostic pop
 
    time_point                               initial_timestamp;
    public_key_type                          initial_key;

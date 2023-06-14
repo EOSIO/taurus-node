@@ -59,10 +59,8 @@ if("eos-vm-oc" IN_LIST EOSIO_WASM_RUNTIMES)
    option(EOSVMOC_ENABLE_DEVELOPER_OPTIONS "enable developer options for EOS VM OC" OFF)
 endif()
 
-if("eos-vm" IN_LIST EOSIO_WASM_RUNTIMES OR "eos-vm-jit" IN_LIST EOSIO_WASM_RUNTIMES)
-   set(CHAIN_EOSVM_SOURCES "webassembly/runtimes/eos-vm.cpp")
-   set(CHAIN_EOSVM_LIBRARIES eos-vm)
-endif()
+set(CHAIN_EOSVM_SOURCES "webassembly/runtimes/eos-vm.cpp")
+set(CHAIN_EOSVM_LIBRARIES eos-vm)
 
 set(CHAIN_WEBASSEMBLY_SOURCES
    webassembly/action.cpp
@@ -133,10 +131,13 @@ add_library( eosio_chain
              thread_utils.cpp
              platform_timer_accuracy.cpp
              backing_store/kv_context.cpp
-             backing_store/db_context.cpp
              ${PLATFORM_TIMER_IMPL}
              ${HEADERS}
              )
+
+if("native-module" IN_LIST EOSIO_WASM_RUNTIMES)
+   target_sources(eosio_chain PRIVATE "webassembly/runtimes/native-module.cpp")
+endif()
 
 target_link_libraries( eosio_chain fc chainbase Logging IR WAST WASM Runtime
                        softfloat builtins rocksdb ${CHAIN_EOSVM_LIBRARIES} ${LLVM_LIBS} ${CHAIN_RT_LINKAGE}
@@ -147,6 +148,7 @@ target_include_directories( eosio_chain
                                    "${CMAKE_CURRENT_SOURCE_DIR}/libraries/eos-vm/include"
                                    "${CMAKE_CURRENT_SOURCE_DIR}/../rocksdb/include"
                                    "${CMAKE_CURRENT_SOURCE_DIR}/../chain_kv/include"
+                                   "${CMAKE_CURRENT_SOURCE_DIR}/../abieos/external/rapidjson/include"
                             )
 
 add_library(eosio_chain_wrap INTERFACE )

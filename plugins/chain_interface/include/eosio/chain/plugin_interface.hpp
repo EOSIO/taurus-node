@@ -1,5 +1,6 @@
 #pragma once
 
+#include <appbase/application.hpp>
 #include <appbase/channel.hpp>
 #include <appbase/method.hpp>
 

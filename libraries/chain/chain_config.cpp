@@ -23,7 +23,7 @@ namespace eosio { namespace chain {
                   "base net usage per transaction must be less than the max transaction net usage" );
       EOS_ASSERT( (max_transaction_net_usage - base_per_transaction_net_usage) >= config::min_net_usage_delta_between_base_and_max_for_trx,
                   action_validate_exception,
-                  "max transaction net usage must be at least ${delta} bytes larger than base net usage per transaction",
+                  "max transaction net usage must be at least {delta} bytes larger than base net usage per transaction",
                   ("delta", config::min_net_usage_delta_between_base_and_max_for_trx) );
       EOS_ASSERT( context_free_discount_net_usage_den > 0, action_validate_exception,
                   "net usage discount ratio for context free data cannot have a 0 denominator" );

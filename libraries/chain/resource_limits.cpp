@@ -1,10 +1,10 @@
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain/resource_limits.hpp>
 #include <eosio/chain/resource_limits_private.hpp>
-#include <eosio/chain/transaction_metadata.hpp>
 #include <eosio/chain/transaction.hpp>
 #include <boost/tuple/tuple_io.hpp>
 #include <eosio/chain/database_utils.hpp>
+#include <eosio/chain/to_string.hpp>
 #include <algorithm>
 
 namespace eosio { namespace chain { namespace resource_limits {
@@ -52,28 +52,16 @@ void resource_limits_manager::add_indices() {
 }
 
 void resource_limits_manager::initialize_database() {
-   const auto& config = _db.create<resource_limits_config_object>([this](resource_limits_config_object& config){
+   const auto& config = _db.create<resource_limits_config_object>([](resource_limits_config_object& config){
       // see default settings in the declaration
-
-      if (auto dm_logger = _get_deep_mind_logger()) {
-         fc_dlog(*dm_logger, "RLIMIT_OP CONFIG INS ${data}",
-            ("data", config)
-         );
-      }
    });
 
-   _db.create<resource_limits_state_object>([this, &config](resource_limits_state_object& state){
+   _db.create<resource_limits_state_object>([&config](resource_limits_state_object& state){
       // see default settings in the declaration
 
       // start the chain off in a way that it is "congested" aka slow-start
       state.virtual_cpu_limit = config.cpu_limit_parameters.max;
       state.virtual_net_limit = config.net_limit_parameters.max;
-
-      if (auto dm_logger = _get_deep_mind_logger()) {
-         fc_dlog(*dm_logger, "RLIMIT_OP STATE INS ${data}",
-            ("data", state)
-         );
-      }
    });
 }
 
@@ -120,22 +108,10 @@ void resource_limits_manager::read_from_snapshot( const snapshot_reader_ptr& sna
 void resource_limits_manager::initialize_account(const account_name& account) {
    _db.create<resource_limits_object>([&]( resource_limits_object& bl ) {
       bl.owner = account;
-
-      if (auto dm_logger = _get_deep_mind_logger()) {
-         fc_dlog(*dm_logger, "RLIMIT_OP ACCOUNT_LIMITS INS ${data}",
-            ("data", bl)
-         );
-      }
    });
 
    _db.create<resource_usage_object>([&]( resource_usage_object& bu ) {
       bu.owner = account;
-
-      if (auto dm_logger = _get_deep_mind_logger()) {
-         fc_dlog(*dm_logger, "RLIMIT_OP ACCOUNT_USAGE INS ${data}",
-            ("data", bu)
-         );
-      }
    });
 }
 
@@ -149,12 +125,6 @@ void resource_limits_manager::set_block_parameters(const elastic_limit_parameter
    _db.modify(config, [&](resource_limits_config_object& c){
       c.cpu_limit_parameters = cpu_limit_parameters;
       c.net_limit_parameters = net_limit_parameters;
-
-      if (auto dm_logger = _get_deep_mind_logger()) {
-         fc_dlog(*dm_logger, "RLIMIT_OP CONFIG UPD ${data}",
-            ("data", c)
-         );
-      }
    });
 }
 
@@ -169,7 +139,10 @@ void resource_limits_manager::update_account_usage(const flat_set<account_name>&
    }
 }
 
-void resource_limits_manager::add_transaction_usage(const flat_set<account_name>& accounts, uint64_t cpu_usage, uint64_t net_usage, uint32_t time_slot ) {
+void resource_limits_manager::add_transaction_usage(const flat_set<account_name>& accounts,
+                                                    uint64_t cpu_usage, uint64_t net_usage,
+                                                    uint32_t time_slot, bool override_chain_cpu_limits )
+{
    const auto& state = _db.get<resource_limits_state_object>();
    const auto& config = _db.get<resource_limits_config_object>();
 
@@ -184,15 +157,9 @@ void resource_limits_manager::add_transaction_usage(const flat_set<account_name>
       _db.modify( usage, [&]( auto& bu ){
           bu.net_usage.add( net_usage, time_slot, config.account_net_usage_average_window );
           bu.cpu_usage.add( cpu_usage, time_slot, config.account_cpu_usage_average_window );
-
-         if (auto dm_logger = _get_deep_mind_logger()) {
-            fc_dlog(*dm_logger, "RLIMIT_OP ACCOUNT_USAGE UPD ${data}",
-               ("data", bu)
-            );
-         }
       });
 
-      if( cpu_weight >= 0 && state.total_cpu_weight > 0 ) {
+      if( cpu_weight >= 0 && state.total_cpu_weight > 0 && !override_chain_cpu_limits ) {
          uint128_t window_size = config.account_cpu_usage_average_window;
          auto virtual_network_capacity_in_window = (uint128_t)state.virtual_cpu_limit * window_size;
          auto cpu_used_in_window                 = ((uint128_t)usage.cpu_usage.value_ex * window_size) / (uint128_t)config::rate_limiting_precision;
@@ -204,7 +171,7 @@ void resource_limits_manager::add_transaction_usage(const flat_set<account_name>
 
          EOS_ASSERT( cpu_used_in_window <= max_user_use_in_window,
                      tx_cpu_usage_exceeded,
-                     "authorizing account '${n}' has insufficient cpu resources for this transaction",
+                     "authorizing account '{n}' has insufficient cpu resources for this transaction",
                      ("n", name(a))
                      ("cpu_used_in_window",cpu_used_in_window)
                      ("max_user_use_in_window",max_user_use_in_window) );
@@ -223,7 +190,7 @@ void resource_limits_manager::add_transaction_usage(const flat_set<account_name>
 
          EOS_ASSERT( net_used_in_window <= max_user_use_in_window,
                      tx_net_usage_exceeded,
-                     "authorizing account '${n}' has insufficient net resources for this transaction",
+                     "authorizing account '{n}' has insufficient net resources for this transaction",
                      ("n", name(a))
                      ("net_used_in_window",net_used_in_window)
                      ("max_user_use_in_window",max_user_use_in_window) );
@@ -237,11 +204,11 @@ void resource_limits_manager::add_transaction_usage(const flat_set<account_name>
       rls.pending_net_usage += net_usage;
    });
 
-   EOS_ASSERT( state.pending_cpu_usage <= config.cpu_limit_parameters.max, block_resource_exhausted, "Block has insufficient cpu resources" );
+   EOS_ASSERT( (state.pending_cpu_usage <= config.cpu_limit_parameters.max) || override_chain_cpu_limits, block_resource_exhausted, "Block has insufficient cpu resources" );
    EOS_ASSERT( state.pending_net_usage <= config.net_limit_parameters.max, block_resource_exhausted, "Block has insufficient net resources" );
 }
 
-void resource_limits_manager::add_pending_ram_usage( const account_name account, int64_t ram_delta, const storage_usage_trace& trace ) {
+void resource_limits_manager::add_pending_ram_usage( const account_name account, int64_t ram_delta ) {
    if (ram_delta == 0) {
       return;
    }
@@ -255,19 +222,6 @@ void resource_limits_manager::add_pending_ram_usage( const account_name account,
 
    _db.modify( usage, [&]( auto& u ) {
       u.ram_usage += ram_delta;
-
-      if (auto dm_logger = _get_deep_mind_logger()) {
-         fc_dlog(*dm_logger, "RAM_OP ${action_id} ${event_id} ${family} ${operation} ${legacy_tag} ${payer} ${new_usage} ${delta}",
-            ("action_id", trace.action_id)
-            ("event_id", trace.event_id)
-            ("family", trace.family)
-            ("operation", trace.operation)
-            ("legacy_tag", trace.legacy_tag)
-            ("payer", account)
-            ("new_usage", u.ram_usage)
-            ("delta", ram_delta)
-         );
-      }
    });
 }
 
@@ -278,8 +232,8 @@ void resource_limits_manager::verify_account_ram_usage( const account_name accou
 
    if( ram_bytes >= 0 ) {
       EOS_ASSERT( usage.ram_usage <= static_cast<uint64_t>(ram_bytes), ram_usage_exceeded,
-                  "account ${account} has insufficient ram; needs ${needs} bytes has ${available} bytes",
-                  ("account", account)("needs",usage.ram_usage)("available",ram_bytes)              );
+                  "account {account} has insufficient ram; needs {needs} bytes has {available} bytes",
+                  ("account", account)("needs",usage.ram_usage)("available",ram_bytes) );
    }
 }
 
@@ -322,12 +276,6 @@ bool resource_limits_manager::set_account_limits( const account_name& account, i
       pending_limits.ram_bytes = ram_bytes;
       pending_limits.net_weight = net_weight;
       pending_limits.cpu_weight = cpu_weight;
-
-      if (auto dm_logger = _get_deep_mind_logger()) {
-         fc_dlog(*dm_logger, "RLIMIT_OP ACCOUNT_LIMITS UPD ${data}",
-            ("data", pending_limits)
-         );
-      }
    });
 
    return decreased_limit;
@@ -365,12 +313,12 @@ void resource_limits_manager::process_account_limit_updates() {
    // convenience local lambda to reduce clutter
    auto update_state_and_value = [](uint64_t &total, int64_t &value, int64_t pending_value, const char* debug_which) -> void {
       if (value > 0) {
-         EOS_ASSERT(total >= static_cast<uint64_t>(value), rate_limiting_state_inconsistent, "underflow when reverting old value to ${which}", ("which", debug_which));
+         EOS_ASSERT(total >= static_cast<uint64_t>(value), rate_limiting_state_inconsistent, "underflow when reverting old value to {which}", ("which", debug_which));
          total -= value;
       }
 
       if (pending_value > 0) {
-         EOS_ASSERT(UINT64_MAX - total >= static_cast<uint64_t>(pending_value), rate_limiting_state_inconsistent, "overflow when applying new value to ${which}", ("which", debug_which));
+         EOS_ASSERT(UINT64_MAX - total >= static_cast<uint64_t>(pending_value), rate_limiting_state_inconsistent, "overflow when applying new value to {which}", ("which", debug_which));
          total += pending_value;
       }
 
@@ -394,12 +342,6 @@ void resource_limits_manager::process_account_limit_updates() {
 
          multi_index.remove(*itr);
       }
-
-      if (auto dm_logger = _get_deep_mind_logger()) {
-         fc_dlog(*dm_logger, "RLIMIT_OP STATE UPD ${data}",
-            ("data", state)
-         );
-      }
    });
 }
 
@@ -416,12 +358,6 @@ void resource_limits_manager::process_block_usage(uint32_t block_num) {
       state.average_block_net_usage.add(state.pending_net_usage, block_num, config.net_limit_parameters.periods);
       state.update_virtual_net_limit(config);
       state.pending_net_usage = 0;
-
-      if (auto dm_logger = _get_deep_mind_logger()) {
-         fc_dlog(*dm_logger, "RLIMIT_OP STATE UPD ${data}",
-            ("data", state)
-         );
-      }
    });
 
 }

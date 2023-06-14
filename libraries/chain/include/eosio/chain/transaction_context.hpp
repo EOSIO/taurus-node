@@ -71,8 +71,6 @@ namespace eosio { namespace chain {
          void init_for_input_trx_with_explicit_net( uint32_t explicit_net_usage_words,
                                                     bool skip_recording );
 
-         void init_for_deferred_trx( fc::time_point published );
-
          void exec();
          void finalize();
          void squash();
@@ -124,7 +122,7 @@ namespace eosio { namespace chain {
          friend struct controller_impl;
          friend class apply_context;
 
-         void add_ram_usage( account_name account, int64_t ram_delta, const storage_usage_trace& trace );
+         void add_ram_usage( account_name account, int64_t ram_delta );
 
          action_trace& get_action_trace( uint32_t action_ordinal );
          const action_trace& get_action_trace( uint32_t action_ordinal )const;
@@ -172,12 +170,11 @@ namespace eosio { namespace chain {
          /// the maximum number of virtual CPU instructions of the transaction that can be safely billed to the billable accounts
          uint64_t                      initial_max_billable_cpu = 0;
 
-         fc::microseconds              delay;
          bool                          is_input           = false;
          bool                          apply_context_free = true;
          bool                          enforce_whiteblacklist = true;
 
-         fc::time_point                deadline = fc::time_point::maximum();
+         fc::time_point                block_deadline = fc::time_point::maximum();
          fc::microseconds              leeway = fc::microseconds( config::default_subjective_cpu_leeway_us );
          int64_t                       billed_cpu_time_us = 0;
          uint32_t                      subjective_cpu_bill_us = 0;
@@ -201,14 +198,14 @@ namespace eosio { namespace chain {
 
          bool                          cpu_limit_due_to_greylist = false;
 
-         fc::microseconds              initial_objective_duration_limit;
+         fc::microseconds              max_transaction_time_subjective;
+         fc::time_point                paused_time;
          fc::microseconds              objective_duration_limit;
-         fc::time_point                _deadline = fc::time_point::maximum();
+         fc::time_point                _deadline = fc::time_point::maximum(); // calculated deadline
          int64_t                       deadline_exception_code = block_cpu_usage_exceeded::code_value;
          int64_t                       billing_timer_exception_code = block_cpu_usage_exceeded::code_value;
          fc::time_point                pseudo_start;
          fc::microseconds              billed_time;
-         fc::microseconds              billing_timer_duration_limit;
    };
 
 } }

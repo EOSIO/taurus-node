@@ -59,6 +59,7 @@ class eos_vm_runtime : public eosio::chain::wasm_runtime_interface {
    friend class eos_vm_instantiated_module;
 };
 
+#ifdef EOSIO_EOS_VM_JIT_RUNTIME_ENABLED
 class eos_vm_profile_runtime : public eosio::chain::wasm_runtime_interface {
    public:
       eos_vm_profile_runtime();
@@ -68,5 +69,6 @@ class eos_vm_profile_runtime : public eosio::chain::wasm_runtime_interface {
 
       void immediately_exit_currently_running_module() override;
 };
+#endif
 
 }}}}// eosio::chain::webassembly::eos_vm_runtime

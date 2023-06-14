@@ -146,7 +146,7 @@ class shared_bytes {
 
    bool              empty() const;
    char*             data();
-   const char* const data() const;
+   const char* data() const;
 
    iterator begin() const;
    iterator end() const;
@@ -286,7 +286,7 @@ inline shared_bytes shared_bytes::next() const {
 inline size_t            shared_bytes::size() const { return m_size; }
 inline size_t            shared_bytes::aligned_size() const { return eosio::session::details::aligned_size(m_size); }
 inline char*             shared_bytes::data() { return m_data.get(); }
-inline const char* const shared_bytes::data() const { return m_data.get(); }
+inline const char*       shared_bytes::data() const { return m_data.get(); }
 
 inline bool shared_bytes::empty() const { return m_size == 0; }
 

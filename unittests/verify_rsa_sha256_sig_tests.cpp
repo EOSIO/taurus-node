@@ -1,0 +1,296 @@
+#include <iterator>
+#include <string>
+
+#include <boost/test/unit_test.hpp>    // BOOST_AUTO_TEST_SUITE
+
+#include "rsa_signer.hpp"              // RSA signer
+#include <contracts.hpp>               // test contracts
+#include <eosio/testing/tester.hpp>    // eosio tester
+
+const eosio::chain::name account_name = eosio::chain::name("alice");
+
+/* --- Generate and Extract Modulus and Exponents of an RSA Private Key ----------------------------
+
+The modulus and exponents can be obtained with, for example:
+
+$ openssl genrsa 4096 | openssl asn1parse
+
+An example output is
+
+   0:d=0  hl=4 l=2344 cons: SEQUENCE
+   4:d=1  hl=2 l=   1 prim: INTEGER           :00
+   7:d=1  hl=4 l= 513 prim: INTEGER           :A93EDBEF7C29EAA0B0BED9916C2DDB1B029FE3E5373FB39D5FCC458D0C8BD953EAF74E43D383549C3C06E071469DF5939150A31F00FA9E494231F4B26F58F50F8BCD741347178A132095C73B125EC921BF021C09C64298E7B12CFBAD7CF1B749865C9311DA9B8D2C24B8E1DBC34348F4EDEC99024A6C0D833BF30A0F0EE0AEF036BCCB7BBE10E8F98AACD24D4D471167447BD2F59F7FCF4A907544FC06D2CF51CD20BE1EE5F9E041739DB826F40EBA53813B82F1F325C737880DFA3BFE465BBF0667A4F5CCDD620863B9A58DAA9BA8FC241683677D51C955FAFAB5760EE998665066423E64AE4CC87DD6A2A5C6A5DB852FF174D586B6B58ACA136342FC18BC02896D9173712B495D659304DD5041AC56BAAC43CDCA1960B4A4A717A58000831E81697C77A732F18AE9A105DABC76CD15A90CC464CEF63E188206EB233EB903F6801796CD1AFE6743CE80165D185BF2F279D503FCB6BAE91493037B44B0610343FFBA70A366C68327C5AC89D3E38CF250F5D418A46407DF9920F46C490A0D3284A10660F5F9E2ADDC8E99AC26E28E99688B6690B89BC86BF4D26AA57294BE3272DC7A457A2B7A608095707525CD437F2C01FF092C431563F1D294C0E2FF59428B606F4D6D0D0BE9AA50082EC20457EFB0C4767A3DDBD71747622C36AE6033EA7959991622DD5CE3F36F8D403B590ED3029B39B0F3515958773292F5E59F5A56B5
+ 524:d=1  hl=2 l=   3 prim: INTEGER           :010001
+ 529:d=1  hl=4 l= 512 prim: INTEGER           :5D3C8BDD3B01BC8819D689F55B2B47F17158B42BAA6C257F252F5B8180CFEA4218C7750E588F992518CC9108D6665ECB94DA5F82CCFF440407BB8D9A5F4D1A741E086951D5705A587F330436BEC008FDD6444B3DF742E9097AC9D53C96007380C5CC6A1903DD7DC03BDABE525B17CE3160815F29ABE62AEB893332EF68BACEA4F702BAF6C896784240EB444FE1AAAD23BECE9841484518E572FFA7A94FF902CD85BBEC0109A0C6B248073354024FBAC61603BAF79F83C8640747EBFAF0F1C1C952B5F6629321C2C7EC687193C1D14F1ED8A2AE716CD089A21C49D17DE0693FD3DDA6F807775FAE5D2536011462832C940AFD71E7CFF707BC15E6E860169169C0F65294234BC869752D1155EE5BEF7A976DA12305B5B1C8B183AD49FBD8E6FC97958AAD2DA5821D59C6941990F759EB05DAA07E63B0850992B322AF00E2C339054EEB7D16285852770D54FEAA6D7DAA5259770C80E9156B48EAA01EBAAE698CE9ACFEF6A60B1E3659546E2F7122E4A4550887F25EF1F136616857330D7BF6E2C57CB67ADB129774307697BF9A02103E73E3A2386C30489539329B1C36CDCDB480FAA8744C53707F2C5887571C20CF2BD661CBAAF0FCA0C0F596D0C15A564E317FB0D27E8B3EC669B8C0F3CEA54F8C3C864A6C634CD4A009E2286EFC47283BA68BA2FCFB996A952ED2C9FA75CF6733B5DECA52FCBE5186DB425822FBBFC0C49601
+1045:d=1  hl=4 l= 257 prim: INTEGER           :DC088DD027B614AE937D06533E98730D6506C3E9BE5242A63E274A993D77007F90B3AC8AA6DD66D8ACD52E849605FA8872215553E89B1B376572B80BE0C5F0594774D7DD0D8BAF5CBF08C6395CF13B5CF95F75DAA79FDEFB83FB186B0E1174180E9DB3A023FFB18EE92E82E0029677A0C01AFF9EEF18DDB1941BB32B2580843D8F07EE1301639BC5D82CDF95747C4945E084CE4420A8E393B822DCEA39655C04708BCD7AA59588B5B619611AB2F790BEBA0C3E064E7303D8F276AEB9254430385DAC3C7266A92641E89A8C3DD021CB013229C2D63A76D2537BD5990DA112D2DEE8F7A938895EEA0690533214F8D8BE8A306120F882AD8AC6027C337C79B2E845
+1306:d=1  hl=4 l= 257 prim: INTEGER           :C4E90D7761E149591018CF2D155D0D721E47635DC5D6E5FD117A169CB7D30B2B09330AB0CC090E62573EC3D80B3FBD0DF0B4AFDF8004D7B8769036B2453EB891151EC669EA842B74B447BFC74C2DAEAD9544721C75D8B269AE068FB3235487097F08A1BFCD61E50014C456B67C592FAF9BADE6FF69D07CB2114B9134B404C6CEFCB1A56AE6E4C989BB303AC5B7F7E02184A9A139B5759A2DA77EC21BF0E61F8F286B2861090209AD1809FDD6DC0BBE0ECB409630D9906920D18D061DA88EBF854F3638FC7BF197E7D89E7A58E0FC2436CFB6C06A5A8C77FD5B3D910C526C9A136C6DB3C6B7B97FCBE8B8280F5DDD0ADDBA1404503F58D66B55D47A1FA7FA33B1
+1567:d=1  hl=4 l= 257 prim: INTEGER           :A541EF70F542760A204FF89E311742E23E8C743C6C6B500F9802DEAE7551999835D01CB90E569F56018923A505207C685A7FDA9C68C9860977325034EB9EFEC3AF3D7C9B53FF23B85EEA7226C73D8F3E67356148D638E6BAB507B3F143E1ABF61D94284310868C8F2F67757855B939240CE4BA345E93A87E252520CE391E6B33E8E725D2346AE1A61894AB608EDA8215EF690F9A6F852957DB26A4116F0647B435EB6A6AC14EAC1CFE25D59EBDE7DE58C1574C866409524C70DEDE9FC3F390DBE4CEE59F6EA7804A642F1F4195BEABBFBC334D58A5147527AA8C64A5ADE27B6A5C43165F961D295BC0AE1BA150BD496E74A39EA5C7501C3857C97CC9F2858299
+1828:d=1  hl=4 l= 256 prim: INTEGER           :263DFCD78AB2EE43D5D47BA80DD61C9E653308215622FE57BFE52E2F11A4732ED0829138F4E76D5BBC05FC9320DC282364F43293FD90F33468126A0D0555C112AC3F65D97C2A5F26333D1C09E0C99E7B27DA3B2F3BD3F2128431D206C07DD21C0E07E72211094A2851E02FD7111F611B81E8AC4C3E88B72EFE1CE6FE8D57C024C2FEDD597DAE4155F67CCF6D46E5652A1D51B47638BFB649D795CEAD0E8422ECF2B49D0AFB6CE1E4341EFCA595E6D1EA9D9ED58C77348CB64AFC508BC208B73974C0DB206E11E5A6A9735DDF951263162211241D83A87445484B14B887E97FA2F613F82E47D046F99B20E8E6D31BF2D84D2346132FBA592A4F690CAEC938D681
+2088:d=1  hl=4 l= 256 prim: INTEGER           :4DDA27189D51B1DE5D2E320870E3D2168DF834A9D481278280EDA27592E57CDC7BB6ACEBC2A8EA005E720498F84E7A6620ECEBF7A96E9350638CE07D42983A44B0C6A4CB4E063E1FD7E6E7CF5B911D5C975A6F5706B08EF085BBB298ADB15067C1F06E425352281736F30157792693CA49F4E4197EC1CD9AB70E46204FC2E832D771AAEA56092CECF42B7A222BC646A6B3ACE82AF1CBC4273CE102EA4FDFCF9A84BAF4C8AABB37223F23F7B9176E7CCD7B75723C4925404C7A23DF2F64847ED7AA5F6659495839A25C90E76A0EC265682EAF40170604EB1C42C3DB437956B1F236F7432B4436D10610489950C5763B29E0A40492FE98728A00F0CF72773B7D1E
+
+The 1st INTEGER (00) is the version.
+The 2nd INTEGER (A93E...56B5) is the 4096-bit modulus in hex.
+The 3rd INTEGER (010001) is the public exponent in hex.
+The 4th INTEGER (5D3C...9601) is the 4096-bit private exponent in hex.
+
+For reference, see https://www.rfc-editor.org/rfc/rfc2313#section-7.2
+
+------------------------------------------------------------------------------------------------- */
+
+const std::string modulus_1024 = "dff568a53cafdba7b1cd654fef54ed61649cdd6cb29fa743e35c73fcba7ef9c2b25a3b91e295abcea9aa5af0625f8b06428ec3140f2dd3c60c7dbb698cb3dbf6c64b1160daec4eb7d6deca1dfc45b83d5f30e5398f6f737ee394d57c8d2bf412f056c2e8a54d9bf554149c0da31346e31f23ffb516b1f9797d650169199b7add";
+const std::string public_exponent_1024 = "3";
+const std::string private_exponent_1024 = "00954e45c37dca926fcbde438a9f8df39643133e4877151a2d423da2a87c54a681cc3c27b6970e7289c67191f596ea5caed709d762b4c937d95da9279bb32292a344c57631a3adfa8d1a837699908861dfe108d9bd37184b3f8b3810e13f183382c497b424b4530b56bdfb6c97e0c74b9dec7558425221e2e4ba3a2737aa3e2f53";
+
+const std::string modulus_2048 = "e06bccbf7d2cbe0d5420d62e8448a8b4165eb2b6431e64e5bbdf84580f3c4dfb49da522a6f66897a5a8b8c6c8bb448cb7b51a08e5f70c199a4e13e567b4966369a503226418c10838c109c3b37cca70157dbbcad7682bdf348b625f88492260780d3bc2efa94f2d3018a74df68ccfa6edcd01531b7a546af170f74116dabb1ab4951798e389c37ae12c5b4845e9e2a287ff4d23fa785c137a8bb3af6b147c260aabc0d1c92a3e429cdaf7b3d1903df53569e0eb284e530fd23eef57cd07c8468362bd63c41b8abdad3645dab9e74bc49d8fc040bb16f2afb167bb6e9a95454e124f8c3fc3c46420862c5f42f0c82f08a04b3309312a23161740ef6d38b3eead5";
+const std::string public_exponent_2048 = "10001";
+const std::string private_exponent_2048 = "a9b95d53c4bb3dd09ebb66c02f5334235e77a7f8a7b228e485bd793d8fe82fa1c82cd0cf3f08f11813ba4e2d194af372d084df444d71dd38f1b5578bd8199eafd4eca9c0bcf9ccd36fee6ff9692de16fe69e4c877385555ad4b6cce8b27a45408f719274851678be93ffbe7be7aa7e0bb1fbbccba8f3da0d39077ae46368e2281987c7729eac9814088c18b741e71d8641892ebdea72321dcbd9b362a789794a882bc3bb5ef66cf19b7c6c6020910431eee031fb8481168d17784de9590277318d524bc4105b0c1ec6676c75df5f83dae0bec27aa1c92156b1638b69f31c0b847d67c248d03920fe41535fab54ca6f4f7f477a40ae255069b319827e470eb381";
+
+const std::string modulus_3072 = "DF05D9A2D0209EC535F9987E574864EFB53A0944CD45CFEE779277AB335E9B0AE15AC55004FF3A70F23773017AF49DDA374BB2747FFA0751B39C63E4D7F98F59AC80568F4C1A9847FFE4EE74D3049EC2F5B3A2997F81C4F33291B5FFA25D49386972332DF766DACA2C15B40BCE8C40E4233E7DD200A4F7352BD4DDBB81274F41C51498FBF2077416A073D833263492B040380EA50876DBCE249FC60E2320655AE2198D72F2CDBB841A5497C45E5198E7B9B7903F0B991FBE5E2B0B0F27225C2A75F147EFC35CC0EAFC1607FF50AAF3C0BF1D001AF27F7A6AFF907F42A1DA13A07EC745614C3A12A7D551281257A655EEE9C08C2524EDC54775CE5501D7AE1BD1F0A4D510943CF25E93DB2EC1928DE4C7682FCB0A4A9F68AD68B76F6B98A6FB928F23283850C859A2AA334EC131D04867B81BF80308C8CF1553EAA33FFD8585B2E8126183D7D09891D7DFF0D5F0DDF96BDB29D8380E72DBDA31F309B42BD916105CCCCF3B596D73B490C0EBA432813CDA7580BDC8A65FBDD6B0091B37C273C88F";
+const std::string public_exponent_3072 = "10001";
+const std::string private_exponent_3072 = "CECA5EDD1F3C4FDB2E4BEB80A22FC71F989B6282C00F0E58DFD8184BCECAD6D9C4D0E48968C8BB08851EB2ED5973BD75DBB5BD97561EA070BA28B55B3882F6CF402A93983509A7CF82CF63E740CE54E312ED684409BD6ABFD150D83F5AEE42792314B7ADD46B334D28894B3373660AB93E90B01B6B6B8AA86BA6E99DF5885C6DF06E43D7C0B7F685106BB9B8DBA0FDAE9D2D1D2F1AE512B456B32AF26AD19C0924026B6C7D0413EDCE78476CD5C3B5128FDA4BCE995376E28DF03D45E494707D5756FA3D554F4D8F0EB704FDF2E629D3C0F4B079F965212A7383C69C9719CB497F7BB8ABB4EE6F89BE2787C8BE051C462FCD529824E607D971DF38E99B3029C7CC2573ED6CABC231E68783192825B7CD7DED6873DD4133617297DEC87347EFBC869497A24043C4EED5EE93BD8827221414B20A458218E6084DB6C6028B5F6078C9B9B763CD08C59DD266CBFA916E1D6C0FBF1668F6669DDB9C0AAD4CE144C2DA48C7C4E417785A24599A7A700A5B93B61557BF7F700D058A3803D348C84A02D9";
+
+const std::string modulus_4096 = "b22b4d012c9bb745a9ea09d743765ae0f2f97ea50dfff03e0bdf8891eed12b440da1ab11a44cda07758ff40484aaa571a7e7d1552264c7bf06af9c3b9a8b5ca14751cb86bdddd52d88b4bccfd1ca6393e0aae0ad89a19c2bb91c07ae1ec6cfa1642c3773f92e5872e0a9c6c38240415cc99f205e11c5f9692e1f62373dd37af1d325a3b68b685e64fff605b07e7b24963177819107b724f84da4c2f9f583469aafb77f5023e03281883e8df6746c54bae51e428dcf38897681a7f99ad01f331098cbc4657a92825f5a625372114fc05a2a76ffdb8b9be2f13db17ece9473b47dbdb771abad7abbca0198904be80db590e3759806d97dbe2910a0fe7ee5d1f9cc89407a13bda1185ea6bdd319c6e0fa64ad181cbf4fed79e08b2a8a47d6f6a060e5f768d6e2bfb057ceb20993f1d61e5574551537eec43568b530c37044981cd2c5c12c8c327d55a2b46348e673bc549d943c9a658e7721f9d64fab7e8f3586cad832ae2fd707395f08ed201f886ca292a4b52a6636c54685e4840476e99648fb1274ddf06f120b03cc7e660771618edeee655adefcec7ebac09d6a34ef6b39aa9045b3793621c49a0f5cf1fe78229068f3478ced811b8a14f06ab5985019cf71abfd1ed7e25e817de65bfbd35a32d6021341773fc42f0a4e5139fae50c7ce245cad7c05ded1facb33fad6f210e997b44dffb1bc820b0a232851994894196a427";
+const std::string public_exponent_4096 = "10001";
+const std::string private_exponent_4096 = "2b2c94ff68d8df037196360644e1c449e8770efa5e371bf75d1730d7f42019b4e6fcbb208e48d538a3835ba550a4ad6caa3c619c98b6053544207fe26da3c1b18f3fc1eb07cd5ea027156cff8b1dd91d777ed0ed1c81ddff365f15795b19e02c82c2b8395133aad94399c08195e98e2d36ea6984821810452d990b4ac99f9a96490d40ebb6427745504544c1ad14981c11269d6e10898fdadfadc255a1e9cacd273177176b6a23b301d9eebabf219532a8dcb951f5da046d8423b9378ba153d57cc13bf93f478b7221cbdbdeb355390e6065efc03ac76ea9f8c22f314e05efc1dc9c3c5e56ae7c1d0a5ff6ef7deefc857ca8fd4b039f15da8b9e07ada671486fa1594994aa8361a99a3f91813a469a0edd415ba66c945a4b41da84e433c258fabe4fe75209b59bd4da2787a89ba2b5beb02446ba445da6743cadeb736f9a10cae09e8747b7c34b9dc0ef385b3e079e2a62f1ce17a54e3749bc8bfc48cc726846901611f7c2eaf25f4e64584e7539541de9092a9c2df18172d99a97e6b71e6da623b7aa2bef8365814490fa77fe57a9342283df4449350eed35b7b8cfa260a918b730ff029d70cade443734cfa865b85beb8065d4f04daaf09bef9654d495ea04a71e72d000416107b27f8ba9b79a0c00e5aa95ddf94ef93f4c6e44f9a0e0f995b49bf78cb16f744458c89f296c64ea9f515d7e5ef3225a4498e777dcefb74c21";
+
+template<const std::string& PrivateExponent, const std::string& Modulus>
+struct verify_fixture: public eosio::testing::tester {
+
+   taurus::rsa_signer signer;
+
+   verify_fixture() :
+      tester(eosio::testing::setup_policy::preactivate_feature_and_new_bios),
+      signer(PrivateExponent, Modulus) {
+         try {
+            const auto& pfm = control->get_protocol_feature_manager();
+            const auto& d = pfm.get_builtin_digest(eosio::chain::builtin_protocol_feature_t::verify_rsa_sha256_sig);
+            BOOST_REQUIRE(d);
+            preactivate_protocol_features({*d});
+            produce_block();
+            create_accounts({account_name});
+            set_code(account_name, eosio::testing::contracts::verify_rsa_wasm());
+            set_abi(account_name, eosio::testing::contracts::verify_rsa_abi().data());
+            produce_block();
+         }
+         FC_LOG_AND_RETHROW();
+   }
+
+    void verify(const std::string& message,
+                const std::string& signature,
+                const std::string& exponent,
+                const std::string& modulus) {
+      push_action(
+         account_name,
+         eosio::chain::name("verrsasig"),
+         account_name,
+         fc::mutable_variant_object()
+            ("message", message)
+            ("signature", signature)
+            ("exponent", exponent)
+            ("modulus", modulus)
+      );
+    }
+};
+
+
+std::string corrupt(std::string str) {
+   if (str.empty()) {
+      return "1";
+   }
+   std::string::reverse_iterator last = str.rbegin();
+   ++*last;
+   if (*last > '9') {
+      *last = '0';
+   }
+   return str;
+}
+
+using verify_fixture_1024 = verify_fixture<private_exponent_1024, modulus_1024>;
+using verify_fixture_2048 = verify_fixture<private_exponent_2048, modulus_2048>;
+using verify_fixture_3072 = verify_fixture<private_exponent_3072, modulus_3072>;
+using verify_fixture_4096 = verify_fixture<private_exponent_4096, modulus_4096>;
+
+BOOST_AUTO_TEST_SUITE(verify_rsa_sha256_sig_tests)
+
+// --- Tests Expected To Pass ----------------------------------------------------------------------
+
+BOOST_FIXTURE_TEST_CASE(sign_happy_path_1024, verify_fixture_1024) {
+   const std::string message = "message to sign";
+   std::string signature = signer.sign(message);
+   // signature_1024("message to sign") = 62afd13281f01a5b5a9710c274cc9b58f9a92f8575a7b2099cd5038173d838beb77cd2912e96166a724b7fb8391c96a67e18208a52047755a5af2d01101966e540a3e9e075675b69faa177d3401673834459ee977a8b5c11db4351e61286207d25a5194bdbd66cb57ee716dda4d342f7eec09303500a2f0cf3c8141d46fa821f
+   BOOST_REQUIRE_EQUAL(signature.size(), modulus_1024.size());
+   BOOST_REQUIRE_NO_THROW(verify(message, signature, public_exponent_1024, modulus_1024));
+}
+
+BOOST_FIXTURE_TEST_CASE(sign_happy_path_2048, verify_fixture_2048) {
+   const std::string message = "message to sign";
+   std::string signature = signer.sign(message);
+   // signature_2048("message to sign") = 476455bfe93c2fdc226b3c0f325feb9fbf22234e92e417aa22ed1b24ee0b127ba2cab513bb4089488fb70199a53a736f0baf3db3d4bb630b6574f685259125dc18777a9e8f66a853ea69edf04965a80aa35b2bbf4b46f50fd744b676864a5933e53c9b2cc7d8dcc7edebba58d762652350d8a3ca64265319135cb92621731824452dfc839d4412874f1ada5ff41b2bbbb2d10d878125bbf9632787d2c0ec4c3912eb07187a103623298b2233a07b051e0e34151b7e1ed6095bfe3d4994284013bd6998d7a84ca6725497dce9bb7c3fe6e2481b5b050ad0a5d91622945cf62a9f22524dc32bb2cdf9a1cb0b77be0a1dd3bc58d29899bfa5a2688f6353d75e4c16
+   BOOST_REQUIRE_EQUAL(signature.size(), modulus_2048.size());
+   BOOST_REQUIRE_NO_THROW(verify(message, signature, public_exponent_2048, modulus_2048));
+}
+
+BOOST_FIXTURE_TEST_CASE(sign_happy_path_3072, verify_fixture_3072) {
+   const std::string message = "message to sign";
+   std::string signature = signer.sign(message);
+   // signature_3072("message to sign") = 9ddb7f0a71d2b2cbc4b9d2d31c781f52639aa5b019909a62b8aef7fe6350477fd8f3fa968fa5433e69fff8439b88881cad52e4af6f722dd41e27b9226fa43b810bfb9907d464e1f855a8f2c5a6733db86942f55d5751c7d80df3078ca8e10ded44e77abab484fbda557407c9df9371aea849e3807f5958cdb031c8e2b7b6991feb55af410e3ad3d5d822ca868c27e23c4718c40f14c1cca448e3067cc3926e08cae26f3ce4ee4b7d632bdede35a52d73ffc50ceab94e451db143ad2a8582d9675cabe47d99ba9e7da8657720e6cb2ff34b0af942059666d94a320d966c4adb52fbc4fcb9b2618ea705aa4d3ebee5d9915c748cbedba54c47464bb2c6ab7cce29872172e1a2e66493e7813746ec3a366245fad4e2ac96b78e7c1bab04e3db1c1318ebebff9f21c434382f9f36f812030de51f5f58ddbf9f3ccdb1b8f1f15c8185c99c4a8cd0d969f511d4a8ba5dd947c2e036b59f610fa5fce509286dde53ceec3f61de216c2cfd729e6586925f32d2660d6dda7bc9c362ed7775cf0085fb3260
+   BOOST_REQUIRE_EQUAL(signature.size(), modulus_3072.size());
+   BOOST_REQUIRE_NO_THROW(verify(message, signature, public_exponent_3072, modulus_3072));
+}
+
+BOOST_FIXTURE_TEST_CASE(sign_happy_path_4096, verify_fixture_4096) {
+   const std::string message = "message to sign";
+   std::string signature = signer.sign(message);
+   // signature_4096("message to sign") = 3d2644876c4d231da2e6293541db48fca54d3f161fb8f755c9a10c240d2d8621fbd824b47c5110e6776c5556eb91d8f88b27a83568a1a379665406750f9ee6a84943831a5d9b72f4c487c2371d8dcf3f09d4bfa5cc52213d3d25ad57333d6948655edf5b43c5997fc8ee5efdbf69a7ed1f8947015c91afa15d7981499c2a9fa93fc973a6054deea4274fa4977226328f7155cabf26b27d49f06ff3c339be11df9f10dc4c2917e084330792ae9f27151dc5f97b5464c5b28280feb12d3786691da1ca6895dcfbffe0101190efbdad8f3c2fe9d20fcfcf03eac089a750806de6fc5e2a5087592290866a66bb19a6cf9c74d8be26f89d11a0ac8deb60eabd9e9ac09c16eaac352c2f9488c2785a85eb176a3d1e70dab0177f3b0fd1b9ed7da576e9529d4bc2691c0240ddaac93502719a8d69e46ee16727e456dbe1e98c44ddac6dbe9f5a0b7c5d2e82fc527c524f9c25cb3a354dafcfdecaf0b6b04f4539e72240440ecfed3d78c307e4fb36fc4102bda1db646e1f029996787966cfbf5d8b967791ef023a1ba3111bcc0f63aa4438aa13b4edc6a9db61ef329885207e7ae34939a068f6cbd1056df6f8b7383b97b1256aeb792de7d0866be65abedf95bb44218ad10287480ee167b05a6011f41155af51e9706af7f98f20b4b33ac6b8fb82c70847bb02816d561585d130b4963811cc5da5463160b0a4e310c0a323ebb0203820
+   BOOST_REQUIRE_EQUAL(signature.size(), modulus_4096.size());
+   BOOST_REQUIRE_NO_THROW(verify(message, signature, public_exponent_4096, modulus_4096));
+}
+
+BOOST_FIXTURE_TEST_CASE(sign_min_msg_len_1024, verify_fixture_1024) {
+   const std::string message = "1";
+   std::string signature = signer.sign(message);
+   // signature_1024("1") = 8248d7ed6562ae6e7d8d914bda6c39ba16d7f474569ec07a5ec6b49618b0cb0355bf294c583dc44cab4d10a716740391b392d1adbeeaaa29a8b1239e855e729da035191827e011869b96d9900f4da98c500c7bdaf27b77788ff2f93fcee4706cf60a9bc735ddc6ebd8187b2e354581cb84e9a8d521980fb6d16eb736baa0197f
+   BOOST_REQUIRE_EQUAL(signature.size(), modulus_1024.size());
+   BOOST_REQUIRE_NO_THROW(verify(message, signature, public_exponent_1024, modulus_1024));
+}
+
+BOOST_FIXTURE_TEST_CASE(sign_min_msg_len_2048, verify_fixture_2048) {
+   const std::string message = "1";
+   std::string signature = signer.sign(message);
+   // signature_2048("1") = 9ed86640bc0236066f03071d2f96cf3b60f5c62eaed5b9cc590f3f88f6828238b12acbcef25ccac37c74710cbd9537650dbcd1384b9f89e0e6478baa766961772f018d02d9bf1a1bde07dfb8c56c5cb40224615beade4fd77f745347585bc7d95fa251fef382da8983ca8ffa73014823377942236a6b448c0cf9af3355481c4487e1e257702f95e875e526cbdb5825ded6b5a4812b733e9997cb2be3b18dcf4ed7ad221fe93ca1f4f799ad4685ba17d64af62caafe43d9ccb26179dc20c0908f6bdc9bf78c09bf03409bebb96b064e1ab5585b5fd32e2fd203dfbb411a991c4717a78ff77db6283b5f629936507021033b3ca35e7d481cfac4233a9949c99cb1
+   BOOST_REQUIRE_EQUAL(signature.size(), modulus_2048.size());
+   BOOST_REQUIRE_NO_THROW(verify(message, signature, public_exponent_2048, modulus_2048));
+}
+
+BOOST_FIXTURE_TEST_CASE(sign_min_msg_len_3072, verify_fixture_3072) {
+   const std::string message = "1";
+   std::string signature = signer.sign(message);
+   // signature_3072("1") = 0d438058d079323b270895bf0f3d40eebbc9c122fe8e5344ec260d9bb3244ab37b8331b6ca8bd5ae6dc673d36ace84dc17825a44e8cd222fca26c553f19192ab33fbbe0f4b359d975bb5abf125ded0fa03f1a70cffc0527d57a54ee768b29c46011dabc7466c5ca221f2df4b5d5cc230b381a5275c0a6c30713bace72f52d6ca8da76eb0e58c7c6cf0309bc461a19a9da13501b607c002fbc1686f90f159468f545e38ff5743c600b3ff14ba4ff3ed1ad8c26b1b244a45768a12ee8bc2d43da356c6f87ae42eed38a7e42787a20d738fdd90fc184122b45dcfede4a4c7c506929d9dec3127638d14d4cd883a568afcb6079b0af9d742090f9e256a3cfc33d9afa39cb89f4a08067d9b2c593c8f54ebd5157bc1313f161bc8609af60afbcb33dcd60b5b4f8f55d21eddf17d3010575aa0f232b7a8b499a1141b82b36dd3b12fc3bbf5e850f54d540f5bed8cb9fd943352548f801d4b26c282c8d953bb53f98404c72b1fd38e14184aa139dcd2482449a571ecfaf6c65bbfeba52df34c2870e9f0
+   BOOST_REQUIRE_EQUAL(signature.size(), modulus_3072.size());
+   BOOST_REQUIRE_NO_THROW(verify(message, signature, public_exponent_3072, modulus_3072));
+}
+
+BOOST_FIXTURE_TEST_CASE(sign_min_msg_len_4096, verify_fixture_4096) {
+   const std::string message = "1";
+   std::string signature = signer.sign(message);
+   // signature_4096("1") = 91957ef8ef91378dd5e88697be4be3a8447c54c71b942c7001751442709bef73b394f06eb0e9f82af9226a8d9008394d7f1fb456b23cb409e547e9027484c5cbc92b4d4557395e5c47b6193f06914131982cd154317a9dd17116b4014e36b0b147dd4446e7b34c781c921c20e1025c7312d8adde2bc39e3c7aa356fc92798804c4418d3d47c7ab5b452688d8f0a2952942d4b95f21cc947171cdf7e354e251433a63016e6eac242e79f808579c179aa1479f230d2b2019b16c62ce1303f34a0dcd075883e72ddba002f62fa73ba4bb7c06b0e3c95955e2fbc28a4a81766a5ee6ae5e28b1d9afb6dae3575bf2f8ac18ced7690163a1ade86931c24370789d76616724de105498e6834a47ad2c12cfc9dfe14a11f599c4bdfbdf243e085a581d1361be0f25882e256b17b6006f5181ac9aacb5fae79273201a66717c8823d452f01a62df653b086836483834c61011e248b7db776795ec9e75863dabef4ff4cbb435c2782e1f2c7de89787d37be29932bb279e613e7cacf0bbe1ad64b30104de801600ba168c6864dec7cc74e5e62894b9b57a64ef9c4e0dce570db979e02e7e6734fd758c3d4c92ab2be4d4952cb1a954f02a445a84a6889015535cc22effaf2a083aa7bd4c4fd80cbf094e793b79697d705cb01ab07dc23a8da4b3763a86296d37dd4349a6bd0ecb8e4a5dbd65918b5dac70a4f915de18a015433d351321ee6e
+   BOOST_REQUIRE_EQUAL(signature.size(), modulus_4096.size());
+   BOOST_REQUIRE_NO_THROW(verify(message, signature, public_exponent_4096, modulus_4096));
+}
+
+// --- Tests Expected To Fail ----------------------------------------------------------------------
+
+using e = eosio::chain::eosio_assert_message_exception;
+
+BOOST_FIXTURE_TEST_CASE(invalid_lengths, verify_fixture_1024) {
+   // empty message string
+   BOOST_REQUIRE_THROW(verify("", "abcd", "abcd", "abcd"), e);
+   // empty signature string
+   BOOST_REQUIRE_THROW(verify("abcd", "", "abcd", "abcd"), e);
+   // empty exponent string
+   BOOST_REQUIRE_THROW(verify("abcd", "abcd", "", "abcd"), e);
+   // different lengths for signature string and modulus string
+   BOOST_REQUIRE_THROW(verify("abcd", "abcd", "abcd", ""), e);
+   // old length for modulus string
+   BOOST_REQUIRE_THROW(verify("abcd", "abc", "abcd", "abc"), e);
+}
+
+BOOST_FIXTURE_TEST_CASE(invalid_parameters, verify_fixture_1024) {
+   BOOST_REQUIRE_THROW(verify("message to sign", "XXXX", "abcd", "abcd"), e);
+   BOOST_REQUIRE_THROW(verify("message to sign", "abcd", "XXXX", "abcd"), e);
+   BOOST_REQUIRE_THROW(verify("message to sign", "abcd", "abcd", "XXXX"), e);
+}
+
+BOOST_FIXTURE_TEST_CASE(corrupted_public_exponent_1024, verify_fixture_1024) {
+   const std::string message = "message to sign";
+   std::string signature = signer.sign(message);
+   BOOST_REQUIRE_THROW(verify(message, signature, "4", modulus_1024), e);
+   BOOST_REQUIRE_THROW(verify(message, signature, "5", modulus_1024), e);
+}
+
+BOOST_FIXTURE_TEST_CASE(corrupted_public_exponent_2048, verify_fixture_2048) {
+   const std::string message = "message to sign";
+   std::string signature = signer.sign(message);
+   BOOST_REQUIRE_THROW(verify(message, signature, "10002", modulus_2048), e);
+   BOOST_REQUIRE_THROW(verify(message, signature, "10003", modulus_2048), e);
+}
+
+BOOST_FIXTURE_TEST_CASE(corrupted_public_exponent_3072, verify_fixture_3072) {
+   const std::string message = "message to sign";
+   std::string signature = signer.sign(message);
+   BOOST_REQUIRE_THROW(verify(message, signature, "10002", modulus_3072), e);
+   BOOST_REQUIRE_THROW(verify(message, signature, "10003", modulus_3072), e);
+}
+
+BOOST_FIXTURE_TEST_CASE(corrupted_public_exponent_4096, verify_fixture_4096) {
+   const std::string message = "message to sign";
+   std::string signature = signer.sign(message);
+   BOOST_REQUIRE_THROW(verify(message, signature, "10002", modulus_4096), e);
+   BOOST_REQUIRE_THROW(verify(message, signature, "10003", modulus_4096), e);
+}
+
+BOOST_FIXTURE_TEST_CASE(corrupted_modulus_1024, verify_fixture_1024) {
+   const std::string message = "message to sign";
+   std::string signature = signer.sign(message);
+   BOOST_REQUIRE(!modulus_1024.empty());
+   std::string corrupted_modulus_1024 = corrupt(modulus_1024);
+   BOOST_REQUIRE_THROW(verify(message, signature, public_exponent_1024, corrupted_modulus_1024), e);
+}
+
+BOOST_FIXTURE_TEST_CASE(corrupted_modulus_2048, verify_fixture_2048) {
+   const std::string message = "message to sign";
+   std::string signature = signer.sign(message);
+   BOOST_REQUIRE(!modulus_2048.empty());
+   std::string corrupted_modulus_2048 = corrupt(modulus_2048);
+   BOOST_REQUIRE_THROW(verify(message, signature, public_exponent_2048, corrupted_modulus_2048), e);
+}
+
+BOOST_FIXTURE_TEST_CASE(corrupted_modulus_3072, verify_fixture_3072) {
+   const std::string message = "message to sign";
+   std::string signature = signer.sign(message);
+   BOOST_REQUIRE(!modulus_3072.empty());
+   std::string corrupted_modulus_3072 = corrupt(modulus_3072);
+   BOOST_REQUIRE_THROW(verify(message, signature, public_exponent_3072, corrupted_modulus_3072), e);
+}
+
+BOOST_FIXTURE_TEST_CASE(corrupted_modulus_4096, verify_fixture_4096) {
+   const std::string message = "message to sign";
+   std::string signature = signer.sign(message);
+   BOOST_REQUIRE(!modulus_4096.empty());
+   std::string corrupted_modulus_4096 = corrupt(modulus_4096);
+   BOOST_REQUIRE_THROW(verify(message, signature, public_exponent_4096, corrupted_modulus_4096), e);
+}
+
+BOOST_FIXTURE_TEST_CASE(corrupted_sginature_1024, verify_fixture_1024) {
+   const std::string message = "message to sign";
+   std::string signature = signer.sign(message);
+   BOOST_REQUIRE(!signature.empty());
+   std::string corrupted_signature = corrupt(signature);
+   BOOST_REQUIRE_THROW(verify(message, corrupted_signature, public_exponent_1024, modulus_1024), e);
+}
+
+BOOST_FIXTURE_TEST_CASE(corrupted_sginature_2048, verify_fixture_2048) {
+   const std::string message = "message to sign";
+   std::string signature = signer.sign(message);
+   BOOST_REQUIRE(!signature.empty());
+   std::string corrupted_signature = corrupt(signature);
+   BOOST_REQUIRE_THROW(verify(message, corrupted_signature, public_exponent_2048, modulus_2048), e);
+}
+
+BOOST_FIXTURE_TEST_CASE(corrupted_sginature_3072, verify_fixture_3072) {
+   const std::string message = "message to sign";
+   std::string signature = signer.sign(message);
+   BOOST_REQUIRE(!signature.empty());
+   std::string corrupted_signature = corrupt(signature);
+   BOOST_REQUIRE_THROW(verify(message, corrupted_signature, public_exponent_3072, modulus_3072), e);
+}
+
+BOOST_FIXTURE_TEST_CASE(corrupted_sginature_4096, verify_fixture_4096) {
+   const std::string message = "message to sign";
+   std::string signature = signer.sign(message);
+   BOOST_REQUIRE(!signature.empty());
+   std::string corrupted_signature = corrupt(signature);
+   BOOST_REQUIRE_THROW(verify(message, corrupted_signature, public_exponent_4096, modulus_4096), e);
+}
+
+BOOST_AUTO_TEST_SUITE_END()

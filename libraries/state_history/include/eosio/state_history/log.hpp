@@ -145,6 +145,7 @@ class state_history_log {
 
    std::optional<chain::block_id_type> get_block_id(block_num_type block_num);
    void                                stop();
+   void                                light_stop();
 
  protected:
    void store_entry(const chain::block_id_type& id, const chain::block_id_type& prev_id, std::vector<char>&& data);

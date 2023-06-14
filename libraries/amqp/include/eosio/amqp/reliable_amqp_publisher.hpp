@@ -2,7 +2,7 @@
 #include <memory>
 #include <vector>
 #include <functional>
-
+#include <boost/asio/ssl.hpp>
 #include <fc/io/raw.hpp>
 
 namespace eosio {
@@ -33,6 +33,10 @@ class reliable_amqp_publisher {
       /// \param on_fatal_error called from AMQP thread when unconfirmed queue depth is exceeded.
       /// \param message_id optional message id to send with each message
       reliable_amqp_publisher(const std::string& server_url, const std::string& exchange, const std::string& routing_key,
+                              const boost::filesystem::path& unconfirmed_path, error_callback_t on_fatal_error,
+                              const std::optional<std::string>& message_id = {});
+      // amqp via tls
+      reliable_amqp_publisher(const std::string& server_url, boost::asio::ssl::context & ssl_ctx, const std::string& exchange, const std::string& routing_key,
                               const boost::filesystem::path& unconfirmed_path, error_callback_t on_fatal_error,
                               const std::optional<std::string>& message_id = {});
 

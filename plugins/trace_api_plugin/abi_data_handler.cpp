@@ -23,7 +23,7 @@ namespace eosio::trace_api {
                auto abi_yield = [yield](size_t recursion_depth) {
                   yield();
                   EOS_ASSERT( recursion_depth < chain::abi_serializer::max_recursion_depth, chain::abi_recursion_depth_exception,
-                              "exceeded max_recursion_depth ${r} ", ("r", chain::abi_serializer::max_recursion_depth) );
+                              "exceeded max_recursion_depth {r} ", ("r", chain::abi_serializer::max_recursion_depth) );
                };
                return std::visit([&](auto &&action) -> std::tuple<fc::variant, std::optional<fc::variant>> {
                   using T = std::decay_t<decltype(action)>;

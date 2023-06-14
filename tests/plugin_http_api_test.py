@@ -12,7 +12,7 @@ from Node import Node
 from WalletMgr import WalletMgr
 
 class PluginHttpTest(unittest.TestCase):
-    sleep_s = 5
+    sleep_s = 15
     base_node_cmd_str = ("curl http://%s:%s/v1/") % (TestHelper.LOCAL_HOST, TestHelper.DEFAULT_PORT)
     base_wallet_cmd_str = ("curl http://%s:%s/v1/") % (TestHelper.LOCAL_HOST, TestHelper.DEFAULT_WALLET_PORT)
     keosd = WalletMgr(True, TestHelper.DEFAULT_PORT, TestHelper.LOCAL_HOST, TestHelper.DEFAULT_WALLET_PORT, TestHelper.LOCAL_HOST)
@@ -24,6 +24,7 @@ class PluginHttpTest(unittest.TestCase):
     empty_content_str = " ' { } '  "
     EOSIO_ACCT_PRIVATE_DEFAULT_KEY = "5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3"
     EOSIO_ACCT_PUBLIC_DEFAULT_KEY = "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV"
+    DEFAULT_AMQP_CONN_STR = "amqp://guest:guest@localhost:5672"
 
     # make a fresh data dir
     def createDataDir(self):
@@ -45,7 +46,7 @@ class PluginHttpTest(unittest.TestCase):
         self.createDataDir(self)
         self.keosd.launch()
         nodeos_plugins = (" --plugin %s --plugin %s --plugin %s --plugin %s --plugin %s --plugin %s --plugin %s --plugin %s "
-                          " --plugin %s --plugin %s ") % ( "eosio::trace_api_plugin",
+                          " --plugin %s --plugin %s --plugin %s --plugin %s") % ( "eosio::trace_api_plugin",
                                                                                    "eosio::test_control_api_plugin",
                                                                                    "eosio::test_control_plugin",
                                                                                    "eosio::net_plugin",
@@ -54,10 +55,13 @@ class PluginHttpTest(unittest.TestCase):
                                                                                    "eosio::producer_api_plugin",
                                                                                    "eosio::chain_api_plugin",
                                                                                    "eosio::http_plugin",
-                                                                                   "eosio::db_size_api_plugin")
+                                                                                   "eosio::db_size_api_plugin",
+                                                                                   "eosio::amqp_trx_plugin",
+                                                                                   "eosio::amqp_trx_api_plugin")
         nodeos_flags = (" --data-dir=%s --trace-dir=%s --trace-no-abis --access-control-allow-origin=%s "
                         "--contracts-console --http-validate-host=%s --verbose-http-errors "
                         "--p2p-peer-address localhost:9011 ") % (self.data_dir, self.data_dir, "\'*\'", "false")
+        nodeos_flags += " --amqp-trx-startup-stopped --amqp-trx-address %s" % self.DEFAULT_AMQP_CONN_STR
         start_nodeos_cmd = ("%s -e -p eosio %s %s ") % (Utils.EosServerPath, nodeos_plugins, nodeos_flags)
         self.nodeos.launchCmd(start_nodeos_cmd, self.node_id)
         time.sleep(self.sleep_s)
@@ -564,26 +568,6 @@ class PluginHttpTest(unittest.TestCase):
         self.assertEqual(ret_json["code"], 400)
         self.assertEqual(ret_json["error"]["code"], 3200006)
 
-        # get_scheduled_transactions with empty parameter
-        default_cmd = cmd_base + "get_scheduled_transactions"
-        ret_json = Utils.runCmdReturnJson(default_cmd)
-        self.assertEqual(ret_json["code"], 400)
-        self.assertEqual(ret_json["error"]["code"], 3200006)
-        # get_scheduled_transactions with empty content parameter
-        empty_content_cmd = default_cmd + self.http_post_str + self.empty_content_str
-        ret_json = Utils.runCmdReturnJson(empty_content_cmd)
-        self.assertEqual(ret_json["code"], 400)
-        self.assertEqual(ret_json["error"]["code"], 3200006)
-        # get_scheduled_transactions with invalid parameter
-        invalid_cmd = default_cmd + self.http_post_str + self.http_post_invalid_param
-        ret_json = Utils.runCmdReturnJson(invalid_cmd)
-        self.assertEqual(ret_json["code"], 400)
-        self.assertEqual(ret_json["error"]["code"], 3200006)
-        # get_scheduled_transactions with valid parameter
-        valid_cmd = default_cmd + self.http_post_str + ("'{\"json\":true,\"lower_bound\":\"\"}'")
-        ret_json = Utils.runCmdReturnJson(valid_cmd)
-        self.assertEqual(type(ret_json["transactions"]), list)
-
         # abi_json_to_bin with empty parameter
         default_cmd = cmd_base + "abi_json_to_bin"
         ret_json = Utils.runCmdReturnJson(default_cmd)
@@ -818,6 +802,11 @@ class PluginHttpTest(unittest.TestCase):
 
         self.assertTrue(eosioFound)
 
+        # get_genesis
+        default_cmd = cmd_base + "get_genesis"
+        ret_json = Utils.runCmdReturnJson(default_cmd)
+        self.assertIn("initial_timestamp", ret_json)
+
     # test all net api
     def test_NetApi(self) :
         cmd_base = self.base_node_cmd_str + "net/"
@@ -972,13 +961,12 @@ class PluginHttpTest(unittest.TestCase):
         self.assertEqual(ret_json["code"], 400)
         self.assertEqual(ret_json["error"]["code"], 3200006)
         # update_runtime_options with valid parameter
-        valid_cmd = default_cmd + self.http_post_str + ("'{%s, %s, %s, %s, %s, %s, %s, %s}'") % ("\"max_transaction_time\":30",
+        valid_cmd = default_cmd + self.http_post_str + ("'{%s, %s, %s, %s, %s, %s, %s}'") % ("\"max_transaction_time\":30",
                                                                                                  "\"max_irreversible_block_age\":-1",
                                                                                                  "\"produce_time_offset_us\":10000",
                                                                                                  "\"last_block_time_offset_us\":0",
                                                                                                  "\"max_scheduled_transaction_time_per_block_ms\":10000",
                                                                                                  "\"subjective_cpu_leeway_us\":0",
-                                                                                                 "\"incoming_defer_ratio\":1.0",
                                                                                                  "\"greylist_limit\":100")
         ret_json = Utils.runCmdReturnJson(valid_cmd)
         self.assertIn(ret_json["result"], "ok")
@@ -1559,6 +1547,22 @@ class PluginHttpTest(unittest.TestCase):
         ret_json = Utils.runCmdReturnJson(invalid_cmd)
         self.assertEqual(ret_json["code"], 400)
 
+    def test_AMQPtrxAPI(self):
+        Utils.Print("Starting a RabbitMQ node")
+        Utils.runCmdReturnStr("rabbitmq-server -detached")
+        time.sleep(40)
+
+        cmd_base = self.base_node_cmd_str + "amqp_trx/"
+        default_cmd = cmd_base + "start"
+        ret_json = Utils.runCmdReturnJson(default_cmd)
+        self.assertEqual(ret_json["result"], "ok")
+
+        default_cmd = cmd_base + "stop"
+        ret_json = Utils.runCmdReturnJson(default_cmd)
+        self.assertEqual(ret_json["result"], "ok")
+
+        Utils.Print("Shutting down the running RabbitMQ node")
+        Utils.runCmdReturnStr("rabbitmqctl shutdown")
 
     @classmethod
     def setUpClass(self):

@@ -10,10 +10,16 @@ using namespace std;
 #define ASSERT_LESS(e1,e2) check((e1) < (e2), STR(__FILE__)STR(:)STR(__LINE__)": " #e1" < "#e2)
 #define ASSERT_LE(e1,e2) check((e1) <= (e2), STR(__FILE__)STR(:)STR(__LINE__)": " #e1" <= "#e2)
 
+#if !__has_include(<eosio/table.h>)
+
 #define IMPORT extern "C" __attribute__((eosio_wasm_import))
 
 IMPORT uint32_t get_parameters_packed( const char* ids, uint32_t ids_size, char* params, uint32_t params_size);
 IMPORT     void set_parameters_packed( const char* params, uint32_t params_size );
+#else 
+using eosio::internal_use_do_not_use::set_parameters_packed;
+using eosio::internal_use_do_not_use::get_parameters_packed;
+#endif
 
 unsigned_int operator "" _ui(unsigned long long v){ return unsigned_int(v); }
 
@@ -38,7 +44,7 @@ struct params_object{
       ds << val;
       ASSERT_LE(ds.tellp(), sizeof(buffer));
 
-      packed += {buffer, ds.tellp()};
+      packed += std::string{buffer, ds.tellp()};
       return *this;
    }
    params_object& operator () (uint16_t val){
@@ -47,7 +53,7 @@ struct params_object{
       ds << val;
       ASSERT_EQ(ds.tellp(), sizeof(buffer));
 
-      packed += {buffer, ds.tellp()};
+      packed += std::string{buffer, ds.tellp()};
       return *this;
    }
    params_object& operator () (uint32_t val){
@@ -56,7 +62,7 @@ struct params_object{
       ds << val;
       ASSERT_EQ(ds.tellp(), sizeof(buffer));
 
-      packed += {buffer, ds.tellp()};
+      packed += std::string{buffer, ds.tellp()};
       return *this;
    }
    params_object& operator () (uint64_t val){
@@ -65,7 +71,7 @@ struct params_object{
       ds << val;
       ASSERT_EQ(ds.tellp(), sizeof(buffer));
 
-      packed += {buffer, ds.tellp()};
+      packed += std::string{buffer, ds.tellp()};
       return *this;
    }
    params_object& operator () (vector<unsigned_int>&& val){
@@ -74,7 +80,7 @@ struct params_object{
       ds << val;
       ASSERT_LESS(ds.tellp(), sizeof(buffer));
 
-      packed += {buffer, ds.tellp()};
+      packed += std::string{buffer, ds.tellp()};
       return *this;
    }
 

@@ -41,6 +41,11 @@ else()
   set(build_id_flag "")
 endif()
 
+if (TARGET rodeos_plugin)
+  set(RODEOS_PLUGIN_LINKER_FLAGS PRIVATE -Wl,${whole_archive_flag} rodeos_plugin -Wl,${no_whole_archive_flag})
+endif()
+
+
 target_link_libraries( ${NODE_EXECUTABLE_NAME}
         PRIVATE appbase version
         PRIVATE -Wl,${whole_archive_flag} login_plugin               -Wl,${no_whole_archive_flag}
@@ -56,9 +61,18 @@ target_link_libraries( ${NODE_EXECUTABLE_NAME}
         PRIVATE -Wl,${whole_archive_flag} test_control_plugin        -Wl,${no_whole_archive_flag}
         PRIVATE -Wl,${whole_archive_flag} test_control_api_plugin    -Wl,${no_whole_archive_flag}
         PRIVATE -Wl,${whole_archive_flag} amqp_trx_plugin            -Wl,${no_whole_archive_flag}
+        PRIVATE -Wl,${whole_archive_flag} producer_ha_plugin         -Wl,${no_whole_archive_flag}
+        PRIVATE -Wl,${whole_archive_flag} event_streamer_plugin      -Wl,${no_whole_archive_flag}
+        PRIVATE -Wl,${whole_archive_flag} amqp_trx_api_plugin        -Wl,${no_whole_archive_flag}
+        ${RODEOS_PLUGIN_LINKER_FLAGS}
         PRIVATE -Wl,${build_id_flag}
         PRIVATE chain_plugin http_plugin producer_plugin http_client_plugin
         PRIVATE eosio_chain_wrap fc ${CMAKE_DL_LIBS} ${PLATFORM_SPECIFIC_LIBS} )
+
+
+if (NOT DISABLE_NATIVE_RUNTIME)
+  target_export_intrinsics(${NODE_EXECUTABLE_NAME} ${CMAKE_SOURCE_DIR}/plugins/chain_plugin/native_module_runtime.cpp)
+endif()
 
 include(additionalPlugins)
 

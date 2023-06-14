@@ -22,6 +22,9 @@ import shutil
 #
 ###############################################################
 
+# give it 30 mins to run
+Utils.set_timeout(30*60)
+
 Print = Utils.Print
 errorExit = Utils.errorExit
 cmdError = Utils.cmdError

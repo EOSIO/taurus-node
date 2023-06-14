@@ -22,7 +22,7 @@ None
 ## Dependencies
 
 * [`wallet_plugin`](../wallet_plugin/index.md)
-* [`http_plugin`](../http_plugin/index.md)
+* [`http_plugin`](../../../01_nodeos/03_plugins/http_plugin/index.md)
 
 ### Load Dependency Examples
 

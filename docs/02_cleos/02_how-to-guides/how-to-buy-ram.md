@@ -1,6 +1,6 @@
 
 ## Overview
-This guide provides instructions on how to buy RAM for an EOSIO blockchain account using the cleos CLI tool. RAM is a system resource used to store blockchain state such as smart contract data and account information.
+This guide provides instructions on how to buy RAM for an EOSIO-Taurus blockchain account using the cleos CLI tool. RAM is a system resource used to store blockchain state such as smart contract data and account information.
 
 The example uses `cleos` to buy RAM for the alice account. The alice account pays for the RAM and the alice@active permisssion authorizes the transaction.  
 
@@ -8,11 +8,6 @@ The example uses `cleos` to buy RAM for the alice account. The alice account pay
 Make sure you meet the following requirements: 
 
 * Install the currently supported version of `cleos.`
-[[info | Note]]
-| `Cleos` is bundled with the EOSIO software. [Installing EOSIO](../../00_install/index.md) will install the `cleos` and `keosd` command line tools. 
-* You have access to an EOSIO blockchain and the `eosio.system` reference contract from [`eosio.contracts`](https://github.com/EOSIO/eosio.contracts) repository is deployed and used to manage system resources.
-* You have an EOSIO account and access to the account's private key.
-* You have sufficient [tokens allocated](how-to-transfer-an-eosio.token-token.md) to your account.
 
 ## Reference
 See the following reference guides for command line usage and related options:

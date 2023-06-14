@@ -95,7 +95,7 @@ namespace eosio { namespace chain { namespace wasm_validations {
       static constexpr bool kills = true;
       static constexpr bool post = false;
       static void accept( wasm_ops::instr* inst, wasm_ops::visitor_arg& arg ) {
-         FC_THROW_EXCEPTION(wasm_execution_error, "Error, blacklisted opcode ${op} ", 
+         FC_THROW_EXCEPTION(wasm_execution_error, "Error, blacklisted opcode {op} ",
             ("op", inst->to_string()));
       }
    };

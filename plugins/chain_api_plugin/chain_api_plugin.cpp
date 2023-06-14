@@ -48,8 +48,8 @@ namespace {
    }
 }
 
-#define CALL_WITH_400(api_name, api_handle, api_namespace, call_name, http_response_code, params_type) \
-{std::string("/v1/" #api_name "/" #call_name), \
+#define CALL_WITH_400(api_version, api_name, api_handle, api_namespace, call_name, http_response_code, params_type) \
+{std::string("/" #api_version "/" #api_name "/" #call_name), \
    [api_handle](string, string body, url_response_callback cb) mutable { \
           api_handle.validate(); \
           try { \
@@ -61,12 +61,12 @@ namespace {
           } \
        }}
 
-#define CALL_ASYNC_WITH_400(api_name, api_handle, api_namespace, call_name, call_result, http_response_code, params_type) \
-{std::string("/v1/" #api_name "/" #call_name), \
+#define CALL_ASYNC_WITH_400(api_version, api_name, api_handle, api_namespace, call_name, call_result, http_response_code, params_type) \
+{std::string("/" #api_version "/" #api_name "/" #call_name), \
    [api_handle](string, string body, url_response_callback cb) mutable { \
       api_handle.validate(); \
       try { \
-         auto params = parse_params<api_namespace::call_name ## _params, params_type>(body);\
+         auto params = parse_params<api_namespace::call_name ## _params ## _ ## api_version, params_type>(body);\
          api_handle.call_name( std::move(params),\
             [cb, body](const std::variant<fc::exception_ptr, call_result>& result){\
                if (std::holds_alternative<fc::exception_ptr>(result)) {\
@@ -85,24 +85,33 @@ namespace {
    }\
 }
 
-#define CHAIN_RO_CALL(call_name, http_response_code, params_type) CALL_WITH_400(chain, ro_api, chain_apis::read_only, call_name, http_response_code, params_type)
-#define CHAIN_RW_CALL(call_name, http_response_code, params_type) CALL_WITH_400(chain, rw_api, chain_apis::read_write, call_name, http_response_code, params_type)
-#define CHAIN_RO_CALL_ASYNC(call_name, call_result, http_response_code, params_type) CALL_ASYNC_WITH_400(chain, ro_api, chain_apis::read_only, call_name, call_result, http_response_code, params_type)
-#define CHAIN_RW_CALL_ASYNC(call_name, call_result, http_response_code, params_type) CALL_ASYNC_WITH_400(chain, rw_api, chain_apis::read_write, call_name, call_result, http_response_code, params_type)
+#define CHAIN_RO_CALL(call_name, http_response_code, params_type) CALL_WITH_400(v1, chain, ro_api, chain_apis::read_only, call_name, http_response_code, params_type)
+#define CHAIN_RW_CALL(call_name, http_response_code, params_type) CALL_WITH_400(v1, chain, rw_api, chain_apis::read_write, call_name, http_response_code, params_type)
+#define CHAIN_TQ_CALL(call_name, http_response_code, params_type) CALL_WITH_400(v1, chain, tq_api, chain_apis::table_query, call_name, http_response_code, params_type)
+#define CHAIN_RO_CALL_ASYNC(call_name, call_result, http_response_code, params_type) CALL_ASYNC_WITH_400(v1, chain, ro_api, chain_apis::read_only, call_name, call_result, http_response_code, params_type)
+#define CHAIN_RW_CALL_ASYNC(call_name, call_result, http_response_code, params_type) CALL_ASYNC_WITH_400(v1, chain, rw_api, chain_apis::read_write, call_name, call_result, http_response_code, params_type)
 
-#define CHAIN_RO_CALL_WITH_400(call_name, http_response_code, params_type) CALL_WITH_400(chain, ro_api, chain_apis::read_only, call_name, http_response_code, params_type)
+#define CHAIN_RO_CALL_WITH_400(call_name, http_response_code, params_type) CALL_WITH_400(v1, chain, ro_api, chain_apis::read_only, call_name, http_response_code, params_type)
+
+#define CHAIN_RO_CALL_V2(call_name, http_response_code, params_type) CALL_WITH_400(v2, chain, ro_api, chain_apis::read_only, call_name, http_response_code, params_type)
+#define CHAIN_RW_CALL_V2(call_name, http_response_code, params_type) CALL_WITH_400(v2, chain, rw_api, chain_apis::read_write, call_name, http_response_code, params_type)
+#define CHAIN_RO_CALL_ASYNC_V2(call_name, call_result, http_response_code, params_type) CALL_ASYNC_WITH_400(v2, chain, ro_api, chain_apis::read_only, call_name, call_result, http_response_code, params_type)
+#define CHAIN_RW_CALL_ASYNC_V2(call_name, call_result, http_response_code, params_type) CALL_ASYNC_WITH_400(v2, chain, rw_api, chain_apis::read_write, call_name, call_result, http_response_code, params_type)
+
+#define CHAIN_RO_CALL_WITH_400_V2(call_name, http_response_code, params_type) CALL_WITH_400(v2, chain, ro_api, chain_apis::read_only, call_name, http_response_code, params_type)
 
 
-   
 void chain_api_plugin::plugin_startup() {
    ilog( "starting chain_api_plugin" );
    my.reset(new chain_api_plugin_impl(app().get_plugin<chain_plugin>().chain()));
    auto& chain = app().get_plugin<chain_plugin>();
+   auto tq_api = chain.get_table_query_api();
    auto ro_api = chain.get_read_only_api();
    auto rw_api = chain.get_read_write_api();
    
    auto& _http_plugin = app().get_plugin<http_plugin>();
    ro_api.set_shorten_abi_errors( !_http_plugin.verbose_errors() );
+   tq_api.set_shorten_abi_errors( !_http_plugin.verbose_errors() );
 
    _http_plugin.add_api({
       CHAIN_RO_CALL(get_info, 200, http_params_types::no_params_required)}, appbase::priority::medium_high);
@@ -117,27 +126,28 @@ void chain_api_plugin::plugin_startup() {
       CHAIN_RO_CALL(get_abi, 200, http_params_types::params_required),
       CHAIN_RO_CALL(get_raw_code_and_abi, 200, http_params_types::params_required),
       CHAIN_RO_CALL(get_raw_abi, 200, http_params_types::params_required),
-      CHAIN_RO_CALL(get_table_rows, 200, http_params_types::params_required),
-      CHAIN_RO_CALL(get_kv_table_rows, 200, http_params_types::params_required),
-      CHAIN_RO_CALL(get_table_by_scope, 200, http_params_types::params_required),
+      CHAIN_TQ_CALL(get_table_rows, 200, http_params_types::params_required),
+      CHAIN_TQ_CALL(get_kv_table_rows, 200, http_params_types::params_required),
+      CHAIN_TQ_CALL(get_table_by_scope, 200, http_params_types::params_required),
       CHAIN_RO_CALL(get_currency_balance, 200, http_params_types::params_required),
       CHAIN_RO_CALL(get_currency_stats, 200, http_params_types::params_required),
       CHAIN_RO_CALL(get_producers, 200, http_params_types::params_required),
       CHAIN_RO_CALL(get_producer_schedule, 200, http_params_types::no_params_required),
-      CHAIN_RO_CALL(get_scheduled_transactions, 200, http_params_types::params_required),
       CHAIN_RO_CALL(abi_json_to_bin, 200, http_params_types::params_required),
       CHAIN_RO_CALL(abi_bin_to_json, 200, http_params_types::params_required),
       CHAIN_RO_CALL(get_required_keys, 200, http_params_types::params_required),
       CHAIN_RO_CALL(get_transaction_id, 200, http_params_types::params_required),
-      CHAIN_RO_CALL_ASYNC(push_ro_transaction, chain_apis::read_only::push_ro_transaction_results, 200, http_params_types::params_required),
+      CHAIN_RO_CALL_ASYNC(send_ro_transaction, chain_apis::read_only::send_ro_transaction_results, 200, http_params_types::params_required),
       CHAIN_RW_CALL_ASYNC(push_block, chain_apis::read_write::push_block_results, 202, http_params_types::params_required),
       CHAIN_RW_CALL_ASYNC(push_transaction, chain_apis::read_write::push_transaction_results, 202, http_params_types::params_required),
       CHAIN_RW_CALL_ASYNC(push_transactions, chain_apis::read_write::push_transactions_results, 202, http_params_types::params_required),
+      CHAIN_RW_CALL_ASYNC_V2(send_transaction, chain_apis::read_write::push_transaction_results, 202, http_params_types::params_required),
       CHAIN_RW_CALL_ASYNC(send_transaction, chain_apis::read_write::send_transaction_results, 202, http_params_types::params_required),
       CHAIN_RO_CALL(get_all_accounts, 200, http_params_types::params_required),
-      CHAIN_RO_CALL(get_consensus_parameters, 200, http_params_types::no_params_required)
+      CHAIN_RO_CALL(get_consensus_parameters, 200, http_params_types::no_params_required),
+      CHAIN_RO_CALL(get_genesis, 200, http_params_types::no_params_required)
    });
-   
+
    if (chain.account_queries_enabled()) {
       _http_plugin.add_async_api({
          CHAIN_RO_CALL_WITH_400(get_accounts_by_authorizers, 200, http_params_types::params_required),

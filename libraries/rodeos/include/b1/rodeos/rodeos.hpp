@@ -6,6 +6,10 @@
 #include <eosio/vm/profile.hpp>
 #include <functional>
 
+namespace eosio::state_history {
+struct table_delta;
+}
+
 namespace b1::rodeos {
 
 static constexpr char undo_prefix_byte        = 0x01;
@@ -58,7 +62,12 @@ struct rodeos_db_snapshot {
    void refresh();
    void end_write(bool write_fill);
    void start_block(const eosio::ship_protocol::get_blocks_result_base& result);
-   void end_block(const eosio::ship_protocol::get_blocks_result_base& result, bool force_write);
+   // For end_block(), parameter dont_flush with default argument = false is an interim solution during the period when
+   // we support both standalone rodeos program and rodeos-plugin. Accepting the default value of dont_flush (= false)
+   // shall not change any existing behavior in standalone rodeos program. In the meanwhile, setting dont_flush = true
+   // allows rodeos-plugin to skip flushing to its local RocksDB files during processing a block. We aim to make
+   // rodeos-plugin a stateless plugin, so its local RocksDB files will be discarded anyway during a new startup.
+   void end_block(const eosio::ship_protocol::get_blocks_result_base& result, bool force_write, bool dont_flush = false);
    void check_write(const eosio::ship_protocol::get_blocks_result_base& result);
    void write_block_info(const eosio::ship_protocol::get_blocks_result_v0& result);
    void write_block_info(const eosio::ship_protocol::get_blocks_result_v1& result);
@@ -66,6 +75,7 @@ struct rodeos_db_snapshot {
    void write_deltas(const eosio::ship_protocol::get_blocks_result_v0& result, std::function<bool()> shutdown);
    void write_deltas(const eosio::ship_protocol::get_blocks_result_v1& result, std::function<bool()> shutdown);
    void write_deltas(const eosio::ship_protocol::get_blocks_result_v2& result, std::function<bool()> shutdown);
+   void write_deltas(uint32_t block_num, std::vector<eosio::state_history::table_delta>&& deltas, std::function<bool()> shutdown);
 
  private:
    void write_block_info(uint32_t block_num, const eosio::checksum256& id,
@@ -75,19 +85,31 @@ struct rodeos_db_snapshot {
    void write_fill_status();
 };
 
+struct native_module_context_type;
+
+struct instantiated_module_interface {
+   virtual void apply(filter::callbacks& cb) = 0;
+   virtual ~instantiated_module_interface() {}
+};
+
 struct rodeos_filter {
    eosio::name                           name         = {};
-   std::unique_ptr<filter::backend_t>    backend      = {};
-   std::unique_ptr<filter::filter_state> filter_state = {};
-   std::unique_ptr<eosio::vm::profile_data> prof      = {};
+   std::unique_ptr<filter::filter_state> filter_state = std::make_unique<filter::filter_state>();
+   std::unique_ptr<instantiated_module_interface>  instantiated = {};
 
+#ifdef EOSIO_EOS_VM_JIT_RUNTIME_ENABLED
    rodeos_filter(eosio::name name, const std::string& wasm_filename, bool profile
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
                  ,
                  const boost::filesystem::path&       eosvmoc_path   = "",
-                 const eosio::chain::eosvmoc::config& eosvmoc_config = {}, bool eosvmoc_enable = false
-#endif
+                 const eosio::chain::eosvmoc::config& eosvmoc_config = {}
+#endif // EOSIO_EOS_VM_OC_RUNTIME_ENABLED
    );
+#endif // WASM_RUNTIME_ENABLED
+
+#ifdef EOSIO_NATIVE_MODULE_RUNTIME_ENABLED
+   rodeos_filter(eosio::name name, const std::string& wasm_filename, native_module_context_type* native_module_context);
+#endif // EOSIO_NATIVE_MODULE_RUNTIME_ENABLED
 
    void process(rodeos_db_snapshot& snapshot, const eosio::ship_protocol::get_blocks_result_base& result,
                 eosio::input_stream bin, const std::function<void(const char* data, uint64_t size)>& push_data);

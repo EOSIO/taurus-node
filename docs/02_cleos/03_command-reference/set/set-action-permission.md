@@ -41,9 +41,9 @@ The following information shows the different positionals and options you can us
 ## Requirements
 * Install the currently supported version of `cleos`.
 [[info | Note]] 
-| `Cleos` is bundled with the EOSIO software. [Installing EOSIO](../../../00_install/index.md) will also install the `cleos` and `keosd` comand line tools.  
-* You have access to an EOSIO blockchain.
-* You have an EOSIO account and access to the account's private key.
+| `Cleos` is bundled with the EOSIO-Taurus software. [Installing EOSIO](../../../00_install/index.md) will also install the `cleos` and `keosd` comand line tools.  
+* You have access to an EOSIO-Taurus blockchain.
+* You have an EOSIO-Taurus account and access to the account's private key.
 
 ## Examples
 
@@ -102,8 +102,4 @@ cleos set action permission bob scontract1 hi NULL -p bob@active
 executed transaction: 50fe754760a1b8bd0e56f57570290a3f5daa509c090deb54c81a721ee7048201  120 bytes  242 us
 #         eosio <= eosio::unlinkauth            {"account":"bob","code":"scontract1","type":"hi"}
 ```
-
-## See Also
-- [Accounts and Permissions](https://developers.eos.io/welcome/v2.1/protocol/accounts_and_permissions) protocol document.
-- [Creating and Linking Custom Permissions](https://developers.eos.io/welcome/v2.1/smart-contract-guides/linking-custom-permission) tutorial.
 

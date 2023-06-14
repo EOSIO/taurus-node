@@ -1,15 +1,15 @@
 ## Goal
-Create a new EOSIO blockchain account 
+Create a new EOSIO-Taurus blockchain account 
 
 ## Before you begin
 
 * Install the currently supported version of `cleos`
 
 [[info | Note]]
-| The cleos tool is bundled with the EOSIO software. [Installing EOSIO](../../00_install/index.md) will also install the cleos tool. 
+| The cleos tool is bundled with the EOSIO-Taurus software. [Installing EOSIO-Taurus](../../00_install/index.md) will also install the cleos tool.
 
 * Acquire functional understanding of the following:
-  * [EOSIO Accounts and Permissions](https://developers.eos.io/welcome/v2.1/protocol/accounts_and_permissions)
+  * EOSIO-Taurus Accounts and Permissions
   * Asymmetric cryptography (public and private keypair) 
 
 * Created an Owner and an Active key pair
@@ -26,7 +26,7 @@ Where:
 
 [creator account name] = name of the existing account that authorizes the creation of a new account
 
-[new account name] = The name of the new account account adhering to EOSIO account naming conventions
+[new account name] = The name of the new account account adhering to EOSIO-Taurus account naming conventions
 
 [OwnerKey] = The owner permissions linked to the ownership of the account
 
@@ -36,7 +36,7 @@ Where:
 | `ActiveKey` is optional but recommended.
 
 [[info | Note]]
-| To create a new account in the EOSIO blockchain, an existing account, also referred to as a creator account, is required to authorize the creation of a new account. For a newly created EOSIO blockchain, the default system account used to create a new account is eosio.
+| To create a new account in the EOSIO-Taurus blockchain, an existing account, also referred to as a creator account, is required to authorize the creation of a new account. For a newly created EOSIO-Taurus blockchain, the default system account used to create a new account is eosio.
 
 **Example Output**
 ```sh

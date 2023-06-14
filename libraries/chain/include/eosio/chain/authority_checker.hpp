@@ -39,7 +39,6 @@ namespace detail {
          vector<public_key_type>              provided_keys; // Making this a flat_set<public_key_type> causes runtime problems with utilities::filter_data_by_marker for some reason. TODO: Figure out why.
          flat_set<permission_level>           provided_permissions;
          vector<bool>                         _used_keys;
-         fc::microseconds                     provided_delay;
          uint16_t                             recursion_depth_limit;
 
       public:
@@ -47,7 +46,6 @@ namespace detail {
                             uint16_t                             recursion_depth_limit,
                             const flat_set<public_key_type>&     provided_keys,
                             const flat_set<permission_level>&    provided_permissions,
-                            fc::microseconds                     provided_delay,
                             const std::function<void()>&         checktime
                          )
          :permission_to_authority(permission_to_authority)
@@ -55,7 +53,6 @@ namespace detail {
          ,provided_keys(provided_keys.begin(), provided_keys.end())
          ,provided_permissions(provided_permissions)
          ,_used_keys(provided_keys.size(), false)
-         ,provided_delay(provided_delay)
          ,recursion_depth_limit(recursion_depth_limit)
          {
             EOS_ASSERT( static_cast<bool>(checktime), authorization_exception, "checktime cannot be empty" );
@@ -69,20 +66,6 @@ namespace detail {
 
          typedef map<permission_level, permission_cache_status> permission_cache_type;
 
-         bool satisfied( const permission_level& permission,
-                         fc::microseconds override_provided_delay,
-                         permission_cache_type* cached_perms = nullptr
-                       )
-         {
-            auto delay_reverter = fc::make_scoped_exit( [this, delay = provided_delay] () mutable {
-               provided_delay = delay;
-            });
-
-            provided_delay = override_provided_delay;
-
-            return satisfied( permission, cached_perms );
-         }
-
          bool satisfied( const permission_level& permission, permission_cache_type* cached_perms = nullptr ) {
             permission_cache_type cached_permissions;
 
@@ -91,21 +74,6 @@ namespace detail {
 
             weight_tally_visitor visitor(*this, *cached_perms, 0);
             return ( visitor(permission_level_weight{permission, 1}) > 0 );
-         }
-
-         template<typename AuthorityType>
-         bool satisfied( const AuthorityType& authority,
-                         fc::microseconds override_provided_delay,
-                         permission_cache_type* cached_perms = nullptr
-                       )
-         {
-            auto delay_reverter = fc::make_scoped_exit( [this, delay = provided_delay] () mutable {
-               provided_delay = delay;
-            });
-
-            provided_delay = override_provided_delay;
-
-            return satisfied( authority, cached_perms );
          }
 
          template<typename AuthorityType>
@@ -202,9 +170,6 @@ namespace detail {
             {}
 
             uint32_t operator()(const wait_weight& permission) {
-               if( checker.provided_delay >= fc::seconds(permission.wait_sec) ) {
-                  total_weight += permission.weight;
-               }
                return total_weight;
             }
 
@@ -260,7 +225,6 @@ namespace detail {
                            uint16_t                             recursion_depth_limit,
                            const flat_set<public_key_type>&     provided_keys,
                            const flat_set<permission_level>&    provided_permissions = flat_set<permission_level>(),
-                           fc::microseconds                     provided_delay = fc::microseconds(0),
                            const std::function<void()>&         _checktime = std::function<void()>()
                          )
    {
@@ -270,7 +234,6 @@ namespace detail {
                                                             recursion_depth_limit,
                                                             provided_keys,
                                                             provided_permissions,
-                                                            provided_delay,
                                                             checktime );
    }
 

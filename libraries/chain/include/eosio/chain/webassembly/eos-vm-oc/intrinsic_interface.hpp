@@ -1,3 +1,4 @@
+#pragma once
 #include <eosio/vm/host_function.hpp>
 #include <eosio/chain/webassembly/eos-vm-oc/memory.hpp>
 #include <tuple>
@@ -9,7 +10,21 @@ namespace eosio::chain::eosvmoc {
 /**
  * validate an in-wasm-memory array
  * @tparam T
- */
+ *
+ * When a pointer will be invalid we want to stop execution right here right now. This is accomplished by forcing a read from an address
+ * that must always be bad. A better approach would probably be to call in to a function that notes the invalid parameter and host function
+ * and then bubbles up a more useful error message; maybe some day. Prior to WASM_LIMITS the code just simply did a load from address 33MB via
+ * an immediate. 33MB was always invalid since 33MB was the most WASM memory you could have. Post WASM_LIMITS you theoretically could
+ * have up to 4GB, but we can't do a load from a 4GB immediate since immediates are limited to signed 32bit ranges.
+ *
+ * So instead access the first_invalid_memory_address which by its name will always be invalid. Or will it? No... it won't, since it's
+ * initialized to -1*64KB in the case WASM has _no_ memory! We actually cannot clamp first_invalid_memory_address to 0 during initialization
+ * in such a case since there is some historical funny business going on when end==0 (note how jle will _pass_ when end==0 & first_invalid_memory_address==0)
+ *
+ * So instead just bump first_invalid_memory_address another 64KB before accessing it. If it's -64KB it'll go to 0 which fails correctly in that case.
+ * If it's 4GB it'll go to 4GB+64KB which still fails too (there is an entire 8GB range of WASM memory set aside). There are other more straightforward
+ * ways of accomplishing this, but at least this approach has zero overhead (e.g. no additional register usage, etc) in the nominal case.
+ * */
 template<typename T>
 inline void* array_ptr_impl (size_t ptr, size_t length)
 {
@@ -20,13 +35,16 @@ inline void* array_ptr_impl (size_t ptr, size_t length)
 
    asm volatile("cmp %%gs:%c[firstInvalidMemory], %[End]\n"
                 "jle 1f\n"
-                "mov %%gs:(%[End]), %[Ptr]\n"      // invalid pointer if out of range
+                "mov %%gs:%c[firstInvalidMemory], %[End]\n"      // sets End with a known failing address
+                "add %[sizeOfOneWASMPage], %[End]\n"             // see above comment
+                "mov %%gs:(%[End]), %[Ptr]\n"                    // loads from the known failing address
                 "1:\n"
                 "add %%gs:%c[linearMemoryStart], %[Ptr]\n"
                 : [Ptr] "+r" (ptr),
                   [End] "+r" (end)
                 : [linearMemoryStart] "i" (cb_full_linear_memory_start_segment_offset),
-                  [firstInvalidMemory] "i" (cb_first_invalid_memory_address_segment_offset)
+                  [firstInvalidMemory] "i" (cb_first_invalid_memory_address_segment_offset),
+                  [sizeOfOneWASMPage] "i" (wasm_constraints::wasm_page_size)
                 : "cc"
                );
 
@@ -150,7 +168,10 @@ auto fn(A... a) {
                       : "cc");
       }
       using native_args = vm::flatten_parameters_t<AUTO_PARAM_WORKAROUND(F)>;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-value"
       eosio::vm::native_value stack[] = { a... };
+#pragma GCC diagnostic pop      
       constexpr int cb_ctx_ptr_offset = OFFSET_OF_CONTROL_BLOCK_MEMBER(ctx);
       Interface* host;
       asm("mov %%gs:%c[applyContextOffset], %[cPtr]\n"

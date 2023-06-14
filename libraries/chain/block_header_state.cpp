@@ -1,5 +1,6 @@
 #include <eosio/chain/block_header_state.hpp>
 #include <eosio/chain/exceptions.hpp>
+#include <eosio/chain/to_string.hpp>
 #include <limits>
 
 namespace eosio { namespace chain {
@@ -51,7 +52,7 @@ namespace eosio { namespace chain {
       auto itr = producer_to_last_produced.find( proauth.producer_name );
       if( itr != producer_to_last_produced.end() ) {
         EOS_ASSERT( itr->second < (block_num+1) - num_prev_blocks_to_confirm, producer_double_confirm,
-                    "producer ${prod} double-confirming known range",
+                    "producer {prod} double-confirming known range",
                     ("prod", proauth.producer_name)("num", block_num+1)
                     ("confirmed", num_prev_blocks_to_confirm)("last_produced", itr->second) );
       }
@@ -401,7 +402,7 @@ namespace eosio { namespace chain {
 
       auto num_keys_in_authority = std::visit([](const auto &a){ return a.keys.size(); }, valid_block_signing_authority);
       EOS_ASSERT(1 + additional_signatures.size() <= num_keys_in_authority, wrong_signing_key,
-                 "number of block signatures (${num_block_signatures}) exceeds number of keys in block signing authority (${num_keys})",
+                 "number of block signatures ({num_block_signatures}) exceeds number of keys in block signing authority ({num_keys})",
                  ("num_block_signatures", 1 + additional_signatures.size())
                  ("num_keys", num_keys_in_authority)
                  ("authority", valid_block_signing_authority)
@@ -413,7 +414,7 @@ namespace eosio { namespace chain {
 
       for (const auto& s: additional_signatures) {
          auto res = keys.emplace(s, digest, true);
-         EOS_ASSERT(res.second, wrong_signing_key, "block signed by same key twice", ("key", *res.first));
+         EOS_ASSERT(res.second, wrong_signing_key, "block signed by same {key} twice", ("key", *res.first));
       }
 
       bool is_satisfied = false;
@@ -426,7 +427,7 @@ namespace eosio { namespace chain {
                  ("signing_keys", keys)("authority", valid_block_signing_authority));
 
       EOS_ASSERT(is_satisfied, wrong_signing_key,
-                 "block signatures do not satisfy the block signing authority",
+                 "block signatures do not satisfy the block signing authority {authority}",
                  ("signing_keys", keys)("authority", valid_block_signing_authority));
    }
 

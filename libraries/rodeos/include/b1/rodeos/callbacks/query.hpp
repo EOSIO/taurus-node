@@ -26,7 +26,7 @@ struct query_callbacks {
       state.block_info = info->second;
    }
 
-   int64_t current_time() {
+   uint64_t current_time() {
       load_block_info();
       return std::visit(
             [](auto& b) { //

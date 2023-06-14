@@ -3,6 +3,7 @@ import errno
 import subprocess
 import time
 import os
+import sys
 import platform
 from collections import deque
 from collections import namedtuple
@@ -15,6 +16,8 @@ from sys import stdout
 from sys import exit
 import traceback
 import shutil
+import signal
+import platform
 
 ###########################################################################################
 
@@ -53,6 +56,15 @@ addEnum(BlockLogAction, "prune_transactions")
 addEnum(BlockLogAction, "fix_irreversible_blocks")
 
 ###########################################################################################
+
+class TLSCertType(EnumType):
+    pass
+
+addEnum(TLSCertType, "CA_CERT")
+addEnum(TLSCertType, "SERVER_CERT")
+addEnum(TLSCertType, "SERVER_KEY")
+addEnum(TLSCertType, "CLIENT_CERT")
+addEnum(TLSCertType, "CLIENT_KEY")
 
 class WaitSpec:
 
@@ -135,6 +147,14 @@ class Utils:
 
     TimeFmt='%Y-%m-%dT%H:%M:%S.%f'
 
+
+    AMQPS_CERTS_DEFAULT_FILENAMES = { TLSCertType.CA_CERT : "ca_cert.pem",
+                                      TLSCertType.CLIENT_CERT : "client_cert.pem",
+                                      TLSCertType.CLIENT_KEY : "client_key.pem",
+                                      TLSCertType.SERVER_CERT : "server_cert.pem",
+                                      TLSCertType.SERVER_KEY : "server_key.pem" }
+    checkOutputFile = None
+
     @staticmethod
     def timestamp():
         return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")
@@ -142,7 +162,7 @@ class Utils:
     @staticmethod
     def checkOutputFileWrite(time, cmd, output, error):
         stop=Utils.timestamp()
-        if not hasattr(Utils, "checkOutputFile"):
+        if Utils.checkOutputFile is None:
             if not os.path.isdir(Utils.DataRoot):
                 if Utils.Debug: Utils.Print("creating dir %s in dir: %s" % (Utils.DataRoot, os.getcwd()))
                 os.mkdir(Utils.DataRoot)
@@ -307,7 +327,7 @@ class Utils:
                                 (sleepTime, remaining))
                 else:
                     stdout.write('.')
-                    stdout.flush()
+                    # stdout.flush()
                     needsNewLine=True
                 if reporter is not None:
                     reporter()
@@ -326,14 +346,23 @@ class Utils:
         lastObjIdx=data.rfind('}')
         firstArrayIdx=data.find('[')
         lastArrayIdx=data.rfind(']')
-        if firstArrayIdx==-1 or lastArrayIdx==-1:
+        firstObjArrayIdx=data.find('[{')
+        firstArrayAfterLastObjIdx=-1
+        if lastObjIdx!=-1:
+            firstArrayAfterLastObjIdx=data.find(']', lastObjIdx)  # `}\n   ]`
+
+        if firstObjIdx==-1 or lastObjIdx==-1:
+            if firstArrayIdx==0 and lastArrayIdx==len(data)-1:    # array only
+                retStr=data
+            else:
+                retStr=''
+        elif firstObjArrayIdx==-1 or firstArrayAfterLastObjIdx==-1:
             retStr=data[firstObjIdx:lastObjIdx+1]
-        elif firstObjIdx==-1 or lastObjIdx==-1:
-            retStr=data[firstArrayIdx:lastArrayIdx+1]
-        elif lastArrayIdx < lastObjIdx:
+        elif firstObjIdx < firstObjArrayIdx:
             retStr=data[firstObjIdx:lastObjIdx+1]
         else:
-            retStr=data[firstArrayIdx:lastArrayIdx+1]
+            retStr=data[firstObjArrayIdx:firstArrayAfterLastObjIdx+1] # `as-json-array`
+
         return retStr
 
     @staticmethod
@@ -408,7 +437,8 @@ class Utils:
         # pylint: disable=deprecated-method
         # pgrep differs on different platform (amazonlinux1 and 2 for example). We need to check if pgrep -h has -a available and add that if so:
         try:
-            pgrepHelp = re.search('-a', subprocess.Popen("pgrep --help 2>/dev/null", shell=True, stdout=subprocess.PIPE).stdout.read().decode('utf-8'))
+            procResult = subprocess.run("pgrep --help 2>/dev/null", shell=True, stdout=subprocess.PIPE)
+            pgrepHelp = re.search('-a', procResult.stdout.decode("utf-8"))
             pgrepHelp.group(0) # group() errors if -a is not found, so we don't need to do anything else special here.
             pgrepOpts="-a"
         except AttributeError as error:
@@ -555,6 +585,86 @@ class Utils:
         if asset[1] != delta[1]:
             return None
         return "{0} {1}".format(round(float(asset[0]) - float(delta[0]), 4), asset[1])
+
+    # converts "amqp(s)://user.pass@hostname:port" to "amqp(s)://user.pass@ip:port"
+    @staticmethod
+    def convertAMQPToIP(addr):
+        r = addr.split("@")
+        r2 = r[1].split(":")
+        r2[0] = socket.gethostbyname(r2[0])
+        r[1] = ":".join(r2)
+        return "@".join(r)
+
+    # start or restart RabbitMQ with optional TLS support
+    @staticmethod
+    def startRabbitMQ(amqp_address, amqps_address, amqps_certs_path, config_path, amqps_certs_filenames):
+        Utils.Print("******  Start RabbitMQ ******")
+        Utils.Print(f"amqp_address= `{amqp_address}` amqps_address='{amqps_address}' ampqs_certs_path='{amqps_certs_path}'")
+        amqp_address = Utils.convertAMQPToIP(amqp_address)
+        if amqps_address is not None:
+            amqps_address = Utils.convertAMQPToIP(amqps_address)
+        Utils.Print(f"amqp_address(resolved)= `{amqp_address}` amqps_address(resolved)= '{amqps_address}'")
+
+        # generate rabbitMQ config file
+        conf_path = os.path.join(config_path, "rabbitmq.conf")
+        env_path = conf_path
+        f = open(conf_path, "wt")
+        r = amqp_address.split("@")
+        f.write(f"listeners.tcp.1 = {r[1]}\n")
+        if amqps_address != None:
+            r = amqps_address.split("@")
+            ca_cert_path = os.path.join(amqps_certs_path, amqps_certs_filenames[TLSCertType.CA_CERT])
+            server_cert_path = os.path.join(amqps_certs_path, amqps_certs_filenames[TLSCertType.SERVER_CERT])
+            server_key_path = os.path.join(amqps_certs_path, amqps_certs_filenames[TLSCertType.SERVER_KEY])
+            f.write(f"listeners.ssl.1 = {r[1]}\n")
+            f.write(f"ssl_options.cacertfile = {ca_cert_path}\n")
+            f.write(f"ssl_options.certfile   = {server_cert_path}\n")
+            f.write(f"ssl_options.keyfile    = {server_key_path}\n")
+            f.write(f"ssl_options.verify     = verify_peer\n")
+            f.write(f"ssl_options.fail_if_no_peer_cert = true\n")
+        f.close()
+        os.environ["RABBITMQ_CONFIG_FILE"] = env_path
+        try:
+            Utils.Print("Attempting to delete old rabbitmq instance")
+            Utils.runCmdReturnStr("rabbitmqctl shutdown")
+        except Exception:
+            pass
+        Utils.Print("Starting rabbitmq")
+        p = subprocess.Popen(["rabbitmq-server"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
+        time.sleep(5)
+        attemptsLeft = 20
+        while attemptsLeft > 0:
+            time.sleep(1)
+            attemptsLeft -= 1
+            try:
+                s = Utils.runCmdReturnStr("rabbitmqctl status")
+                if Utils.Debug:
+                    print(s)
+                break
+            except Exception as e:
+                Utils.Print(f"Could not contact rabbitmq server, retrying (attempts left= {attemptsLeft})")
+                eLast = e
+        if attemptsLeft == 0:
+            (out, err) = p.communicate(timeout=3)
+            Utils.Print("<<<<<<  BEGIN RABBITMQ ERROR LOG >>>>>>")
+            Utils.Print(out)
+            Utils.Print("<<<<<<  END RABBITMQ ERROR LOG >>>>>>")
+            raise eLast
+
+    @staticmethod
+    def alarm_handler(signum, frame):
+        print("Process timed out! Exiting now.")
+        sys.exit(100)
+
+    @staticmethod
+    def set_timeout(seconds):
+        # disable any existing alarm
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, Utils.alarm_handler)
+        print(f"Setting process time out value to {seconds} seconds ...")
+        signal.alarm(seconds)
+
+
 ###########################################################################################
 class Account(object):
     # pylint: disable=too-few-public-methods
@@ -571,3 +681,11 @@ class Account(object):
     def __str__(self):
         return "Name: %s" % (self.name)
 
+
+if platform.system() == "Darwin":
+    # Set a 15-min timeout when this module is imported
+    # more forgiving for macOS
+    Utils.set_timeout(900)
+else:
+    # Set a 10-min timeout when this module is imported
+    Utils.set_timeout(600)

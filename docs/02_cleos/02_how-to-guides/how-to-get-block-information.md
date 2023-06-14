@@ -10,10 +10,7 @@ Make sure to meet the following requirements:
 * Install the currently supported version of `cleos`.
 
 [[info | Note]]
-| `cleos` is bundled with the EOSIO software. [Installing EOSIO](../../00_install/index.md) will also install `cleos`.
-
-* Understand what a [block](https://developers.eos.io/welcome/v2.1/glossary/index/#block) is and its role in the blockchain.
-* Understand the [block lifecycle](https://developers.eos.io/welcome/v2.1/protocol-guides/consensus_protocol/#5-block-lifecycle) in the EOSIO consensus protocol.
+| `cleos` is bundled with the EOSIO-Taurus software. [Installing EOSIO-Taurus](../../00_install/index.md) will also install `cleos`.
 
 ## Steps
 
@@ -34,7 +31,7 @@ Some examples are provided below:
 **Example Output**
 
 ```sh
-cleos -u https://api.testnet.eos.io get block 48351112
+cleos -u https://api.testnet get block 48351112
 ```
 ```json
 {
@@ -59,7 +56,7 @@ cleos -u https://api.testnet.eos.io get block 48351112
 **Example Output**
 
 ```sh
-cleos -u https://api.testnet.eos.io get block 02e1c7888a92206573ae38d00e09366c7ba7bc54cd8b7996506f7d2a619c43ba
+cleos -u https://api.testnet get block 02e1c7888a92206573ae38d00e09366c7ba7bc54cd8b7996506f7d2a619c43ba
 ```
 ```json
 {

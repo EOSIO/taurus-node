@@ -4,21 +4,27 @@
 #include <boost/core/typeinfo.hpp>
 
 
-#define EOS_ASSERT( expr, exc_type, FORMAT, ... )                \
+#define EOS_ASSERT_1( expr, exc_type, FORMAT, ... )                \
    FC_MULTILINE_MACRO_BEGIN                                           \
    if( !(expr) )                                                      \
       FC_THROW_EXCEPTION( exc_type, FORMAT, __VA_ARGS__ );            \
    FC_MULTILINE_MACRO_END
 
-#define EOS_THROW( exc_type, FORMAT, ... ) \
+#define EOS_ASSERT_0( expr, exc_type, FORMAT ) EOS_ASSERT_1( expr, exc_type, FORMAT, )
+#define EOS_ASSERT( ... ) SWITCH_MACRO2(EOS_ASSERT_0, EOS_ASSERT_1, 3, __VA_ARGS__)
+
+#define EOS_THROW_1( exc_type, FORMAT, ... ) \
     throw exc_type( FC_LOG_MESSAGE( error, FORMAT, __VA_ARGS__ ) );
+
+#define EOS_THROW_0( exc_type, FORMAT ) EOS_THROW_1( exc_type, FORMAT, )
+#define EOS_THROW( ... ) SWITCH_MACRO1(EOS_THROW_0, EOS_THROW_1, 2, __VA_ARGS__)
 
 /**
  * Macro inspired from FC_RETHROW_EXCEPTIONS
  * The main difference here is that if the exception caught isn't of type "eosio::chain::chain_exception"
  * This macro will rethrow the exception as the specified "exception_type"
  */
-#define EOS_RETHROW_EXCEPTIONS(exception_type, FORMAT, ... ) \
+#define EOS_RETHROW_EXCEPTIONS_1(exception_type, FORMAT, ... ) \
    catch( const std::bad_alloc& ) {\
       throw;\
    } catch( const boost::interprocess::bad_alloc& ) {\
@@ -32,13 +38,16 @@
       } \
       throw new_exception; \
    } catch( const std::exception& e ) {  \
-      exception_type fce(FC_LOG_MESSAGE( warn, FORMAT" (${what})" ,__VA_ARGS__("what",e.what()))); \
+      exception_type fce(FC_LOG_MESSAGE( warn, FORMAT" ({what})" ,__VA_ARGS__("what",e.what()))); \
       throw fce;\
    } catch( ... ) {  \
       throw fc::unhandled_exception( \
                 FC_LOG_MESSAGE( warn, FORMAT,__VA_ARGS__), \
                 std::current_exception() ); \
    }
+
+#define EOS_RETHROW_EXCEPTIONS_0( exception_type, FORMAT ) EOS_RETHROW_EXCEPTIONS_1( exception_type, FORMAT, )
+#define EOS_RETHROW_EXCEPTIONS(...) SWITCH_MACRO2(EOS_RETHROW_EXCEPTIONS_0, EOS_RETHROW_EXCEPTIONS_1, 2, __VA_ARGS__)
 
 /**
  * Macro inspired from FC_CAPTURE_AND_RETHROW
@@ -57,7 +66,7 @@
       throw new_exception; \
    } catch( const std::exception& e ) {  \
       exception_type fce( \
-                FC_LOG_MESSAGE( warn, "${what}: ",FC_FORMAT_ARG_PARAMS(__VA_ARGS__)("what",e.what())), \
+                FC_LOG_MESSAGE( warn, "{what}: ",FC_FORMAT_ARG_PARAMS(__VA_ARGS__)("what",e.what())), \
                 fc::std_exception_code,\
                 BOOST_CORE_TYPEID(decltype(e)).name(), \
                 e.what() ) ; throw fce;\
@@ -75,7 +84,7 @@
       NEXT(err.dynamic_copy_exception());\
    } catch ( const std::exception& e ) {\
       fc::exception fce( \
-         FC_LOG_MESSAGE( warn, "rethrow ${what}: ", ("what",e.what())),\
+         FC_LOG_MESSAGE( warn, "rethrow {what}: ", ("what",e.what())),\
          fc::std_exception_code,\
          BOOST_CORE_TYPEID(e).name(),\
          e.what() ) ;\
@@ -447,6 +456,8 @@ namespace eosio { namespace chain {
                                     3110006, "Incorrect plugin configuration" )
       FC_DECLARE_DERIVED_EXCEPTION( missing_trace_api_plugin_exception,           plugin_exception,
                                     3110007, "Missing Trace API Plugin" )
+      FC_DECLARE_DERIVED_EXCEPTION( missing_cloner_plugin_exception,              plugin_exception,
+                                    3110008, "Missing Cloner Plugin" )
 
    FC_DECLARE_DERIVED_EXCEPTION( wallet_exception, chain_exception,
                                  3120000, "Wallet exception" )
@@ -681,4 +692,22 @@ namespace eosio { namespace chain {
    FC_DECLARE_DERIVED_EXCEPTION( state_history_exception,    chain_exception,
                                  3280000, "State history exception" )
 
+   FC_DECLARE_DERIVED_EXCEPTION( producer_ha_exception,    chain_exception,
+                                 3290000, "Producer ha exception" )
+      FC_DECLARE_DERIVED_EXCEPTION( producer_ha_config_exception,    producer_ha_exception,
+                                    3290001, "Producer ha config exception" )
+      FC_DECLARE_DERIVED_EXCEPTION( producer_ha_leadership_exception,    producer_ha_exception,
+                                    3290002, "Producer ha leadership exception" )
+      FC_DECLARE_DERIVED_EXCEPTION( producer_ha_log_store_exception,    producer_ha_exception,
+                                    3290003, "Producer ha log store exception" )
+      FC_DECLARE_DERIVED_EXCEPTION( producer_ha_state_machine_exception,    producer_ha_exception,
+                                    3290004, "Producer ha state machine exception" )
+      FC_DECLARE_DERIVED_EXCEPTION( producer_ha_p2p_exception,    producer_ha_exception,
+                                    3290005, "Producer ha p2p exception" )
+      FC_DECLARE_DERIVED_EXCEPTION( producer_ha_persist_exception,    producer_ha_exception,
+                                    3290006, "Producer ha persist exception" )
+      FC_DECLARE_DERIVED_EXCEPTION( producer_ha_thread_exception,    producer_ha_exception,
+                                    3290007, "Producer ha thread exception" )
+      FC_DECLARE_DERIVED_EXCEPTION( producer_ha_commit_head_exception, producer_ha_exception,
+                                    3290008, "Producer_ha failed to commit head block to the Raft group" )
 } } // eosio::chain

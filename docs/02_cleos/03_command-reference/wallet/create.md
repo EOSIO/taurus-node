@@ -13,7 +13,7 @@ None
 cleos wallet create [OPTIONS]
 
 **Where**
-* [OPTIONS] = See Options in Command Usage section below. 
+* [OPTIONS] = See Options in Command Usage section below.
 
 **Note**: The arguments and options enclosed in square brackets are optional.
 
@@ -34,7 +34,7 @@ The following information shows the different positionals and options you can us
 ## Requirements
 * Install the currently supported version of `cleos` and `keosd`.
 [[info | Note]]
-| `Cleos` and `keosd` are bundled with the EOSIO software. [Installing EOSIO](../../00_install/index.md) will also install the `cleos` and `keosd`  command line tools. 
+| `Cleos` and `keosd` are bundled with the EOSIO-Taurus software. [Installing EOSIO-Taurus](../../../00_install/index.md) will also install the `cleos` and `keosd`  command line tools.
 
 ## Examples
 1. Create a new wallet called `default` and output the wallet password to the screen
@@ -54,7 +54,7 @@ Without password imported keys will not be retrievable.
 
 2. Create a new wallet called `my_wallet` and output the wallet password to a file called `my_wallet_password.txt`
 ```shell
-cleos wallet create --name my_wallet --file my_wallet_passwords.txt 
+cleos wallet create --name my_wallet --file my_wallet_passwords.txt
 ```
 **Where**
 `--name` my_wallet = Tells the `cleos wallet create` command to create a wallet called `my_wallet_password.txt`

@@ -309,11 +309,17 @@ namespace eosio { namespace chain { namespace db_util {
          // nothing to do
       });
 
-      const auto& gpo = db.get<global_property_object>();
-      EOS_ASSERT(gpo.chain_id == chain_id, chain_id_type_exception,
-                 "chain ID in snapshot (${snapshot_chain_id}) does not match the chain ID that controller was "
-                 "constructed with (${controller_chain_id})",
-                 ("snapshot_chain_id", gpo.chain_id)("controller_chain_id", chain_id));
+      if( snapshot->validate_chain_id() ) {
+         const auto& gpo = db.get<global_property_object>();
+         EOS_ASSERT( gpo.chain_id == chain_id, chain_id_type_exception,
+                     "chain ID in snapshot ({snapshot_chain_id}) does not match the chain ID that controller was "
+                     "constructed with ({controller_chain_id})",
+                     ("snapshot_chain_id", gpo.chain_id.str())( "controller_chain_id", chain_id.str() ) );
+      } else {
+         db.modify( db.get<global_property_object>(), [&]( auto& gp ) {
+            gp.chain_id = chain_id;
+         });
+      }
    }
 
    std::optional<eosio::chain::genesis_state> extract_legacy_genesis_state(snapshot_reader& snapshot,

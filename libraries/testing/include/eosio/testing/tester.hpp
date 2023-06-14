@@ -5,6 +5,7 @@
 #include <eosio/chain/account_object.hpp>
 #include <eosio/chain/abi_serializer.hpp>
 #include <eosio/chain/unapplied_transaction_queue.hpp>
+#include <eosio/chain/to_string.hpp>
 #include <fc/io/json.hpp>
 #include <boost/test/unit_test.hpp>
 #include <boost/tuple/tuple_io.hpp>
@@ -105,7 +106,7 @@ namespace eosio { namespace testing {
             return public_key_type(webauthn::public_key(priv_key.get_public_key().serialize(), presence, _origin));
          }
 
-         signature sign( const sha256& digest, bool = true) const {
+         signature sign( const fc::sha256& digest, bool = true) const {
             auto json = std::string("{\"origin\":\"https://") +
                         _origin +
                         "\",\"type\":\"webauthn.get\",\"challenge\":\"" +
@@ -189,16 +190,6 @@ namespace eosio { namespace testing {
          void                 produce_min_num_of_blocks_to_spend_time_wo_inactive_prod(const fc::microseconds target_elapsed_time = fc::microseconds());
          void                 push_block(signed_block_ptr b);
 
-         /**
-          * These transaction IDs represent transactions available in the head chain state as scheduled
-          * or otherwise generated transactions.
-          *
-          * calling push_scheduled_transaction with these IDs will remove the associated transaction from
-          * the chain state IFF it succeeds or objectively fails
-          *
-          * @return
-          */
-         vector<transaction_id_type> get_scheduled_transactions() const;
          unapplied_transaction_queue& get_unapplied_transaction_queue() { return unapplied_transactions; }
 
          transaction_trace_ptr    push_transaction( const packed_transaction& trx, fc::time_point deadline = fc::time_point::maximum(), uint32_t billed_cpu_time_us = DEFAULT_BILLED_CPU_TIME_US );
@@ -284,12 +275,12 @@ namespace eosio { namespace testing {
 
          template<typename ObjectType, typename IndexBy, typename... Args>
          const auto& get( Args&&... args ) {
-            return control->db().get<ObjectType,IndexBy>( forward<Args>(args)... );
+            return control->db().get<ObjectType,IndexBy>( std::forward<Args>(args)... );
          }
 
          template<typename ObjectType, typename IndexBy, typename... Args>
          const auto* find( Args&&... args ) {
-            return control->db().find<ObjectType,IndexBy>( forward<Args>(args)... );
+            return control->db().find<ObjectType,IndexBy>( std::forward<Args>(args)... );
          }
 
          template< typename KeyType = fc::ecc::private_key_shim >
@@ -348,7 +339,7 @@ namespace eosio { namespace testing {
                      return abi_serializer( abi, abi_serializer::create_yield_function( abi_serializer_max_time ) );
                   }
                   return std::optional<abi_serializer>();
-               } FC_RETHROW_EXCEPTIONS( error, "Failed to find or parse ABI for ${name}", ("name", name))
+               } FC_RETHROW_EXCEPTIONS( error, "Failed to find or parse ABI for {name}", ("name", name))
             };
          }
 
@@ -587,6 +578,12 @@ namespace eosio { namespace testing {
          else {
             init(def_conf.first);
          }
+      }
+
+      validating_tester(controller::config config, const genesis_state& genesis) {
+         config_validator(config);
+         validating_node = create_validating_node(config, genesis, true);
+         init(config, genesis);
       }
 
       static backing_store_type alternate_type(backing_store_type type);

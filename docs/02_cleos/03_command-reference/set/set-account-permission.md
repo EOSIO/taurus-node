@@ -43,9 +43,9 @@ The following information shows the different positionals and options you can us
 ## Requirements
 * Install the currently supported version of `cleos`.
 [[info | Note]] 
-| `Cleos` is bundled with the EOSIO software. [Installing EOSIO](../../../00_install/index.md) will also install the `cleos` and `keosd` comand line tools.  
-* You have access to an EOSIO blockchain.
-* You have an EOSIO account and access to the account's private key.
+| `Cleos` is bundled with the EOSIO-Taurus software. [Installing EOSIO](../../../00_install/index.md) will also install the `cleos` and `keosd` comand line tools.  
+* You have access to an EOSIO-Taurus blockchain.
+* You have an EOSIO-Taurus account and access to the account's private key.
 
 ## Examples
 
@@ -103,6 +103,3 @@ cleos set account permission alice customp EOS58wmANoBtT7RdPgMRCGDb37tcCQswfwVpj
 executed transaction: 69c5297571ce3503edb9a1fd8a2f2a5cc1805ad19197a8751ca09093487c3cf8  160 bytes  134 us
 #         eosio <= eosio::updateauth            {"account":"alice","permission":"customp","parent":"active","auth":{"threshold":1,"keys":[{"key":"EOS...```
 
-## See Also
-- [Accounts and Permissions](https://developers.eos.io/welcome/v2.1/protocol/accounts_and_permissions) protocol document.
-- [Creating and Linking Custom Permissions](https://developers.eos.io/welcome/v2.1/smart-contract-guides/linking-custom-permission) tutorial.

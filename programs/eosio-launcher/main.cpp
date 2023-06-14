@@ -2,6 +2,7 @@
 #include <vector>
 #include <math.h>
 #include <sstream>
+#include <fstream>
 #include <regex>
 
 #include <boost/algorithm/string.hpp>
@@ -10,6 +11,9 @@
 #include <boost/program_options.hpp>
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-result"
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wc++11-narrowing"
+#endif
 #include <boost/process/child.hpp>
 #pragma GCC diagnostic pop
 #include <boost/process/env.hpp>
@@ -239,7 +243,6 @@ public:
   vector<string>  peers;
   vector<string>  producers;
   eosd_def*       instance;
-  string          gelf_endpoint;
   bool            dont_start = false;
 };
 
@@ -384,6 +387,7 @@ string producer_names::producer_name(unsigned int producer_number, bool shared_p
 
 struct launcher_def {
    bool force_overwrite;
+   bool prod_ha = false;
    size_t total_nodes;
    size_t unstarted_nodes;
    size_t prod_nodes;
@@ -406,13 +410,11 @@ struct launcher_def {
    std::map<uint,string> specific_nodeos_args;
    std::map<uint,string> specific_nodeos_installation_paths;
    testnet_def network;
-   string gelf_endpoint;
    vector <string> aliases;
    vector <host_def> bindings;
    int per_host = 0;
    last_run_def last_run;
    int start_delay = 0;
-   bool gelf_enabled;
    bool nogen;
    bool boot;
    bool add_enable_stale_production = false;
@@ -477,6 +479,7 @@ void
 launcher_def::set_options (bpo::options_description &cfg) {
   cfg.add_options()
     ("force,f", bpo::bool_switch(&force_overwrite)->default_value(false), "Force overwrite of existing configuration files and erase blockchain")
+    ("producer-ha", bpo::bool_switch(&prod_ha)->default_value(false), "Launch producer high availability cluster")
     ("nodes,n",bpo::value<size_t>(&total_nodes)->default_value(1),"total number of nodes to configure and launch")
     ("unstarted-nodes",bpo::value<size_t>(&unstarted_nodes)->default_value(0),"total number of nodes to configure, but not launch")
     ("pnodes,p",bpo::value<size_t>(&prod_nodes)->default_value(1),"number of nodes that contain one or more producers")
@@ -498,8 +501,6 @@ launcher_def::set_options (bpo::options_description &cfg) {
     ("servers",bpo::value<string>(),"a file containing ip addresses and names of individual servers to deploy as producers or non-producers ")
     ("per-host",bpo::value<int>(&per_host)->default_value(0),("specifies how many " + string(node_executable_name) + " instances will run on a single host. Use 0 to indicate all on one.").c_str())
     ("network-name",bpo::value<string>(&network.name)->default_value("testnet_"),"network name prefix used in GELF logging source")
-    ("enable-gelf-logging",bpo::value<bool>(&gelf_enabled)->default_value(false),"enable gelf logging appender in logging configuration file")
-    ("gelf-endpoint",bpo::value<string>(&gelf_endpoint)->default_value("10.160.11.21:12201"),"hostname:port or ip:port of GELF endpoint")
     ("template",bpo::value<string>(&start_temp)->default_value("testnet.template"),"the startup script template")
     ("script",bpo::value<string>(&start_script)->default_value("bios_boot.sh"),"the generated startup script name")
     ("max-block-cpu-usage",bpo::value<uint32_t>(),"Provide the \"max-block-cpu-usage\" value to use in the genesis.json file")
@@ -733,6 +734,8 @@ launcher_def::generate () {
      write_bios_boot();
      init_genesis();
      for (auto &node : network.nodes) {
+        if(prod_ha && node.first == "bios")
+          continue;
         write_config_file(node.second);
         write_logging_config_file(node.second);
         write_genesis_file(node.second);
@@ -743,7 +746,7 @@ launcher_def::generate () {
   if (!output.empty()) {
     bfs::path savefile = output;
     {
-      bfs::ofstream sf (savefile);
+      std::ofstream sf (savefile.c_str());
       sf << fc::json::to_pretty_string (network) << endl;
       sf.close();
     }
@@ -755,7 +758,7 @@ launcher_def::generate () {
     }
 
     {
-      bfs::ofstream sf (savefile);
+      std::ofstream sf (savefile.c_str());
 
       sf << fc::json::to_pretty_string (bindings) << endl;
       sf.close();
@@ -768,7 +771,7 @@ launcher_def::generate () {
 
 void
 launcher_def::write_dot_file () {
-  bfs::ofstream df ("testnet.dot");
+  std::ofstream df ("testnet.dot");
   df << "digraph G\n{\nlayout=\"circo\";\n";
   for (auto &node : network.nodes) {
     for (const auto &p : node.second.peers) {
@@ -793,9 +796,9 @@ launcher_def::define_network () {
       assign_name(eosd, i == 0);
       aliases.push_back(eosd.name);
       eosd.set_host (&local_host, i == 0);
-      local_host.instances.emplace_back(move(eosd));
+      local_host.instances.emplace_back(std::move(eosd));
     }
-    bindings.emplace_back(move(local_host));
+    bindings.emplace_back(std::move(local_host));
   }
   else {
     int ph_count = 0;
@@ -807,7 +810,7 @@ launcher_def::define_network () {
        bool do_bios = false;
       if (ph_count == 0) {
         if (lhost) {
-          bindings.emplace_back(move(*lhost));
+          bindings.emplace_back(std::move(*lhost));
         }
         lhost.reset(new host_def);
         lhost->genesis = genesis.string();
@@ -843,10 +846,10 @@ launcher_def::define_network () {
       aliases.push_back(eosd.name);
       eosd.set_host (lhost.get(), do_bios);
       do_bios = false;
-      lhost->instances.emplace_back(move(eosd));
+      lhost->instances.emplace_back(std::move(eosd));
       --ph_count;
     } // for i
-    bindings.emplace_back( move(*lhost) );
+    bindings.emplace_back( std::move(*lhost) );
   }
 }
 
@@ -873,7 +876,7 @@ launcher_def::bind_nodes () {
             private_key_type(string("5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3")) :
             private_key_type::generate();
          auto pubkey = kp.get_public_key();
-         node.keys.emplace_back (move(kp));
+         node.keys.emplace_back (std::move(kp));
          if (is_bios) {
             string prodname = "eosio";
             node.producers.push_back(prodname);
@@ -900,8 +903,7 @@ launcher_def::bind_nodes () {
            }
            node.dont_start = i >= to_not_start_node;
         }
-        node.gelf_endpoint = gelf_endpoint;
-        network.nodes[node.name] = move(node);
+        network.nodes[node.name] = std::move(node);
         inst.node = &network.nodes[inst.name];
         if (!is_bios) i++;
       }
@@ -1073,7 +1075,7 @@ launcher_def::write_config_file (tn_node_def &node) {
 
    filename = dd / "config.ini";
 
-   bfs::ofstream cfg(filename);
+   std::ofstream cfg(filename.c_str());
    if (!cfg.good()) {
       cerr << "unable to open " << filename << " " << strerror(errno) << "\n";
       exit (-1);
@@ -1086,7 +1088,7 @@ launcher_def::write_config_file (tn_node_def &node) {
    cfg << "p2p-server-address = " << host->public_name << ":" << instance.p2p_port << "\n";
 
 
-   if (is_bios) {
+   if (is_bios || prod_ha) {
     cfg << "enable-stale-production = true\n";
   }
   if (allowed_connections & PC_ANY) {
@@ -1108,12 +1110,14 @@ launcher_def::write_config_file (tn_node_def &node) {
     }
   }
 
-  if(!is_bios) {
+  if(!is_bios && !prod_ha) {
      auto &bios_node = network.nodes["bios"];
      cfg << "p2p-peer-address = " << bios_node.instance->p2p_endpoint<< "\n";
   }
-  for (const auto &p : node.peers) {
-     cfg << "p2p-peer-address = " << network.nodes.find(p)->second.instance->p2p_endpoint << "\n";
+  if(!prod_ha){
+    for (const auto &p : node.peers) {
+      cfg << "p2p-peer-address = " << network.nodes.find(p)->second.instance->p2p_endpoint << "\n";
+    }
   }
   if (node.producers.size()) {
     for (const auto &kp : node.keys ) {
@@ -1121,7 +1125,10 @@ launcher_def::write_config_file (tn_node_def &node) {
            << "\",\"" << kp.to_string() << "\"]\n";
     }
     for (auto &p : node.producers) {
-      cfg << "producer-name = " << p << "\n";
+      if (prod_ha)
+        cfg << "producer-name = eosio\n";
+      else
+        cfg << "producer-name = " << p << "\n";
     }
     cfg << "plugin = eosio::producer_plugin\n";
   }
@@ -1142,7 +1149,7 @@ launcher_def::write_logging_config_file(tn_node_def &node) {
 
   filename = dd / "logging.json";
 
-  bfs::ofstream cfg(filename);
+  std::ofstream cfg(filename.c_str());
   if (!cfg.good()) {
     cerr << "unable to open " << filename << " " << strerror(errno) << "\n";
     exit (9);
@@ -1152,38 +1159,21 @@ launcher_def::write_logging_config_file(tn_node_def &node) {
   // make default logger debug level
   if( !log_config.loggers.empty() )
      log_config.loggers[0].level = fc::log_level::debug;
-  if(gelf_enabled) {
-     log_config.appenders.push_back(
-           fc::appender_config( "net", "gelf",
-                           fc::mutable_variant_object()
-                                 ( "endpoint", node.gelf_endpoint )
-                                 ( "host", instance.name )
-           ) );
-     log_config.loggers.front().appenders.push_back( "net" );
-  }
 
   fc::logger_config p2p( "net_plugin_impl" );
   p2p.level = fc::log_level::debug;
-  p2p.appenders.push_back( "stderr" );
-  if( gelf_enabled ) p2p.appenders.push_back( "net" );
   log_config.loggers.emplace_back( p2p );
 
   fc::logger_config http( "http_plugin" );
   http.level = fc::log_level::debug;
-  http.appenders.push_back( "stderr" );
-  if( gelf_enabled ) http.appenders.push_back( "net" );
   log_config.loggers.emplace_back( http );
 
   fc::logger_config pp( "producer_plugin" );
   pp.level = fc::log_level::debug;
-  pp.appenders.push_back( "stderr" );
-  if( gelf_enabled ) pp.appenders.push_back( "net" );
   log_config.loggers.emplace_back( pp );
 
   fc::logger_config ta( "trace_api" );
   ta.level = fc::log_level::debug;
-  ta.appenders.push_back( "stderr" );
-  if( gelf_enabled ) ta.appenders.push_back( "net" );
   log_config.loggers.emplace_back( ta );
 
   auto str = fc::json::to_pretty_string( log_config, fc::time_point::maximum(), fc::json::output_formatting::stringify_large_ints_and_doubles );
@@ -1226,7 +1216,7 @@ launcher_def::write_genesis_file(tn_node_def &node) {
 void
 launcher_def::write_setprods_file() {
    bfs::path filename = bfs::current_path() / "setprods.json";
-   bfs::ofstream psfile (filename);
+   std::ofstream psfile (filename.c_str());
    if(!psfile.good()) {
       cerr << "unable to open " << filename << " " << strerror(errno) << "\n";
     exit (9);
@@ -1243,13 +1233,13 @@ launcher_def::write_setprods_file() {
 
 void
 launcher_def::write_bios_boot () {
-   bfs::ifstream src(bfs::path(config_dir_base) / "launcher" / start_temp);
+   std::ifstream src((bfs::path(config_dir_base) / "launcher" / start_temp).c_str());
    if(!src.good()) {
       cerr << "unable to open " << config_dir_base << "launcher/" << start_temp << " " << strerror(errno) << "\n";
     exit (9);
   }
 
-   bfs::ofstream brb (bfs::current_path() / start_script);
+   std::ofstream brb ((bfs::current_path() / start_script).c_str());
    if(!brb.good()) {
       cerr << "unable to open " << bfs::current_path() << "/" << start_script << " " << strerror(errno) << "\n";
     exit (9);
@@ -1611,7 +1601,7 @@ launcher_def::launch (eosd_def &instance, string &gts) {
     bfs::remove(reerr_sl);
     bfs::create_symlink (reerr_base, reerr_sl);
 
-    bfs::ofstream pidout (pidf);
+    std::ofstream pidout (pidf.c_str());
     pidout << c.id() << flush;
     pidout.close();
 
@@ -1631,12 +1621,12 @@ launcher_def::launch (eosd_def &instance, string &gts) {
 
     const bfs::path dd = instance.data_dir_name;
     const bfs::path start_file  = dd / "start.cmd";
-    bfs::ofstream sf (start_file);
+    std::ofstream sf (start_file.c_str());
 
     sf << eosdcmd << endl;
     sf.close();
   }
-  last_run.running_nodes.emplace_back (move(info));
+  last_run.running_nodes.emplace_back (std::move(info));
 }
 
 #if 0
@@ -1878,6 +1868,8 @@ launcher_def::start_all (string &gts, launch_modes mode) {
       if (mode == LM_ALL ||
           (h.is_local() ? mode == LM_LOCAL : mode == LM_REMOTE)) {
         for (auto &inst : h.instances) {
+          if (prod_ha && inst.name == "bios")
+            continue;
           try {
              cerr << "launching " << inst.name << endl;
              launch (inst, gts);
@@ -1896,7 +1888,7 @@ launcher_def::start_all (string &gts, launch_modes mode) {
   }
   }
   bfs::path savefile = "last_run.json";
-  bfs::ofstream sf (savefile);
+  std::ofstream sf (savefile.c_str());
 
   sf << fc::json::to_pretty_string (last_run) << endl;
   sf.close();
@@ -2096,7 +2088,6 @@ FC_REFLECT( eosd_def,
             (http_port)(file_size)(name)(host)
             (p2p_endpoint) )
 
-// @ignore instance, gelf_endpoint
 FC_REFLECT( tn_node_def, (name)(keys)(peers)(producers)(dont_start) )
 
 FC_REFLECT( testnet_def, (name)(ssh_helper)(nodes) )

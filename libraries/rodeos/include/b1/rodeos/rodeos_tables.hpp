@@ -3,6 +3,7 @@
 #include <b1/rodeos/callbacks/kv.hpp>
 #include <b1/rodeos/constants.hpp>
 #include <eosio/ship_protocol.hpp>
+#include <eosio/state_history/types.hpp>
 #include <eosio/to_key.hpp>
 
 namespace eosio {
@@ -13,6 +14,7 @@ using b1::rodeos::kv_environment;
 
 namespace b1::rodeos {
 
+using permission        = eosio::ship_protocol::permission;
 using account           = eosio::ship_protocol::account;
 using account_metadata  = eosio::ship_protocol::account_metadata;
 using code              = eosio::ship_protocol::code;
@@ -89,6 +91,17 @@ struct global_property_kv : eosio::kv_table<global_property> {
 
    global_property_kv(eosio::kv_environment environment) : eosio::kv_table<global_property>{ std::move(environment) } {
       init(state_account, eosio::name{ "global.prop" }, primary_index);
+   }
+};
+
+struct account_permission_kv : eosio::kv_table<permission > {
+   index<std::tuple<const eosio::name&, const eosio::name&>> primary_index{ eosio::name{ "primary" }, [](const auto& var) {
+      return std::visit(
+              [](const auto &obj) { return std::tie(obj.owner, obj.name); }, *var);
+   } };
+
+   account_permission_kv(eosio::kv_environment environment) : eosio::kv_table<permission>{ std::move(environment) } {
+      init(state_account, eosio::name{ "account.perm" }, primary_index);
    }
 };
 
@@ -233,10 +246,41 @@ void store_delta_kv(eosio::kv_environment environment, D& delta, F f) {
    }
 }
 
+template <typename Table, typename F>
+void store_delta_typed(eosio::kv_environment environment, eosio::state_history::table_delta& delta, bool bypass_preexist_check, F f) {
+   Table table{ environment };
+   for (auto& row : delta.rows.obj) {
+      f();
+      eosio::input_stream bin(row.second.data(), row.second.size());
+      auto obj = eosio::from_bin<typename Table::value_type>(bin);
+      if (row.first)
+         table.put(obj);
+      else
+         table.erase(obj);
+   }
+}
+
+template <typename F>
+void store_delta_kv(eosio::kv_environment environment, eosio::state_history::table_delta& delta, F f) {
+   for (auto& row : delta.rows.obj) {
+      f();
+      eosio::input_stream bin(row.second.data(), row.second.size());
+      auto  obj  = eosio::from_bin<key_value>(bin);
+      auto& obj0 = std::get<key_value_v0>(obj);
+      if (row.first)
+         environment.kv_set(obj0.contract.value, obj0.key.pos, obj0.key.remaining(),
+                            obj0.value.pos, obj0.value.remaining(), obj0.payer.value);
+      else
+         environment.kv_erase(obj0.contract.value, obj0.key.pos, obj0.key.remaining());
+   }
+}
+
 template <typename D, typename F>
 inline void store_delta(eosio::kv_environment environment, D& delta, bool bypass_preexist_check, F f) {
    if (delta.name == "global_property")
       store_delta_typed<global_property_kv>(environment, delta, bypass_preexist_check, f);
+   if (delta.name == "permission")
+      store_delta_typed<account_permission_kv>(environment, delta, bypass_preexist_check, f);
    if (delta.name == "account")
       store_delta_typed<account_kv>(environment, delta, bypass_preexist_check, f);
    if (delta.name == "account_metadata")
@@ -253,12 +297,6 @@ inline void store_delta(eosio::kv_environment environment, D& delta, bool bypass
       store_delta_typed<contract_index128_kv>(environment, delta, bypass_preexist_check, f);
    if (delta.name == "key_value")
       store_delta_kv(environment, delta, f);
-}
-
-inline void store_deltas(eosio::kv_environment environment, std::vector<table_delta>& deltas,
-                         bool bypass_preexist_check) {
-   for (auto& delta : deltas) //
-      std::visit([&](auto& delta_any_v) { store_delta(environment, delta_any_v, bypass_preexist_check, [] {}); }, delta);
 }
 
 } // namespace b1::rodeos

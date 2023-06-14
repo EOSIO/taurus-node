@@ -26,7 +26,10 @@ enum class builtin_protocol_feature_t : uint32_t {
    action_return_value,
    kv_database,
    configurable_wasm_limits,
-   blockchain_parameters
+   blockchain_parameters,
+   event_generation,
+   verify_rsa_sha256_sig,
+   verify_ecdsa_sig
 };
 
 struct protocol_feature_subjective_restrictions {
@@ -148,8 +151,14 @@ public:
    );
 
    const protocol_feature& add_feature( const builtin_protocol_feature& f );
-
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
    class const_iterator : public std::iterator<std::bidirectional_iterator_tag, const protocol_feature> {
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
    protected:
       protocol_feature_set_type::const_iterator _itr;
 
@@ -248,9 +257,16 @@ protected:
 class protocol_feature_manager {
 public:
 
-   protocol_feature_manager( protocol_feature_set&& pfs, std::function<fc::logger*()> get_deep_mind_logger );
+   protocol_feature_manager( protocol_feature_set&& pfs );
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
    class const_iterator : public std::iterator<std::bidirectional_iterator_tag, const protocol_feature> {
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
    protected:
       const protocol_feature_manager* _pfm = nullptr;
       std::size_t                     _index = 0;
@@ -368,9 +384,6 @@ protected:
    vector<builtin_protocol_feature_entry> _builtin_protocol_features;
    size_t                                 _head_of_builtin_activation_list = builtin_protocol_feature_entry::no_previous;
    bool                                   _initialized = false;
-
-private:
-   std::function<fc::logger*()>           _get_deep_mind_logger;
 };
 
 } } // namespace eosio::chain

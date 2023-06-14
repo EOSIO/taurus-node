@@ -61,8 +61,8 @@ namespace eosio { namespace chain { namespace resource_limits {
    class resource_limits_manager {
       public:
 
-         explicit resource_limits_manager(chainbase::database& db, std::function<fc::logger*()> get_deep_mind_logger)
-         :_db(db),_get_deep_mind_logger(get_deep_mind_logger)
+         explicit resource_limits_manager(chainbase::database& db)
+         :_db(db)
          {
          }
 
@@ -75,9 +75,9 @@ namespace eosio { namespace chain { namespace resource_limits {
          void set_block_parameters( const elastic_limit_parameters& cpu_limit_parameters, const elastic_limit_parameters& net_limit_parameters );
 
          void update_account_usage( const flat_set<account_name>& accounts, uint32_t ordinal );
-         void add_transaction_usage( const flat_set<account_name>& accounts, uint64_t cpu_usage, uint64_t net_usage, uint32_t ordinal );
+         void add_transaction_usage( const flat_set<account_name>& accounts, uint64_t cpu_usage, uint64_t net_usage, uint32_t ordinal, bool override_chain_cpu_limits = false );
 
-         void add_pending_ram_usage( const account_name account, int64_t ram_delta, const storage_usage_trace& trace );
+         void add_pending_ram_usage( const account_name account, int64_t ram_delta );
          void verify_account_ram_usage( const account_name accunt )const;
 
          /// set_account_limits returns true if new ram_bytes limit is more restrictive than the previously set one
@@ -113,7 +113,6 @@ namespace eosio { namespace chain { namespace resource_limits {
          const resource_limits_object& get_account_limits( const account_name& account ) const;
          const resource_limits_object& get_or_create_pending_account_limits( const account_name& account );
          chainbase::database& _db;
-         std::function<fc::logger*()> _get_deep_mind_logger;
    };
 } } } /// eosio::chain
 

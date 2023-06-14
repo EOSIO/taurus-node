@@ -20,6 +20,9 @@ import re
 #
 ###############################################################
 
+# give it 30 mins to run
+Utils.set_timeout(30*60)
+
 class ProducerToNode:
     map={}
 
@@ -255,4 +258,5 @@ try:
 finally:
     TestHelper.shutdown(cluster, walletMgr, testSuccessful=testSuccessful, killEosInstances=killEosInstances, killWallet=killWallet, keepLogs=keepLogs, cleanRun=killAll, dumpErrorDetails=dumpErrorDetails)
 
-exit(0)
+exitCode = 0 if testSuccessful else 1
+exit(exitCode)

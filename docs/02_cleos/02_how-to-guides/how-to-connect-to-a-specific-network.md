@@ -1,5 +1,5 @@
 ## Overview
-This guide provides instructions on how to connect to specifc EOSIO blockchain when using `cleos`. `Cleos` can connect to a specific node by using the `--url` optional argument, followed by the http address and port number.
+This guide provides instructions on how to connect to specifc EOSIO-Taurus blockchain when using `cleos`. `Cleos` can connect to a specific node by using the `--url` optional argument, followed by the http address and port number.
 
 The examples use the `--url`optional argument to send commands to the specified blockchain.   
 
@@ -11,8 +11,8 @@ Make sure you meet the following requirements:
 
 * Install the currently supported version of `cleos`.
 [[info | Note]]
-| `Cleos` is bundled with the EOSIO software. [Installing EOSIO](../../00_install/index.md) will install the `cleos` and `keosd` command line tools.  
-* You have access to an EOSIO blockchain and the http afddress and port number of a `nodeos` instance. 
+| `Cleos` is bundled with the EOSIO-Taurus software. [Installing EOSIO-Taurus](../../00_install/index.md) will install the `cleos` and `keosd` command line tools.
+* You have access to an EOSIO-Taurus blockchain and the http afddress and port number of a `nodeos` instance. 
 
 ## Reference
 See the following reference guides for command line usage and related options:

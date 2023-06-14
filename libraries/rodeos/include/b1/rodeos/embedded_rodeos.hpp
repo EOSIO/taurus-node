@@ -3,7 +3,11 @@
 #include <b1/rodeos/embedded_rodeos.h>
 #include <new>
 #include <stdexcept>
+#include <utility>
 
+namespace b1::rodeos {
+   struct native_module_context_type;
+}
 namespace b1::embedded_rodeos {
 
 struct error {
@@ -121,6 +125,8 @@ struct filter {
       obj = error.check([&] { return rodeos_create_filter(error, name, wasm_filename); });
    }
 
+   filter(uint64_t name, const char* native_filename, b1::rodeos::native_module_context_type*);
+
    filter(const filter&) = delete;
 
    ~filter() { rodeos_destroy_filter(obj); }
@@ -154,7 +160,12 @@ struct result {
 
    result()              = default;
    result(const result&) = delete;
-   result(result&& src) { *this = std::move(src); }
+   result(result&& src) {
+      data     = src.data;
+      size     = src.size;
+      src.data = nullptr;
+      src.size = 0;
+   }
    ~result() { rodeos_free_result(data); }
 
    result& operator=(const result& src) = delete;
@@ -173,12 +184,7 @@ struct query_handler {
    rodeos_query_handler* obj;
 
    query_handler(rodeos_db_partition* partition, uint32_t max_console_size, uint32_t wasm_cache_size,
-                 uint64_t max_exec_time_ms, const char* contract_dir) {
-      obj = error.check([&] {
-         return rodeos_create_query_handler(error, partition, max_console_size, wasm_cache_size, max_exec_time_ms,
-                                            contract_dir);
-      });
-   }
+                 uint64_t max_exec_time_ms, const char* contract_dir, b1::rodeos::native_module_context_type* = nullptr) ;
 
    query_handler(const query_handler&) = delete;
 

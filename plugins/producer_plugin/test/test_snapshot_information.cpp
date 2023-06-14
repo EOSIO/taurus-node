@@ -16,12 +16,12 @@ using namespace eosio::testing;
 using namespace boost::system;
 
 namespace {
-    eosio::producer_plugin::snapshot_information test_snap_info;
+    eosio::snapshot_information test_snap_info;
 }
 
 BOOST_AUTO_TEST_SUITE(snapshot_tests)
 
-using next_t = eosio::producer_plugin::next_function<eosio::producer_plugin::snapshot_information>;
+using next_t = eosio::producer_plugin::next_function<eosio::snapshot_information>;
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(test_snapshot_information, SNAPSHOT_SUITE, snapshot_suites) {
    tester chain;
