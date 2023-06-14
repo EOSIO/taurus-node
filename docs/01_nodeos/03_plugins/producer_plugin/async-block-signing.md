@@ -1,5 +1,7 @@
 ## Description
 
+The asynchronous block signing allows the EOSIO-Taurus to use a TPM device for signing for blocks to enhance the security, yet without affecting the block producing performance.
+
 Within nodeos, the producer_plugin plays a crucial role in determining the appropriate signature(s) to utilize and facilitate the invocation of the corresponding signature providers. When employing TPM signature providers, the latency for block signing can range from approximately 30 to 60 milliseconds per block. To effectively utilize a TPM signature provider in nodeos, it may be necessary to enhance the system by implementing request threading to the TPM library. This enhancement would allow the main thread to handle other tasks concurrently, potentially mitigating any negative impact on the transaction throughput per second. Without this enhancement, a significant portion (around 6-12%) of the 500ms block time in nodeos would be wasted as the main thread idles awaiting the TPM signature.
 
 A notable update in the chain's controller_impl involves the incorporation of an additional named_thread_pool exclusively dedicated to block signing. This thread pool is initialized with a single thread and promptly shut down during the destruction of controller_impl, right after the existing thread pool is stopped.

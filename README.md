@@ -14,18 +14,18 @@ Some of the groundbreaking features of EOSIO-Taurus include:
 8. Support for Biometric Hardware Secured Keys (e.g. Apple Secure Enclave)
 9. Designed for Parallel Execution of Context Free Validation Logic
 10. Designed for Inter Blockchain Communication
-11. [Support for producer high availability](docs/01_nodeos/03_plugins/producer_ha_plugin/index.md) *
-12. [Support for preserving the input order of transactions for special use cases](docs/01_nodeos/03_plugins/amqp_trx_plugin/index.md) *
-13. [Support for streaming from smart contract to external systems](docs/01_nodeos/03_plugins/event_streamer_plugin/index.md) *
-14. [High performance multithreaded queries of the blockchain state](docs/01_nodeos/03_plugins/rodeos_plugin/index.md) *
-15. [Ability to debug and single step through smart contract execution](docs/01_nodeos/10_enterprise_app_integration/native-tester.md) *
-16. [Ability to use snapshots for state persistence for stability and reliability](docs/01_nodeos/03_plugins/chain_plugin/snapshot-state.md) *
-17. [Support for long running time transactions for large scale contracts](./docs/01_nodeos/03_plugins/producer_plugin/index.md#long-running-time-transaction) *
-18. [TPM support for signatures providing higher security](./docs/01_nodeos/03_plugins/signature_provider_plugin/index.md) *
-19. [Standard ECDSA keys support in contracts for enterprise application integration](docs/01_nodeos/10_enterprise_app_integration/ecdsa.md) *#
-20. [RSA signature support in contracts for enterprise application integration](docs/01_nodeos/10_enterprise_app_integration/rsa.md) *
-21. [Asynchronous block signing for improving block production performance](docs/01_nodeos/03_plugins/producer_plugin/async-block-signing.md) *
-22. [Protocol Buffer support for contract action and blockchain data](docs/01_nodeos/10_enterprise_app_integration/protobuf.md) *
+11. [Support for producer high availability](docs/01_nodeos/03_plugins/producer_ha_plugin/index.md) \*
+12. [Support for preserving the input order of transactions for special use cases](docs/01_nodeos/03_plugins/amqp_trx_plugin/index.md) \*
+13. [Support for streaming from smart contract to external systems](docs/01_nodeos/03_plugins/event_streamer_plugin/index.md) \*
+14. [High performance multithreaded queries of the blockchain state](docs/01_nodeos/03_plugins/rodeos_plugin/index.md) \*
+15. [Ability to debug and single step through smart contract execution](docs/01_nodeos/10_enterprise_app_integration/native-tester.md) \*
+16. [Protocol Buffers support for contract action and blockchain data](docs/01_nodeos/10_enterprise_app_integration/protobuf.md) \*
+17. [TPM support for signatures providing higher security](./docs/01_nodeos/03_plugins/signature_provider_plugin/index.md) \*
+18. [Standard ECDSA keys support in contracts for enterprise application integration](docs/01_nodeos/10_enterprise_app_integration/ecdsa.md) \*\#
+19. [RSA signature support in contracts for enterprise application integration](docs/01_nodeos/10_enterprise_app_integration/rsa.md) \*
+20. [Ability to use snapshots for state persistence for stability and reliability](docs/01_nodeos/03_plugins/chain_plugin/snapshot-state.md) \*
+21. [Support for long running time transactions for large scale contracts](./docs/01_nodeos/03_plugins/producer_plugin/index.md#long-running-time-transaction) \*
+22. [Asynchronous block signing for improving block production performance](docs/01_nodeos/03_plugins/producer_plugin/async-block-signing.md) \*
 
 (\* features added or extensively improved in EOSIO-Taurus for enterprise applications) \
 (\# the ECDSA public key follows the [Standards for Efficient Cryptography 1](https://www.secg.org/sec1-v2.pdf))

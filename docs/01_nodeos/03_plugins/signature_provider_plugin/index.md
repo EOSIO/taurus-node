@@ -2,7 +2,7 @@
 
 The `signature_provider_plugin` provides the implemenation of `--signature-provider` parameter for `producer_plugin`.
 
-In EOSIO-taurus, a new TPM signature provider is added allowing nodeos to sign transactions and/or blocks with non-extractable keys from TPM devices, to meet enterprise deployments' security requirements.
+In EOSIO-taurus, a new TPM signature provider is added allowing nodeos/cleos to sign transactions and/or blocks with non-extractable keys from TPM devices, to meet enterprise deployments' security requirements.
 
 ## Usage
 

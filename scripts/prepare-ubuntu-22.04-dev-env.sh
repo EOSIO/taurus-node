@@ -8,15 +8,19 @@ if [[ "$(id -u)" != "0" ]]; then
   exit 3
 fi
 
-if [[ -f /etc/profile.d/proxy.sh ]]; then
-  source /etc/profile.d/proxy.sh
-fi
+apt-get update -y
+apt install -y curl gnupg bzip2 python3-pip cmake
+
+apt remove -y gcc g++
+apt autoremove -y
 
 source /etc/lsb-release
 curl -L https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
 echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-13 main" > /etc/apt/sources.list.d/llvm.list
 apt-get update -y
-apt-get install -y build-essential cmake clang-13 libclang-13-dev lld-13 libc++-13-dev libc++abi-13-dev bzip2
+apt-get install -y clang-13 libclang-13-dev lld-13 libc++-13-dev libc++abi-13-dev
+
+export PATH=/usr/lib/llvm-13/bin:$PATH
 
 export PROTOBUF_VERSION_SHORT=21.5
 export PROTOBUF_VERSION=3.21.5

@@ -18,4 +18,5 @@ Other dependencies are either inside the EOSIO-Taurus repo, such as the `secp256
 * bzip2, zlib
 * etc.
 
-Scripts are provided for preparing the dependencies. Please check the `/scripts/` directory under the repository root.
+Some helper scripts are provided for preparing the dependencies. Please check the [`/scripts/` directory](../../../../scripts/) under the repository root.
+

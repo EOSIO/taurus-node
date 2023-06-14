@@ -1,12 +1,12 @@
 
 ## Overview
 
-The `producer_ha_plugin` provides a block producer nodeos (BP) high availability (HA) solution for the EOSIO-Taurus blockchain based on the [Raft consensus protocol](https://raft.github.io/raft.pdf), to meeting the high availability for enterprise blockchain deployment with 24x7 availability requirements.
+The `producer_ha_plugin` provides a block producer nodeos (BP) high availability (HA) solution for the EOSIO-Taurus blockchain based on the [Raft consensus protocol](https://raft.github.io/raft.pdf), to ensure the high availability for enterprise blockchain deployment with 24x7 availability requirements.
 
 The `producer_ha_plugin` based HA solution can provide:
 
-- If any producing BP is down or producing stopped, another BP nodeos should automatically take over as the producing BP to continue producing blocks, if it can do this safely. The delay is relative short.
-- If there are conflicting blocks, one and only one will be broadcast by the signing BP nodeos and visible to the blockchain network.
+- If any producing BP is down or the block producing stops, another BP should automatically take over as the producing BP to continue producing blocks, if it can do this safely. The delay is relatively short.
+- If there are conflicting blocks, one and only one will be broadcast by the signing BP and visible to the blockchain network.
 - Only after a block newly produced has been broadcast out and committed by the quorum of BPs, the trace for the transaction can be sent back to the client, when the `amqp_trx_plugin` is used and the `amqp-trx-ack-mode` is set to be `in_block`.
 
 The `producer_ha_plugin` works as follows.

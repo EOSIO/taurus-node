@@ -1,6 +1,6 @@
 ## Description
 
-EOSIO-Taurus adds support to the RSA signature verification for easier integrations.
+EOSIO-Taurus adds support to the RSA signature verification for easier integrations for enterprise applications using the RSA algorithm.
 
 ## How to use it
 

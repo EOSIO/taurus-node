@@ -166,7 +166,7 @@ For details about how blocks are produced please read the following [block produ
 
 ## Long running time transaction
 
-The producer can be configured to allow very long transaction time for large scale contract actions.
+Smart contracts implementing enterprise application logic may need to run on top of a large scale of data entries because of the complexity of the business logic and the scale of the blockchain state. For supporting such requirements, the EOSIO-Taurus producer can be configured to allow very long transaction time for large scale contract actions.
 
 It can even exceed block time through a parameter
 
