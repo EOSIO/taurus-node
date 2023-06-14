@@ -9,7 +9,7 @@ if [[ "$(id -u)" != "0" ]]; then
 fi
 
 apt update -y
-apt install -y curl gnupg bzip2 python3-pip cmake libgmp-dev pkg-config colordiff libusb-1.0-0-dev libcurl4-openssl-dev tpm2-openssl libtpms-dev
+apt install -y curl gnupg bzip2 python3-pip cmake libgmp-dev pkg-config colordiff libusb-1.0-0-dev libcurl4-openssl-dev tpm2-openssl libtpms-dev autoconf libtool-bin
 
 apt remove -y gcc g++
 apt autoremove -y
@@ -64,12 +64,14 @@ echo "Configuration done."
 echo ""
 echo "Please add to your environment:"
 echo ""
-echo "  export LLVM_ROOT=/usr/lib/llvm-11"
 echo "  export PATH=/usr/lib/llvm-11/bin:\$PATH"
 echo "  export CC=/usr/lib/llvm-13/bin/clang"
+echo "  export CXX=/usr/lib/llvm-13/bin/clang++"
 echo ""
 echo "Please build and install the following packages"
 echo ""
 echo " - openssl 1.1.1 https://www.openssl.org/source/"
+echo " - tpm2-tss https://github.com/tpm2-software/tpm2-tss"
+echo " - libtpms https://github.com/stefanberger/libtpms"
 echo ""
 
