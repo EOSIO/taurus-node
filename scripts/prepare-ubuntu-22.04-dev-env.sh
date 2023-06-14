@@ -8,8 +8,8 @@ if [[ "$(id -u)" != "0" ]]; then
   exit 3
 fi
 
-apt-get update -y
-apt install -y curl gnupg bzip2 python3-pip cmake
+apt update -y
+apt install -y curl gnupg bzip2 python3-pip cmake libgmp-dev pkg-config colordiff libusb-1.0-0-dev libcurl4-openssl-dev tpm2-openssl libtpms-dev
 
 apt remove -y gcc g++
 apt autoremove -y
@@ -17,10 +17,13 @@ apt autoremove -y
 source /etc/lsb-release
 curl -L https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
 echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-13 main" > /etc/apt/sources.list.d/llvm.list
-apt-get update -y
-apt-get install -y clang-13 libclang-13-dev lld-13 libc++-13-dev libc++abi-13-dev
+apt update -y
+apt install -y clang-13 libclang-13-dev lld-13 libc++-13-dev libc++abi-13-dev
 
 export PATH=/usr/lib/llvm-13/bin:$PATH
+export CC=/usr/lib/llvm-13/bin/clang
+
+apt install -y llvm-11
 
 export PROTOBUF_VERSION_SHORT=21.5
 export PROTOBUF_VERSION=3.21.5
@@ -56,17 +59,17 @@ curl -fsSLO "https://boostorg.jfrog.io/artifactory/main/release/${BOOST_VERSION_
     cd .. && \
     rm -rf "boost_${BOOST_VERSION}.tar.bz2" "boost_${BOOST_VERSION}"
 
-export LLVM_VERSION=7.1.0
-curl -fsSLO "https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_VERSION}/llvm-${LLVM_VERSION}.src.tar.xz" && \
-    tar -xvf "llvm-${LLVM_VERSION}.src.tar.xz" && \
-    cd "llvm-${LLVM_VERSION}.src" && \
-    mkdir build && cd build && \
-    cmake -G 'Unix Makefiles' -DLLVM_TARGETS_TO_BUILD=host -DLLVM_BUILD_TOOLS=false -DLLVM_ENABLE_RTTI=1 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local  -DCMAKE_EXE_LINKER_FLAGS=-pthread -DCMAKE_SHARED_LINKER_FLAGS=-pthread -DLLVM_ENABLE_PIC=NO -DLLVM_ENABLE_TERMINFO=OFF .. && \
-    make -j$(nproc) && make install && \
-    cd / && \
-    rm -rf "llvm-${LLVM_VERSION}.src.tar.xz" "llvm-${LLVM_VERSION}.src"
-
 echo ""
 echo "Configuration done."
+echo ""
+echo "Please add to your environment:"
+echo ""
+echo "  export LLVM_ROOT=/usr/lib/llvm-11"
+echo "  export PATH=/usr/lib/llvm-11/bin:\$PATH"
+echo "  export CC=/usr/lib/llvm-13/bin/clang"
+echo ""
+echo "Please build and install the following packages"
+echo ""
+echo " - openssl 1.1.1 https://www.openssl.org/source/"
 echo ""
 
