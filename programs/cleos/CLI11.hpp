@@ -7515,7 +7515,7 @@ inline void TriggerOff(App *trigger_app, std::vector<App *> apps_to_enable) {
 /// Helper function to mark an option as deprecated
 inline void deprecate_option(Option *opt, const std::string &replacement = "") {
     Validator deprecate_warning{[opt, replacement](std::string &) {
-                                    std::cout << opt->get_name() << " is deprecated please use '" << replacement
+                                    std::cerr << opt->get_name() << " is deprecated please use '" << replacement
                                               << "' instead\n";
                                     return std::string();
                                 },
@@ -7556,7 +7556,7 @@ inline void retire_option(App *app, Option *opt) {
                     ->allow_extra_args(option_copy->get_allow_extra_args());
 
     Validator retired_warning{[opt2](std::string &) {
-                                  std::cout << "WARNING " << opt2->get_name() << " is retired and has no effect\n";
+                                  std::cerr << "WARNING " << opt2->get_name() << " is retired and has no effect\n";
                                   return std::string();
                               },
                               ""};
@@ -7580,7 +7580,7 @@ inline void retire_option(App *app, const std::string &option_name) {
                     ->expected(0, 1)
                     ->default_str("RETIRED");
     Validator retired_warning{[opt2](std::string &) {
-                                  std::cout << "WARNING " << opt2->get_name() << " is retired and has no effect\n";
+                                  std::cerr << "WARNING " << opt2->get_name() << " is retired and has no effect\n";
                                   return std::string();
                               },
                               ""};

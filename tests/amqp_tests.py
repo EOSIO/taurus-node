@@ -3,17 +3,22 @@
 from testUtils import Account
 from testUtils import Utils
 from testUtils import WaitSpec
+from testUtils import TLSCertType
 from Cluster import Cluster
 from WalletMgr import WalletMgr
 from Node import Node
 from Node import ReturnType
 from TestHelper import TestHelper
+from TestHelper import AppArgs
 
 import decimal
 import re
 import json
 import os
 import signal
+from subprocess import CalledProcessError
+import subprocess
+import sys
 import time
 
 ###############################################################
@@ -23,14 +28,27 @@ import time
 #
 ###############################################################
 
+AMQPS_CERTS_FILENAMES = Utils.AMQPS_CERTS_DEFAULT_FILENAMES
+DEFAULT_AMQPS_ADDR = "amqps://guest:guest@127.0.0.1:5671"
 Print=Utils.Print
 errorExit=Utils.errorExit
+
 cmdError=Utils.cmdError
 from core_symbol import CORE_SYMBOL
 
+appArgs = AppArgs()
+appArgs.add_bool("--amqps", "Use AMQP with TLS, for nodeos (consumer) only.", action="store_true")
+appArgs.add_bool("--gen-amqps-certs", "Run generate_amqps_certs.sh script prior to starting", action="store_true")
+appArgs.add(flag="--amqps-address", type=str, help="Address for AMQPS for nodeos. Form amqps://<user>.<pass>@<ip>:<port>",
+                default=DEFAULT_AMQPS_ADDR)
+CERT_HELP = "Path for finding server and client certificates for AMQPS. There are five files expected in this directory: "
+CERT_HELP += ", ".join(list(AMQPS_CERTS_FILENAMES.values()))
+appArgs.add(flag="--amqps-certs-path", type=str, help=CERT_HELP,
+                 default="")
+
 args = TestHelper.parse_args({"--host","--port"
                                  ,"--dump-error-details","--dont-launch","--keep-logs","-v","--leave-running","--clean-run"
-                                 ,"--wallet-port","--amqp-address"})
+                                 ,"--wallet-port","--amqp-address"}, appArgs)
 server=args.host
 port=args.port
 debug=args.v
@@ -41,6 +59,17 @@ dontKill=args.leave_running
 killAll=args.clean_run
 walletPort=args.wallet_port
 amqpAddr=args.amqp_address
+amqps=args.amqps
+amqpsAddr=args.amqps_address
+if not amqps:
+    amqpsAddr = None
+amqpsCertsPath=args.amqps_certs_path
+
+script_path = os.path.dirname(os.path.realpath(sys.argv[0]))
+build_path = os.path.realpath(os.path.join(script_path, ".."))
+if amqpsCertsPath == "":
+    amqpsCertsPath = os.path.join(build_path, "amqps_certs")
+genAmqpsCerts=args.gen_amqps_certs
 
 Utils.Debug=debug
 localTest=True if server == TestHelper.LOCAL_HOST else False
@@ -65,10 +94,35 @@ try:
 
         amqProducerAccount = cluster.defProducerAccounts["eosio"]
 
-        specificExtraNodeosArgs={ 0: " --plugin eosio::amqp_trx_plugin --amqp-trx-address %s" % (amqpAddr),
-                                  1: " --plugin eosio::amqp_trx_plugin --amqp-trx-address %s" % (amqpAddr)}
+        amqpAddrToUse = amqpAddr
+        if amqps:
+            amqpAddrToUse = amqpsAddr
+        specificExtraNodeosArgs={ 0: " --plugin eosio::amqp_trx_plugin  --plugin eosio::amqp_trx_api_plugin --amqp-trx-startup-stopped --amqp-trx-address %s" % (amqpAddrToUse),
+                                  1: " --plugin eosio::amqp_trx_plugin  --plugin eosio::amqp_trx_api_plugin --amqp-trx-startup-stopped --amqp-trx-address %s" % (amqpAddrToUse)}
+        if amqps:
+            if genAmqpsCerts:
+                # should be in the same directory as this script
+                cmdStr = os.path.join(script_path, "generate_amqps_certs.sh")
+                Print(f"Calling '{cmdStr}'")
+                try:
+                    s = Utils.runCmdReturnStr(cmdStr)
+                except CalledProcessError as e:
+                    Print(f"'{cmdStr}' failed. output: ")
+                    Print(e.output.decode("utf-8"))
+                    raise e
+                Print(s)
+            ca_cert_path = os.path.join(amqpsCertsPath, AMQPS_CERTS_FILENAMES[TLSCertType.CA_CERT])
+            cert_path = os.path.join(amqpsCertsPath, AMQPS_CERTS_FILENAMES[TLSCertType.CLIENT_CERT])
+            key_path = os.path.join(amqpsCertsPath, AMQPS_CERTS_FILENAMES[TLSCertType.CLIENT_KEY])
+            for k in range(2):
+                flags = specificExtraNodeosArgs[k]
+                flags += f" --amqps-ca-cert-perm {ca_cert_path}"
+                flags += f" --amqps-cert-perm {cert_path}"
+                flags += f" --amqps-key-perm {key_path}"
+                specificExtraNodeosArgs[k] = flags
 
-        traceNodeosArgs=" --plugin eosio::trace_api_plugin --trace-no-abis "
+        Utils.startRabbitMQ(amqpAddr, amqpsAddr, amqpsCertsPath, build_path, AMQPS_CERTS_FILENAMES)
+        traceNodeosArgs=" --plugin eosio::trace_api_plugin --trace-no-abis"
         if cluster.launch(totalNodes=2, totalProducers=3, pnodes=2, dontBootstrap=False, onlyBios=False, useBiosBootFile=True, specificExtraNodeosArgs=specificExtraNodeosArgs, extraNodeosArgs=traceNodeosArgs) is False:
             cmdError("launcher")
             errorExit("Failed to stand up eos cluster.")
@@ -145,10 +199,10 @@ try:
     cluster.validateAccounts(None)
 
     Print("Create new account %s via %s" % (testeraAccount.name, cluster.defproduceraAccount.name))
-    transId=node.createInitializeAccount(testeraAccount, cluster.defproduceraAccount, stakedDeposit=0, waitForTransBlock=False, exitOnError=True)
+    node.createInitializeAccount(testeraAccount, cluster.defproduceraAccount, stakedDeposit=0, waitForTransBlock=False, exitOnError=True)
 
     Print("Create new account %s via %s" % (currencyAccount.name, cluster.defproduceraAccount.name))
-    transId=node.createInitializeAccount(currencyAccount, cluster.defproduceraAccount, buyRAM=200000, stakedDeposit=5000, exitOnError=True)
+    node.createInitializeAccount(currencyAccount, cluster.defproduceraAccount, buyRAM=200000, stakedDeposit=5000, exitOnError=True)
 
     Print("Validating accounts after user accounts creation")
     accounts=[testeraAccount, currencyAccount]
@@ -199,6 +253,18 @@ try:
 
     Print("**** Verify producing ****")
     node.waitForHeadToAdvance()
+
+    Print("**** Verify transaction still has not executed ****")
+    expectedAmount="97.5321 {0}".format(CORE_SYMBOL)
+    Print("Verify no transfer, Expected: %s" % (expectedAmount))
+    actualAmount=node.getAccountEosBalanceStr(testeraAccount.name)
+    if expectedAmount != actualAmount:
+        cmdError("FAILURE - transfer executed")
+        errorExit("Verification failed. Excepted %s, actual: %s" % (expectedAmount, actualAmount))
+
+    Print("**** Start AMQP ****")
+    startResults = node.processCurlCmd("amqp_trx", "start", "")
+    Print(startResults)
 
     Print("**** Waiting for transaction ****")
     node.waitForTransInBlock(transId)
@@ -274,8 +340,46 @@ try:
 
     Print("**** Processed Transfer ****")
 
+
+    Print("**** ********************************** ****")
+    Print("**** Test stop/start amqp_trx_plugin ****")
+    #def processCurlCmd(self, resource, command, payload, silentErrors=True, exitOnError=False, exitMsg=None, returnType=ReturnType.json):
+    Print("**** Stop amqp_trx_plugin ****")
+    node.processCurlCmd("amqp_trx", "stop", "")
+
+    transferAmount="0.0100 {0}".format(CORE_SYMBOL)
+    Print("Force transfer funds %s from account %s to %s" % (
+        transferAmount, defproduceraAccount.name, testeraAccount.name))
+    result = node.transferFunds(defproduceraAccount, testeraAccount, transferAmount, "test transfer", expiration=3600, waitForTransBlock=False, exitOnError=False)
+    transId = node.getTransId(result)
+    noTrans = node.getTransaction(transId, silentErrors=True)
+    if noTrans is not None:
+        cmdError("FAILURE - transfer should not have been executed yet")
+        errorExit("result: %s" % (noTrans))
+    expectedAmount="97.5522 {0}".format(CORE_SYMBOL)
+    Print("Verify no transfer, Expected: %s" % (expectedAmount))
+    actualAmount=node.getAccountEosBalanceStr(testeraAccount.name)
+    if expectedAmount != actualAmount:
+        cmdError("FAILURE - transfer executed")
+        errorExit("Verification failed. Excepted %s, actual: %s" % (expectedAmount, actualAmount))
+
+    Print("**** Restart amqp_trx_plugin ****")
+    node.processCurlCmd("amqp_trx", "start", "")
+
+    Print("**** Waiting for transaction ****")
+    node.waitForTransInBlock(transId)
+
+    Print("**** Verify transfer waiting in queue was processed ****")
+    expectedAmount="97.5622 {0}".format(CORE_SYMBOL)
+    Print("Verify transfer, Expected: %s" % (expectedAmount))
+    actualAmount=node.getAccountEosBalanceStr(testeraAccount.name)
+    if expectedAmount != actualAmount:
+        cmdError("FAILURE - transfer failed")
+        errorExit("Transfer verification failed. Excepted %s, actual: %s" % (expectedAmount, actualAmount))
+
     testSuccessful=True
 finally:
     TestHelper.shutdown(cluster, walletMgr, testSuccessful, killEosInstances, killWallet, keepLogs, killAll, dumpErrorDetails)
 
-exit(0)
+exitCode = 0 if testSuccessful else 1
+exit(exitCode)

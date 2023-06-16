@@ -115,7 +115,8 @@ class TestHelper(object):
             parser.add_argument("--alternate-version-labels-file", type=str, help="Provide a file to define the labels that can be used in the test and the path to the version installation associated with that.")
         if "--signing-delay" in includeArgs:
             parser.add_argument("--signing-delay", type=int, help="signing delay in milliseconds", default=0)
-
+        if "--disconnect-leader" in includeArgs:
+            parser.add_argument("--disconnect-leader", help="disconnect/kill leader in producerpha cluster", action='store_true')
         for arg in applicationSpecificArgs.args:
             if arg.type is not None:
                 parser.add_argument(arg.flag, type=arg.type, help=arg.help, choices=arg.choices, default=arg.default)
@@ -189,3 +190,6 @@ class TestHelper(object):
                 Utils.Print("Cleanup wallet data.")
                 walletMgr.cleanup()
 
+        if Utils.checkOutputFile is not None:
+            Utils.checkOutputFile.close()
+            Utils.checkOutputFile = None

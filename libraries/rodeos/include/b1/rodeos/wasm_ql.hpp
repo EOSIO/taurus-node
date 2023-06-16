@@ -5,7 +5,16 @@
 #include <b1/rodeos/callbacks/kv.hpp>
 #include <b1/rodeos/callbacks/query.hpp>
 #include <eosio/ship_protocol.hpp>
-
+#include <b1/rodeos/callbacks/chaindb.hpp>
+#include <b1/rodeos/callbacks/compiler_builtins.hpp>
+#include <b1/rodeos/callbacks/console.hpp>
+#include <b1/rodeos/callbacks/crypto.hpp>
+#include <b1/rodeos/callbacks/memory.hpp>
+#include <b1/rodeos/callbacks/unimplemented.hpp>
+#include <b1/rodeos/callbacks/coverage.hpp>
+namespace b1::rodeos {
+   struct native_module_context_type;
+}
 namespace b1::rodeos::wasm_ql {
 
 class backend_cache;
@@ -19,6 +28,7 @@ struct shared_state {
    std::string                             contract_dir     = {};
    std::shared_ptr<wasm_ql::backend_cache> backend_cache    = {};
    std::shared_ptr<chain_kv::database>     db;
+   b1::rodeos::native_module_context_type* native_context = nullptr;
 
    shared_state(std::shared_ptr<chain_kv::database> db);
    shared_state(const shared_state&) = delete;
@@ -78,12 +88,12 @@ class thread_state_cache : public std::enable_shared_from_this<thread_state_cach
             ++num_created;
             return { shared_from_this(), std::move(result) };
          } catch (const eosio::vm::exception& e) {
-            elog("vm::exception creating thread_state: ${w}: ${d}", ("w", e.what())("d", e.detail()));
-            elog("number of thread_states created so far: ${n}", ("n", num_created));
+            elog("vm::exception creating thread_state: {w}: {d}", ("w", e.what())("d", e.detail()));
+            elog("number of thread_states created so far: {n}", ("n", num_created));
             throw std::runtime_error(std::string("creating thread_state: ") + e.what() + ": " + e.detail());
          } catch (const std::exception& e) {
-            elog("std::exception creating thread_state: ${w}", ("w", e.what()));
-            elog("number of thread_states created so far: ${n}", ("n", num_created));
+            elog("std::exception creating thread_state: {w}", ("w", e.what()));
+            elog("number of thread_states created so far: {n}", ("n", num_created));
             throw std::runtime_error(std::string("creating thread_state: ") + e.what());
          }
       }
@@ -105,6 +115,33 @@ class thread_state_cache : public std::enable_shared_from_this<thread_state_cach
    }
 };
 
+struct callbacks : action_callbacks<callbacks>,
+                   chaindb_callbacks<callbacks>,
+                   compiler_builtins_callbacks<callbacks>,
+                   console_callbacks<callbacks>,
+                   context_free_system_callbacks<callbacks>,
+                   crypto_callbacks<callbacks>,
+                   db_callbacks<callbacks>,
+                   memory_callbacks<callbacks>,
+                   query_callbacks<callbacks>,
+                   unimplemented_callbacks<callbacks>, 
+                   coverage_callbacks<callbacks> {
+   wasm_ql::thread_state& thread_state;
+   rodeos::chaindb_state& chaindb_state;
+   rodeos::db_view_state& db_view_state;
+   rodeos::coverage_state& coverage_state;
+
+   callbacks(wasm_ql::thread_state& thread_state, rodeos::chaindb_state& chaindb_state,
+             rodeos::db_view_state& db_view_state, rodeos::coverage_state& coverage_state)
+       : thread_state{ thread_state }, chaindb_state{ chaindb_state }, db_view_state{ db_view_state }
+       , coverage_state{ coverage_state } {}
+
+   auto& get_state() { return thread_state; }
+   auto& get_chaindb_state() { return chaindb_state; }
+   auto& get_db_view_state() { return db_view_state; }
+   auto& get_coverage_state() { return coverage_state; }
+};
+
 const std::vector<char>& query_get_info(wasm_ql::thread_state&   thread_state,
                                         uint64_t                 version,
                                         const std::string&       version_str,
@@ -112,6 +149,8 @@ const std::vector<char>& query_get_info(wasm_ql::thread_state&   thread_state,
                                         const std::vector<char>& contract_kv_prefix);
 const std::vector<char>& query_get_block(wasm_ql::thread_state&   thread_state,
                                          const std::vector<char>& contract_kv_prefix, std::string_view body);
+const std::vector<char>& query_get_account(wasm_ql::thread_state& thread_state, const std::vector<char>& contract_kv_prefix,
+                                              std::string_view body);
 const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, const std::vector<char>& contract_kv_prefix,
                                        std::string_view body);
 const std::vector<char>& query_get_raw_abi(wasm_ql::thread_state& thread_state, const std::vector<char>& contract_kv_prefix,

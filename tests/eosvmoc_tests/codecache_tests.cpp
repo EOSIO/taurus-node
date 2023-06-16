@@ -56,8 +56,20 @@ BOOST_DATA_TEST_CASE(there_and_back_again, data::make(mapped_and_heap) * data::m
 BOOST_DATA_TEST_CASE(dirty_check, data::make(mapped_and_heap) * data::make(mapped_and_heap), first, second) { try {
    fc::temp_directory tmp_code_cache;
 
-   eosvmoc::config first_eosvmoc_config = {32u*1024u*1024u, 1u, first};
-   eosvmoc::config second_eosvmoc_config = {32u*1024u*1024u, 1u, second};
+   eosvmoc::config first_eosvmoc_config = {
+      .cache_size = 32u*1024u*1024u,
+      .threads = 1u,
+      .map_mode = first,
+      .persistent = true,
+      .reset_on_invalid = false
+   };
+   eosvmoc::config second_eosvmoc_config = {
+      .cache_size = 32u*1024u*1024u,
+      .threads = 1u,
+      .map_mode = second,
+      .persistent = true,
+      .reset_on_invalid = false
+   };
 
    {
       eosvmoc::code_cache_sync cc(tmp_code_cache.path(), first_eosvmoc_config, get_some_wasm);

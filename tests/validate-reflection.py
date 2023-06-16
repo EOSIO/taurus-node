@@ -831,7 +831,5 @@ for file in args.files:
         print("ERROR \"%s\" is neither a directory nor a file" % file)
         success = False
 
-if success:
-    exit(0)
-else:
-    exit(1)
+exitCode = 0 if success else 1
+exit(exitCode)

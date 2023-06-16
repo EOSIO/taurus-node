@@ -7,9 +7,6 @@ RABBITMQ_SERVER_DETACHED='rabbitmq-server -detached'
 [[ -z "$TEST" ]] && export TEST="$1"
 if [[ "$(uname)" == 'Linux' ]]; then
     . /etc/os-release
-    if [[ "$ID" == 'centos' ]]; then
-        [[ -f /opt/rh/rh-python36/enable ]] && source /opt/rh/rh-python36/enable
-    fi
     cd "$GIT_ROOT"
 fi
 if [[ "$NPM_INSTALL" == 'true' ]]; then
@@ -39,7 +36,7 @@ if [[ -z "$TEST" ]]; then # run all serial tests
         EXIT_STATUS='1'
     fi
 else # run specific serial test
-    if [[ "$(echo "$TEST" | grep -ci 'rabbit')" != '0' ]]; then
+    if [[ "$(echo "$TEST" | grep -ci 'rabbit')" != '0' || "$TEST" == "plugin_http_api_test" ]]; then
         echo "$ $RABBITMQ_SERVER_DETACHED"
         eval $RABBITMQ_SERVER_DETACHED
         sleep 30

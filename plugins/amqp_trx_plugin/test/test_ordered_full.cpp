@@ -3,6 +3,7 @@
 
 #include <eosio/amqp_trx_plugin/fifo_trx_processing_queue.hpp>
 #include <eosio/producer_plugin/producer_plugin.hpp>
+#include <eosio/producer_plugin/producer.hpp>
 
 #include <eosio/testing/tester.hpp>
 
@@ -26,7 +27,7 @@ struct testit {
       return chain::config::system_account_name;
    }
 
-   static action_name get_name() {
+   static chain::action_name get_name() {
       return "testit"_n;
    }
 };
@@ -86,10 +87,10 @@ bool verify_equal( const std::deque<packed_transaction_ptr>& trxs, const std::de
       const auto& trx = next_trx();
 
       if( trxs[i]->id() != trx.id() ) {
-         elog( "[${i}],[${j},${k}]: ${lhs} != ${rhs}", ("i", i)("j", j)("k", k)
+         elog( "[{i}],[{j},{k}]: {lhs} != {rhs}", ("i", i)("j", j)("k", k)
                ("lhs", trxs[i]->get_transaction().actions.at(0).data_as<testit>().id)
                ("rhs", trx.actions.at(0).data_as<testit>().id) );
-         elog( "[${i}],[${j},${k}]: ${lhs} != ${rhs}", ("i", i)("j", j)("k", k)
+         elog( "[{i}],[{j},{k}]: {lhs} != {rhs}", ("i", i)("j", j)("k", k)
                ("lhs", trxs[i]->id())
                ("rhs", trx.id()) );
          return false;
@@ -101,15 +102,35 @@ bool verify_equal( const std::deque<packed_transaction_ptr>& trxs, const std::de
    return true;
 }
 
-
 }
 
+
 BOOST_AUTO_TEST_SUITE(ordered_trxs_full)
+
+// appbase is not setup to be created/destroyed in a process more than once
+// only one of the tests in this file can be run at a time.
+void run_test(bool);
+
+BOOST_AUTO_TEST_CASE(order) {
+   run_test(false);
+
+   // appbase is not setup to be created/destroyed in a process more than once
+   // only one of the tests in this file can be run at a time.
+   std::exit(0);
+}
+
+BOOST_AUTO_TEST_CASE(order_full) {
+   run_test(true);
+
+   // appbase is not setup to be created/destroyed in a process more than once
+   // only one of the tests in this file can be run at a time.
+   std::exit(0);
+}
 
 // Integration test of fifo_trx_processing_queue and producer_plugin
 // Test verifies that transactions are processed in the order they are submitted to the fifo_trx_processing_queue
 // even when blocks are aborted and some transactions fail.
-BOOST_AUTO_TEST_CASE(order) {
+void run_test(bool full_cpu) {
    boost::filesystem::path temp = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
 
    try {
@@ -117,9 +138,15 @@ BOOST_AUTO_TEST_CASE(order) {
       std::future<std::tuple<producer_plugin*, chain_plugin*>> plugin_fut = plugin_promise.get_future();
       std::thread app_thread( [&]() {
          fc::logger::get(DEFAULT_LOGGER).set_log_level(fc::log_level::debug);
-         std::vector<const char*> argv =
-               {"test", "--data-dir", temp.c_str(), "--config-dir", temp.c_str(),
-                "-p", "eosio", "-e", "--max-transaction-time", "500", "--disable-subjective-billing=true" };
+         std::vector<const char*> argv;
+         if( full_cpu ) {
+            argv = {"test", "--data-dir", temp.c_str(), "--config-dir", temp.c_str(),
+                    "-p", "eosio", "-e", "--max-transaction-time", "500", "--disable-subjective-billing=true",
+                    "--last-block-time-offset-us=0", "--cpu-effort-percent=100", "--last-block-cpu-effort=100" };
+         } else {
+            argv = {"test", "--data-dir", temp.c_str(), "--config-dir", temp.c_str(),
+                    "-p", "eosio", "-e", "--max-transaction-time", "500", "--disable-subjective-billing=true"};
+         }
          appbase::app().initialize<chain_plugin, producer_plugin>( argv.size(), (char**) &argv[0] );
          appbase::app().startup();
          plugin_promise.set_value(
@@ -153,14 +180,14 @@ BOOST_AUTO_TEST_CASE(order) {
          } else { // we want a couple of empty blocks after we have some non-empty blocks
             num_empty = 2;
          }
-         queue->on_block_stop();
+         queue->on_block_stop(bsp->block_num);
       } );
       auto ba = chain_plug->chain().block_abort.connect( [&]( uint32_t bn ) {
          ++num_aborts;
-         queue->on_block_stop();
+         queue->on_block_stop(bn);
       } );
       auto bs = chain_plug->chain().block_start.connect( [&]( uint32_t bn ) {
-         queue->on_block_start();
+         queue->on_block_start(bn);
       } );
 
       queue->run();

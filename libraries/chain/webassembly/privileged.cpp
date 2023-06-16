@@ -4,6 +4,7 @@
 #include <eosio/chain/transaction_context.hpp>
 #include <eosio/chain/resource_limits.hpp>
 #include <eosio/chain/apply_context.hpp>
+#include <eosio/chain/to_string.hpp>
 
 #include <vector>
 #include <set>
@@ -43,7 +44,7 @@ namespace eosio { namespace chain { namespace webassembly {
    }
 
    void interface::set_resource_limit( account_name account, name resource, int64_t limit ) {
-      EOS_ASSERT(limit >= -1, wasm_execution_error, "invalid value for ${resource} resource limit expected [-1,INT64_MAX]", ("resource", resource));
+      EOS_ASSERT(limit >= -1, wasm_execution_error, "invalid value for {resource} resource limit expected [-1,INT64_MAX]", ("resource", resource));
       auto& manager = context.control.get_mutable_resource_limits_manager();
       if( resource == string_to_name("ram") ) {
          int64_t ram, net, cpu;
@@ -60,7 +61,7 @@ namespace eosio { namespace chain { namespace webassembly {
          manager.get_account_limits(account, ram, net, cpu);
          manager.set_account_limits( account, ram, net, limit );
       } else {
-         EOS_THROW(wasm_execution_error, "unknown resource ${resource}", ("resource", resource));
+         EOS_THROW(wasm_execution_error, "unknown resource {resource}", ("resource", resource));
       }
    }
 
@@ -79,7 +80,7 @@ namespace eosio { namespace chain { namespace webassembly {
          manager.get_account_limits( account, ram, net, cpu );
          return cpu;
       } else {
-         EOS_THROW(wasm_execution_error, "unknown resource ${resource}", ("resource", resource));
+         EOS_THROW(wasm_execution_error, "unknown resource {resource}", ("resource", resource));
       }
    }
 
@@ -117,9 +118,9 @@ namespace eosio { namespace chain { namespace webassembly {
                unique_keys.insert(kw.key);
             }
 
-            EOS_ASSERT( a.keys.size() == unique_keys.size(), wasm_execution_error, "producer schedule includes a duplicated key for ${account}", ("account", p.producer_name));
-            EOS_ASSERT( a.threshold > 0, wasm_execution_error, "producer schedule includes an authority with a threshold of 0 for ${account}", ("account", p.producer_name));
-            EOS_ASSERT( sum_weights >= a.threshold, wasm_execution_error, "producer schedule includes an unsatisfiable authority for ${account}", ("account", p.producer_name));
+            EOS_ASSERT( a.keys.size() == unique_keys.size(), wasm_execution_error, "producer schedule includes a duplicated key for {account}", ("account", p.producer_name));
+            EOS_ASSERT( a.threshold > 0, wasm_execution_error, "producer schedule includes an authority with a threshold of 0 for {account}", ("account", p.producer_name));
+            EOS_ASSERT( sum_weights >= a.threshold, wasm_execution_error, "producer schedule includes an unsatisfiable authority for {account}", ("account", p.producer_name));
          }, p.authority);
 
          unique_producers.insert(p.producer_name);
@@ -150,7 +151,7 @@ namespace eosio { namespace chain { namespace webassembly {
       uint32_t version;
       chain::wasm_config cfg;
       fc::raw::unpack(ds, version);
-      EOS_ASSERT(version == 0, wasm_config_unknown_version, "set_wasm_parameters_packed: Unknown version: ${version}", ("version", version));
+      EOS_ASSERT(version == 0, wasm_config_unknown_version, "set_wasm_parameters_packed: Unknown version: {version}", ("version", version));
       fc::raw::unpack(ds, cfg);
       cfg.validate();
       context.db.modify( context.control.get_global_properties(),
@@ -227,7 +228,7 @@ namespace eosio { namespace chain { namespace webassembly {
 
       EOS_ASSERT(size <= packed_parameters.size(),
                  chain::config_parse_error,
-                 "get_parameters_packed: buffer size is smaller than ${size}", ("size", size));
+                 "get_parameters_packed: buffer size is smaller than {size}", ("size", size));
       
       datastream<char*> ds( packed_parameters.data(), size );
       fc::raw::pack( ds, config_range );
@@ -269,7 +270,7 @@ namespace eosio { namespace chain { namespace webassembly {
       uint32_t version;
       chain::kv_database_config cfg;
       fc::raw::unpack(ds, version);
-      EOS_ASSERT(version == 0, kv_unknown_parameters_version, "set_kv_parameters_packed: Unknown version: ${version}", ("version", version));
+      EOS_ASSERT(version == 0, kv_unknown_parameters_version, "set_kv_parameters_packed: Unknown version: {version}", ("version", version));
       fc::raw::unpack(ds, cfg);
       context.db.modify( context.control.get_global_properties(),
          [&]( auto& gprops ) {
@@ -277,8 +278,8 @@ namespace eosio { namespace chain { namespace webassembly {
       });
    }
 
-   bool interface::is_privileged( account_name n ) const {
-      return context.db.get<account_metadata_object, by_name>( n ).is_privileged();
+   bool interface::is_privileged( uint64_t n ) const {
+      return context.db.get<account_metadata_object, by_name>( account_name{n} ).is_privileged();
    }
 
    void interface::set_privileged( account_name n, bool is_priv ) {

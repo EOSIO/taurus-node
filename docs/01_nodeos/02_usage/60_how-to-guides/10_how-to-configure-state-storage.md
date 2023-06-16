@@ -2,7 +2,7 @@
 This how-to describes configuration of the Nodeos `backing store`. `Nodeos` can now use `chainbase` or `rocksdb` as a backing store for smart contract state.
    
 # Prerequisites
-Version 2.1 or above of the EOSIO development environment. 
+Version 2.1 or above of the EOSIO-Taurus development environment. 
 
 # Parameter Definitions 
 Specify which backing store to use with the `chain_plugin` `--backing-store` argument. This argument sets state storage to either `chainbase`, the default, or `rocksdb`.

@@ -71,7 +71,7 @@ void net_api_plugin::plugin_startup() {
    }, appbase::priority::medium_high);
 }
 
-void net_api_plugin::plugin_initialize(const variables_map& options) {
+void net_api_plugin::plugin_initialize(const variables_map&) {
    try {
       const auto& _http_plugin = app().get_plugin<http_plugin>();
       if( !_http_plugin.is_on_loopback()) {

@@ -21,7 +21,7 @@ struct system_callbacks {
       throw std::runtime_error("system callback database is missing block_info_v0");
    }
 
-   int64_t current_time() {
+   uint64_t current_time() {
       auto block_info = load_block_info();
       return std::visit(
             [](auto& b) { //

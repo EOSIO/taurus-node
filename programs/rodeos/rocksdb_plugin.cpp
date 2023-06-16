@@ -27,9 +27,9 @@ void rocksdb_plugin::set_program_options(options_description& cli, options_descr
    op("rdb-options-file", bpo::value<bfs::path>(),
       "File (including path) store RocksDB options. Must follow INI file format. Consult RocksDB documentation for details.");
    op("rdb-threads", bpo::value<uint32_t>(),
-      "Deprecated. Please use max_background_jobs in options file to configure it. Default is 20. An example options file is <build-dir>/programs/rodeos/rocksdb_options.ini"); 
+      "Deprecated. Please use max_background_jobs in options file to configure it. Default is 20. An example options file is <build-dir>/programs/rodeos/rocksdb_options.ini");
    op("rdb-max-files", bpo::value<uint32_t>(),
-      "Deprecated. Please use max_open_files in options file to configure it. Default is 765. An example options file is <build-dir>/programs/rodeos/rocksdb_options.ini"); 
+      "Deprecated. Please use max_open_files in options file to configure it. Default is 765. An example options file is <build-dir>/programs/rodeos/rocksdb_options.ini");
 }
 
 void rocksdb_plugin::plugin_initialize(const variables_map& options) {
@@ -44,7 +44,7 @@ void rocksdb_plugin::plugin_initialize(const variables_map& options) {
          my->db_path = db_path;
       if (!options["rdb-options-file"].empty()) {
          my->options_file_name = options["rdb-options-file"].as<bfs::path>();
-         EOS_ASSERT( bfs::exists(*my->options_file_name), eosio::chain::plugin_config_exception, "options file ${f} does not exist.", ("f", my->options_file_name->string()) );
+         EOS_ASSERT( bfs::exists(*my->options_file_name), eosio::chain::plugin_config_exception, "options file {f} does not exist.", ("f", my->options_file_name->string()) );
       } else {
          wlog("--rdb-options-file is not configured! RocksDB system default options will be used. Check <build-dir>/programs/rodeos/rocksdb_options.ini on how to set options appropriate to your application.");
       }
@@ -59,7 +59,7 @@ void rocksdb_plugin::plugin_shutdown() {}
 std::shared_ptr<chain_kv::database> rocksdb_plugin::get_db() {
    std::lock_guard<std::mutex> lock(my->mutex);
    if (!my->database) {
-      ilog("rodeos database is ${d}", ("d", my->db_path.string()));
+      ilog("rodeos database is {d}", ("d", my->db_path.string()));
       if (!bfs::exists(my->db_path.parent_path()))
          bfs::create_directories(my->db_path.parent_path());
 

@@ -1,6 +1,6 @@
 ## Goal
 
-Deploy an EOSIO contract
+Deploy an EOSIO-Taurus contract
 
 ## Before you begin
 

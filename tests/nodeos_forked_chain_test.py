@@ -34,6 +34,9 @@ import signal
 #
 ###############################################################
 
+# give it 30 mins to run
+Utils.set_timeout(30*60)
+
 Print=Utils.Print
 
 from core_symbol import CORE_SYMBOL
@@ -570,4 +573,5 @@ finally:
         cluster.printBlockLog()
         Print(Utils.FileDivider)
 
-exit(0)
+exitCode = 0 if testSuccessful else 1
+exit(exitCode)

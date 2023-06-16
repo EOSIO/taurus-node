@@ -36,7 +36,7 @@ auto make_unique_trx( const chain_id_type& chain_id, fc::time_point expire = fc:
 }
 
 
-struct mock_producer_plugin {
+struct mock_producer {
    bool execute_incoming_transaction(const chain::transaction_metadata_ptr& trx,
                                      producer_plugin::next_function<chain::transaction_trace_ptr> next ) {
       static int num = 0;
@@ -70,7 +70,7 @@ struct mock_producer_plugin {
 
    bool verify_equal( const std::deque<packed_transaction_ptr>& trxs) {
       if( trxs.size() != trxs_.size() ) {
-         elog( "${lhs} != ${rhs}", ("lhs", trxs.size())("rhs", trxs_.size()) );
+         elog( "{lhs} != {rhs}", ("lhs", trxs.size())("rhs", trxs_.size()) );
          return false;
       }
       for( size_t i = 0; i < trxs.size(); ++i ) {
@@ -94,20 +94,20 @@ BOOST_AUTO_TEST_CASE(order_mock_producer_plugin) {
       appbase::app().exec();
    } );
 
-   mock_producer_plugin mock_prod_plug;
+   mock_producer mock_prod;
    named_thread_pool thread_pool( "test", 5 );
 
    auto chain_id = genesis_state().compute_chain_id();
 
    auto queue =
-         std::make_shared<fifo_trx_processing_queue<mock_producer_plugin>>(chain_id,
-                                                                           config::default_max_variable_signature_length,
-                                                                           true,
-                                                                           thread_pool.get_executor(),
-                                                                           &mock_prod_plug,
-                                                                           10);
+         std::make_shared<fifo_trx_processing_queue<mock_producer>>(chain_id,
+                                                                    config::default_max_variable_signature_length,
+                                                                    true,
+                                                                    thread_pool.get_executor(),
+                                                                    &mock_prod,
+                                                                    10);
    queue->run();
-   queue->on_block_start();
+   queue->on_block_start(1);
 
    std::deque<packed_transaction_ptr> trxs;
    std::atomic<size_t> next_calls = 0;
@@ -137,7 +137,7 @@ BOOST_AUTO_TEST_CASE(order_mock_producer_plugin) {
    queue.reset();
    app_thread.join();
 
-   BOOST_REQUIRE( mock_prod_plug.verify_equal(trxs) );
+   BOOST_REQUIRE( mock_prod.verify_equal(trxs) );
 }
 
 BOOST_AUTO_TEST_SUITE_END()

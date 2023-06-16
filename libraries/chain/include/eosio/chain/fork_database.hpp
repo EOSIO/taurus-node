@@ -20,7 +20,7 @@ namespace eosio { namespace chain {
    class fork_database {
       public:
 
-         explicit fork_database( const fc::path& data_dir );
+         explicit fork_database( const fc::path& data_dir, bool persistent = true);
          ~fork_database();
 
          void open( const std::function<void( block_timestamp_type,
@@ -54,8 +54,8 @@ namespace eosio { namespace chain {
          void            add( const block_state_ptr& next_block, bool ignore_duplicate = false );
 
          void            remove_fork( const block_id_type& id );
-         bool            is_head_block(uint32_t blocknum);
-         void            remove_head(uint32_t blocknum);
+         bool            is_head_block(const block_id_type& id);
+         void            remove_head(const block_id_type& id);
 
          const block_state_ptr& root()const;
          const block_state_ptr& head()const;

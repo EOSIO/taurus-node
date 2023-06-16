@@ -89,9 +89,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_scope_test, TESTER_T, backing_store_ts) { try
    t.produce_blocks(1);
 
    // iterate over scope
-   eosio::chain_apis::read_only plugin(*(t.control), {}, fc::microseconds::maximum());
-   eosio::chain_apis::read_only::get_table_by_scope_params param{"eosio.token"_n, "accounts"_n, "inita", "", 10};
-   eosio::chain_apis::read_only::get_table_by_scope_result result = plugin.read_only::get_table_by_scope(param);
+   eosio::chain_apis::table_query plugin(*(t.control), fc::microseconds::maximum());
+   eosio::chain_apis::table_query::get_table_by_scope_params param{"eosio.token"_n, "accounts"_n, "inita", "", 10};
+   eosio::chain_apis::table_query::get_table_by_scope_result result = plugin.table_query::get_table_by_scope(param);
 
    BOOST_REQUIRE_EQUAL(4u, result.rows.size());
    BOOST_REQUIRE_EQUAL("", result.more);
@@ -109,7 +109,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_scope_test, TESTER_T, backing_store_ts) { try
 
    param.lower_bound = "initb";
    param.upper_bound = "initc";
-   result = plugin.read_only::get_table_by_scope(param);
+   result = plugin.table_query::get_table_by_scope(param);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL("", result.more);
    if (result.rows.size() >= 2) {
@@ -119,13 +119,13 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_scope_test, TESTER_T, backing_store_ts) { try
 
    param.lower_bound = "initc";
    param.upper_bound = "initb";
-   result = plugin.read_only::get_table_by_scope(param);
+   result = plugin.table_query::get_table_by_scope(param);
    BOOST_REQUIRE_EQUAL(0u, result.rows.size());
 
    param.lower_bound = "initb";
    param.upper_bound = "inite";
    param.reverse = true;
-   result = plugin.read_only::get_table_by_scope(param);
+   result = plugin.table_query::get_table_by_scope(param);
    BOOST_REQUIRE_EQUAL(3u, result.rows.size());
    BOOST_REQUIRE_EQUAL("", result.more);
 
@@ -134,17 +134,17 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_scope_test, TESTER_T, backing_store_ts) { try
    BOOST_REQUIRE_EQUAL(name("initb"_n), result.rows[2].scope);
 
    param.limit = 1;
-   result = plugin.read_only::get_table_by_scope(param);
+   result = plugin.table_query::get_table_by_scope(param);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    BOOST_REQUIRE_EQUAL("initc", result.more);
 
    param.table = name(0);
-   result = plugin.read_only::get_table_by_scope(param);
+   result = plugin.table_query::get_table_by_scope(param);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    BOOST_REQUIRE_EQUAL("initc", result.more);
 
    param.table = "invalid"_n;
-   result = plugin.read_only::get_table_by_scope(param);
+   result = plugin.table_query::get_table_by_scope(param);
    BOOST_REQUIRE_EQUAL(0u, result.rows.size());
    BOOST_REQUIRE_EQUAL("", result.more);
 
@@ -211,14 +211,14 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_test, TESTER_T, backing_store_ts) { try
    t.produce_blocks(1);
 
    // get table: normal case
-   eosio::chain_apis::read_only plugin(*(t.control), {}, fc::microseconds::maximum());
-   eosio::chain_apis::read_only::get_table_rows_params p;
+   eosio::chain_apis::table_query plugin(*(t.control), fc::microseconds::maximum());
+   eosio::chain_apis::table_query::get_table_rows_params p;
    p.code = "eosio.token"_n;
    p.scope = "inita";
    p.table = "accounts"_n;
    p.json = true;
    p.index_position = "primary";
-   eosio::chain_apis::read_only::get_table_rows_result result = plugin.read_only::get_table_rows(p);
+   eosio::chain_apis::table_query::get_table_rows_result result = plugin.table_query::get_table_rows(p);
    BOOST_REQUIRE_EQUAL(4u, result.rows.size());
    BOOST_REQUIRE_EQUAL(false, result.more);
    if (result.rows.size() >= 4) {
@@ -230,7 +230,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_test, TESTER_T, backing_store_ts) { try
 
    // get table: reverse ordered
    p.reverse = true;
-   result = plugin.read_only::get_table_rows(p);
+   result = plugin.table_query::get_table_rows(p);
    BOOST_REQUIRE_EQUAL(4u, result.rows.size());
    BOOST_REQUIRE_EQUAL(false, result.more);
    if (result.rows.size() >= 4) {
@@ -243,7 +243,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_test, TESTER_T, backing_store_ts) { try
    // get table: reverse ordered, with ram payer
    p.reverse = true;
    p.show_payer = true;
-   result = plugin.read_only::get_table_rows(p);
+   result = plugin.table_query::get_table_rows(p);
    BOOST_REQUIRE_EQUAL(4u, result.rows.size());
    BOOST_REQUIRE_EQUAL(false, result.more);
    if (result.rows.size() >= 4) {
@@ -262,7 +262,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_test, TESTER_T, backing_store_ts) { try
    p.lower_bound = "BBB";
    p.upper_bound = "CCC";
    p.reverse = false;
-   result = plugin.read_only::get_table_rows(p);
+   result = plugin.table_query::get_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(false, result.more);
    if (result.rows.size() >= 2) {
@@ -274,7 +274,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_test, TESTER_T, backing_store_ts) { try
    p.lower_bound = "BBB";
    p.upper_bound = "CCC";
    p.reverse = true;
-   result = plugin.read_only::get_table_rows(p);
+   result = plugin.table_query::get_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(false, result.more);
    if (result.rows.size() >= 2) {
@@ -286,7 +286,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_test, TESTER_T, backing_store_ts) { try
    p.lower_bound = p.upper_bound = "";
    p.limit = 1;
    p.reverse = false;
-   result = plugin.read_only::get_table_rows(p);
+   result = plugin.table_query::get_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    BOOST_REQUIRE_EQUAL(true, result.more);
    if (result.rows.size() >= 1) {
@@ -297,7 +297,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_test, TESTER_T, backing_store_ts) { try
    p.lower_bound = p.upper_bound = "";
    p.limit = 1;
    p.reverse = true;
-   result = plugin.read_only::get_table_rows(p);
+   result = plugin.table_query::get_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    BOOST_REQUIRE_EQUAL(true, result.more);
    if (result.rows.size() >= 1) {
@@ -309,7 +309,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_test, TESTER_T, backing_store_ts) { try
    p.upper_bound = "CCC";
    p.limit = 1;
    p.reverse = false;
-   result = plugin.read_only::get_table_rows(p);
+   result = plugin.table_query::get_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    BOOST_REQUIRE_EQUAL(true, result.more);
    if (result.rows.size() >= 1) {
@@ -321,7 +321,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_test, TESTER_T, backing_store_ts) { try
    p.upper_bound = "CCC";
    p.limit = 1;
    p.reverse = true;
-   result = plugin.read_only::get_table_rows(p);
+   result = plugin.table_query::get_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    BOOST_REQUIRE_EQUAL(true, result.more);
    if (result.rows.size() >= 1) {
@@ -381,15 +381,15 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_by_seckey_test, TESTER_T, backing_store
    t.produce_blocks(1);
 
    // get table: normal case
-   eosio::chain_apis::read_only plugin(*(t.control), {}, fc::microseconds::maximum());
-   eosio::chain_apis::read_only::get_table_rows_params p;
+   eosio::chain_apis::table_query plugin(*(t.control), fc::microseconds::maximum());
+   eosio::chain_apis::table_query::get_table_rows_params p;
    p.code = "eosio"_n;
    p.scope = "eosio";
    p.table = "namebids"_n;
    p.json = true;
    p.index_position = "secondary"; // ordered by high_bid
    p.key_type = "i64";
-   eosio::chain_apis::read_only::get_table_rows_result result = plugin.read_only::get_table_rows(p);
+   eosio::chain_apis::table_query::get_table_rows_result result = plugin.table_query::get_table_rows(p);
    BOOST_REQUIRE_EQUAL(4u, result.rows.size());
    BOOST_REQUIRE_EQUAL(false, result.more);
    if (result.rows.size() >= 4) {
@@ -413,7 +413,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_by_seckey_test, TESTER_T, backing_store
    // reverse search, with show ram payer
    p.reverse = true;
    p.show_payer = true;
-   result = plugin.read_only::get_table_rows(p);
+   result = plugin.table_query::get_table_rows(p);
    BOOST_REQUIRE_EQUAL(4u, result.rows.size());
    BOOST_REQUIRE_EQUAL(false, result.more);
    if (result.rows.size() >= 4) {
@@ -442,7 +442,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_by_seckey_test, TESTER_T, backing_store
    p.reverse = false;
    p.show_payer = false;
    p.limit = 1;
-   result = plugin.read_only::get_table_rows(p);
+   result = plugin.table_query::get_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    BOOST_REQUIRE_EQUAL(true, result.more);
    if (result.rows.size() >= 1) {
@@ -455,7 +455,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_by_seckey_test, TESTER_T, backing_store
    p.reverse = true;
    p.show_payer = false;
    p.limit = 1;
-   result = plugin.read_only::get_table_rows(p);
+   result = plugin.table_query::get_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    BOOST_REQUIRE_EQUAL(true, result.more);
    if (result.rows.size() >= 1) {
@@ -475,7 +475,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_by_seckey_test, TESTER_T, backing_store
    p.index_position = "primary";
    p.key_type = "name";
    p.limit = 10;
-   eosio::chain_apis::read_only::get_table_rows_result all_digits_result = plugin.read_only::get_table_rows(p);
+   eosio::chain_apis::table_query::get_table_rows_result all_digits_result = plugin.table_query::get_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, all_digits_result.rows.size());
    BOOST_REQUIRE_EQUAL(false, all_digits_result.more);
    BOOST_REQUIRE_EQUAL(all_digits_name_1, all_digits_result.rows[0]["newname"].as_string());
@@ -550,9 +550,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_next_key_test, TESTER_T, backing_store_
    // }
 
 
-   chain_apis::read_only plugin(*(t.control), {}, fc::microseconds::maximum());
-   chain_apis::read_only::get_table_rows_params params = []{
-      chain_apis::read_only::get_table_rows_params params{};
+   chain_apis::table_query plugin(*(t.control), fc::microseconds::maximum());
+   chain_apis::table_query::get_table_rows_params params = []{
+      chain_apis::table_query::get_table_rows_params params{};
       params.json=true;
       params.code="test"_n;
       params.scope="test";
@@ -691,17 +691,17 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_next_key_test, TESTER_T, backing_store_
    params.lower_bound = "ab4314638b573fdc39e5a7b107938ad1b5a16414"; // This is ripemd160 hash of "thirdinput"
 
    auto res_8 = plugin.get_table_rows(params);
-   ripemd160 sec160_expected_value = ripemd160::hash(std::string("thirdinput"));
+   fc::ripemd160 sec160_expected_value = fc::ripemd160::hash(std::string("thirdinput"));
    BOOST_REQUIRE(res_8.rows.size() > 0);
-   ripemd160 sec160_res_value = res_8.rows[0].get_object()["sec160"].as<ripemd160>();
+   fc::ripemd160 sec160_res_value = res_8.rows[0].get_object()["sec160"].as<fc::ripemd160>();
    BOOST_TEST(sec160_res_value == sec160_expected_value);
    BOOST_TEST(res_8.rows[0].get_object()["hash_input"].as<string>() == "thirdinput");
    BOOST_TEST(res_8.next_key == "fb9d03d3012dc2a6c7b319f914542e3423550c2a");
    params.lower_bound = res_8.next_key;
    auto more2_res_8 = plugin.get_table_rows(params);
-   ripemd160 more2_sec160_expected_value = ripemd160::hash(std::string("secondinput"));
+   fc::ripemd160 more2_sec160_expected_value = fc::ripemd160::hash(std::string("secondinput"));
    BOOST_REQUIRE(more2_res_8.rows.size() > 0);
-   ripemd160 more2_sec160_res_value = more2_res_8.rows[0].get_object()["sec160"].as<ripemd160>();
+   fc::ripemd160 more2_sec160_res_value = more2_res_8.rows[0].get_object()["sec160"].as<fc::ripemd160>();
    BOOST_TEST(more2_sec160_res_value == more2_sec160_expected_value);
    BOOST_TEST(more2_res_8.rows[0].get_object()["hash_input"].as<string>() == "secondinput");
 

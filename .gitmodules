@@ -1,30 +1,39 @@
-[submodule "libraries/softfloat"]
-	path = libraries/softfloat
-	url = https://github.com/eosio/berkeley-softfloat-3
 [submodule "libraries/yubihsm"]
 	path = libraries/yubihsm
 	url = https://github.com/Yubico/yubihsm-shell
-[submodule "libraries/eos-vm"]
-	path = libraries/eos-vm
-	url = https://github.com/eosio/eos-vm
-[submodule "eosio-wasm-spec-tests"]
-	path = eosio-wasm-spec-tests
-	url = https://github.com/EOSIO/eosio-wasm-spec-tests
-[submodule "libraries/abieos"]
-	path = libraries/abieos
-	url = https://github.com/EOSIO/abieos.git
 [submodule "libraries/rocksdb"]
 	path = libraries/rocksdb
 	url = https://github.com/facebook/rocksdb.git
 [submodule "libraries/amqp-cpp"]
 	path = libraries/amqp-cpp
 	url = https://github.com/CopernicaMarketingSoftware/AMQP-CPP
-[submodule "libraries/fc"]
-	path = libraries/fc
-	url = https://github.com/eosio/fc
-[submodule "libraries/chainbase"]
-	path = libraries/chainbase
-	url = https://github.com/eosio/chainbase
+[submodule "libraries/nuraft"]
+	path = libraries/nuraft
+	url = https://github.com/eBay/NuRaft
+[submodule "libraries/sml"]
+	path = libraries/sml
+	url = https://github.com/boost-ext/sml
+[submodule "libraries/FakeIt"]
+	path = libraries/FakeIt
+	url = https://github.com/eranpeer/FakeIt
+[submodule "libraries/softfloat"]
+	path = libraries/softfloat
+	url = https://github.com/EOSIO/berkeley-softfloat-3
 [submodule "libraries/appbase"]
 	path = libraries/appbase
-	url = https://github.com/eosio/appbase
+	url = https://github.com/EOSIO/taurus-appbase
+[submodule "libraries/chainbase"]
+	path = libraries/chainbase
+	url = https://github.com/EOSIO/taurus-chainbase
+[submodule "libraries/fc"]
+	path = libraries/fc
+	url = https://github.com/EOSIO/taurus-fc
+[submodule "taurus-wasm-spec-tests"]
+	path = taurus-wasm-spec-tests
+	url = https://github.com/EOSIO/taurus-wasm-spec-tests
+[submodule "libraries/abieos"]
+	path = libraries/abieos
+	url = https://github.com/EOSIO/taurus-abieos
+[submodule "libraries/eos-vm"]
+	path = libraries/eos-vm
+	url = https://github.com/EOSIO/taurus-vm

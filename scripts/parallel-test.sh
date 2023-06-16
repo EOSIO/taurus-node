@@ -6,9 +6,6 @@ echo "--- $([[ "$BUILDKITE" == 'true' ]] && echo ':evergreen_tree: ')Configuring
 GIT_ROOT="$(dirname $BASH_SOURCE[0])/.."
 if [[ "$(uname)" == 'Linux' ]]; then
     . /etc/os-release
-    if [[ "$ID" == 'centos' ]]; then
-        [[ -f /opt/rh/rh-python36/enable ]] && source /opt/rh/rh-python36/enable
-    fi
 fi
 cd "$GIT_ROOT/build"
 # count tests

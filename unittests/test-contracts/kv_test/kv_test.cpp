@@ -53,7 +53,7 @@ class [[eosio::contract("kv_test")]] kvtest : public eosio::contract {
       check(kv_it_status(6) == iterator_end, "itlifetime q");
       check(kv_it_status(7) == iterator_end, "itlifetime r");
    }
-
+ 
    [[eosio::action]] void itlimit(std::vector<itparam> params) {
       bool has_erase = false;
       for(auto& itop : params) {
@@ -328,6 +328,9 @@ class [[eosio::contract("kv_test")]] kvtest : public eosio::contract {
             case 3: {
                auto it2 = kv_it_create(contract.value, prefix.data(), prefix.size());
                kv_it_compare(it2, it); // abort
+               return;
+            }
+            case 4: {
                kv_it_compare(it, it); // abort
                return;
             }

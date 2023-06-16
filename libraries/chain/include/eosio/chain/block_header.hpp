@@ -73,6 +73,11 @@ namespace eosio { namespace chain {
 
    struct signed_block_header : public block_header
    {
+      /*
+       * NOTE: the producer_signature in a block being built will be updated by a separated thread
+       * created by the finalized_block() function call. During the separated thread is running, this
+       * field should not be read/updated by any other threads, without race condition protections.
+       */
       signature_type    producer_signature;
    };
    

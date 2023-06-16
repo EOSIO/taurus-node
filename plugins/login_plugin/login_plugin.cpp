@@ -89,7 +89,7 @@ login_plugin::start_login_request_results
 login_plugin::start_login_request(const login_plugin::start_login_request_params& params) {
    my->expire_requests();
    EOS_ASSERT(params.expiration_time > fc::time_point::now(), fc::timeout_exception,
-              "Requested expiration time ${expiration_time} is in the past",
+              "Requested expiration time {expiration_time} is in the past",
               ("expiration_time", params.expiration_time));
    EOS_ASSERT(my->requests.size() < my->max_login_requests, fc::timeout_exception, "Too many pending login requests");
    login_request request;
@@ -131,7 +131,7 @@ login_plugin::finalize_login_request(const login_plugin::finalize_login_request_
       auto noop_checktime = [] {};
       auto& chain = app().get_plugin<chain_plugin>().chain();
       chain.get_authorization_manager().check_authorization( //
-          params.permission.actor, params.permission.permission, result.recovered_keys, {}, fc::microseconds(0),
+          params.permission.actor, params.permission.permission, result.recovered_keys, {},
           noop_checktime, true);
       result.permission_satisfied = true;
    } catch (...) {

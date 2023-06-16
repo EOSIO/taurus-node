@@ -16,6 +16,12 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 #include "LLVMJIT.h"
 
+#if __clang_major__ > 11
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wambiguous-reversed-operator"
+#endif
+
+
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/ExecutionEngine/RTDyldMemoryManager.h"
 #include "llvm/ExecutionEngine/Orc/CompileUtils.h"
@@ -48,6 +54,11 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Utils.h"
+
+#if __clang_major__ > 11
+#pragma clang diagnostic pop
+#endif
+
 #include <memory>
 
 #include <fc/io/datastream.hpp>

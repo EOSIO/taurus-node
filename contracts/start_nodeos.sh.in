@@ -1,0 +1,4 @@
+#!/bin/bash
+TAURUS_NODE_ROOT=@CMAKE_BINARY_DIR@ 
+rm -rf data
+${TAURUS_NODE_ROOT}/bin/nodeos -c @CMAKE_CURRENT_SOURCE_DIR@/config.ini --config-dir=$PWD --genesis-json=@CMAKE_CURRENT_SOURCE_DIR@/genesis.json -d data 

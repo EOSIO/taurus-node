@@ -80,6 +80,7 @@ class code_cache_base {
       size_t _mapped_size = 0;
       bool _populate_on_map = false;
       bool _mlock_map = false;
+      bool _persistent = true;
 
       int _extra_mmap_flags = 0;
 

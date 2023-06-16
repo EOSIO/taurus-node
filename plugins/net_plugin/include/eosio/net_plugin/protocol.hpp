@@ -3,18 +3,16 @@
 #include <eosio/chain/types.hpp>
 #include <chrono>
 
-namespace eosio {
-   using namespace chain;
-   using namespace fc;
+namespace eosio { namespace p2p {
 
    static_assert(sizeof(std::chrono::system_clock::duration::rep) >= 8, "system_clock is expected to be at least 64 bits");
    typedef std::chrono::system_clock::duration::rep tstamp;
 
    struct chain_size_message {
       uint32_t                   last_irreversible_block_num = 0;
-      block_id_type              last_irreversible_block_id;
+      chain::block_id_type       last_irreversible_block_id;
       uint32_t                   head_num = 0;
-      block_id_type              head_id;
+      chain::block_id_type       head_id;
    };
 
    // Longest domain name is 253 characters according to wikipedia.
@@ -25,21 +23,21 @@ namespace eosio {
    constexpr size_t max_handshake_str_length = 384;
 
    struct handshake_message {
-      uint16_t                   network_version = 0; ///< incremental value above a computed base
-      chain_id_type              chain_id; ///< used to identify chain
-      fc::sha256                 node_id; ///< used to identify peers and prevent self-connect
-      chain::public_key_type     key; ///< authentication key; may be a producer or peer key, or empty
-      tstamp                     time{0};
-      fc::sha256                 token; ///< digest of time to prove we own the private key of the key above
-      chain::signature_type      sig; ///< signature for the digest
-      string                     p2p_address;
-      uint32_t                   last_irreversible_block_num = 0;
-      block_id_type              last_irreversible_block_id;
-      uint32_t                   head_num = 0;
-      block_id_type              head_id;
-      string                     os;
-      string                     agent;
-      int16_t                    generation = 0;
+      uint16_t                         network_version = 0; ///< incremental value above a computed base
+      eosio::chain::chain_id_type      chain_id; ///< used to identify chain
+      fc::sha256                       node_id; ///< used to identify peers and prevent self-connect
+      eosio::chain::public_key_type    key; ///< authentication key; may be a producer or peer key, or empty
+      long long                        time{0}; // this value is nanoseconds
+      fc::sha256                       token; ///< digest of time to prove we own the private key of the key above
+      chain::signature_type            sig; ///< signature for the digest
+      fc::string                       p2p_address;
+      uint32_t                         last_irreversible_block_num = 0;
+      chain::block_id_type             last_irreversible_block_id;
+      uint32_t                         head_num = 0;
+      chain::block_id_type             head_id;
+      fc::string                       os;
+      fc::string                       agent;
+      int16_t                          generation = 0;
    };
 
 
@@ -111,12 +109,12 @@ namespace eosio {
     select_ids() : mode(none),pending(0),ids() {}
     id_list_modes  mode{none};
     uint32_t       pending{0};
-    vector<T>      ids;
+    std::vector<T> ids;
     bool           empty () const { return (mode == none || ids.empty()); }
   };
 
-  using ordered_txn_ids = select_ids<transaction_id_type>;
-  using ordered_blk_ids = select_ids<block_id_type>;
+  using ordered_txn_ids = select_ids<chain::transaction_id_type>;
+  using ordered_blk_ids = select_ids<chain::block_id_type>;
 
   struct notice_message {
     notice_message() : known_trx(), known_blocks() {}
@@ -136,8 +134,8 @@ namespace eosio {
    };
 
    struct trx_message_v1 {
-      std::optional<transaction_id_type>  trx_id; // only provided for large trx as trade-off for small trxs not worth it
-      std::shared_ptr<packed_transaction> trx;
+      std::optional<chain::transaction_id_type>  trx_id; // only provided for large trx as trade-off for small trxs not worth it
+      std::shared_ptr<chain::packed_transaction> trx;
    };
 
    using net_message = std::variant<handshake_message,
@@ -147,31 +145,28 @@ namespace eosio {
                                     notice_message,
                                     request_message,
                                     sync_request_message,
-                                    signed_block_v0,         // which = 7
-                                    packed_transaction_v0,   // which = 8
-                                    signed_block,            // which = 9
+                                    chain::signed_block_v0,         // which = 7
+                                    chain::packed_transaction_v0,   // which = 8
+                                    chain::signed_block,            // which = 9
                                     trx_message_v1>;         // which = 10
+}} // namespace eosio::p2p
 
-} // namespace eosio
-
-FC_REFLECT( eosio::select_ids<fc::sha256>, (mode)(pending)(ids) )
-FC_REFLECT( eosio::chain_size_message,
+FC_REFLECT( eosio::p2p::select_ids<fc::sha256>, (mode)(pending)(ids) )
+FC_REFLECT( eosio::p2p::chain_size_message,
             (last_irreversible_block_num)(last_irreversible_block_id)
             (head_num)(head_id))
-FC_REFLECT( eosio::handshake_message,
+FC_REFLECT( eosio::p2p::handshake_message,
             (network_version)(chain_id)(node_id)(key)
             (time)(token)(sig)(p2p_address)
             (last_irreversible_block_num)(last_irreversible_block_id)
             (head_num)(head_id)
             (os)(agent)(generation) )
-FC_REFLECT( eosio::go_away_message, (reason)(node_id) )
-FC_REFLECT( eosio::time_message, (org)(rec)(xmt)(dst) )
-FC_REFLECT( eosio::notice_message, (known_trx)(known_blocks) )
-FC_REFLECT( eosio::request_message, (req_trx)(req_blocks) )
-FC_REFLECT( eosio::sync_request_message, (start_block)(end_block) )
-FC_REFLECT( eosio::trx_message_v1, (trx_id)(trx) )
-
-
+FC_REFLECT( eosio::p2p::go_away_message, (reason)(node_id) )
+FC_REFLECT( eosio::p2p::time_message, (org)(rec)(xmt)(dst) )
+FC_REFLECT( eosio::p2p::notice_message, (known_trx)(known_blocks) )
+FC_REFLECT( eosio::p2p::request_message, (req_trx)(req_blocks) )
+FC_REFLECT( eosio::p2p::sync_request_message, (start_block)(end_block) )
+FC_REFLECT( eosio::p2p::trx_message_v1, (trx_id)(trx) )
 /**
  *
 Goals of Network Code

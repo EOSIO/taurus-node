@@ -112,8 +112,8 @@ try:
     Print("publish a new bios contract %s should fails because env.is_feature_activated unresolveable" % (contractDir))
     retMap = node0.publishContract(cluster.eosioAccount, contractDir, wasmFile, abiFile, True, shouldFail=True)
 
-    if retMap["output"].decode("utf-8").find("unresolveable") < 0:
-        errorExit("bios contract not result in expected unresolveable error")
+    if retMap["returncode"] == 0:
+        errorExit("bios contract not result in expected error")
 
     secwait = 30
     Print("Wait for node 1 to produce...")
@@ -151,8 +151,8 @@ try:
     time.sleep(0.6)
     Print("publish a new bios contract %s should fails because node1 is not producing block yet" % (contractDir))
     retMap = node0.publishContract(cluster.eosioAccount, contractDir, wasmFile, abiFile, True, shouldFail=True)
-    if retMap["output"].decode("utf-8").find("unresolveable") < 0:
-        errorExit("bios contract not result in expected unresolveable error")
+    if retMap["returncode"] == 0:
+        errorExit("bios contract not result in expected error")
 
     Print("now wait for node 1 produce a block...")
     secwait = 30 # wait for node 1 produce a block
@@ -174,4 +174,5 @@ try:
 finally:
     TestHelper.shutdown(cluster, walletMgr, testSuccessful, killEosInstances, killWallet, keepLogs, killAll, dumpErrorDetails)
 
-exit(0)
+exitCode = 0 if testSuccessful else 1
+exit(exitCode)

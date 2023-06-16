@@ -3,7 +3,8 @@
 #include <amqpcpp.h>
 
 #include <boost/asio.hpp>
-
+#include <boost/asio/ssl.hpp>
+#include <boost/bind.hpp>
 #include <fc/log/logger.hpp>
 #include <fc/exception/exception.hpp>
 #include <fc/time.hpp>
@@ -26,6 +27,11 @@ struct retrying_amqp_connection {
    /// \param failed a callback when the AMQP connection has failed after being established; should no longer use the AMQP::Connection* after this callback
    /// \param logger logger to send logging to
    retrying_amqp_connection(boost::asio::io_context& io_context, const AMQP::Address& address,
+                            const fc::microseconds& retry_interval,
+                            connection_ready_callback_t ready, connection_failed_callback_t failed,
+                            fc::logger logger = fc::logger::get());
+   // amqp via tls
+   retrying_amqp_connection(boost::asio::io_context& io_context, const AMQP::Address& address, boost::asio::ssl::context & ssl_ctx,
                             const fc::microseconds& retry_interval,
                             connection_ready_callback_t ready, connection_failed_callback_t failed,
                             fc::logger logger = fc::logger::get());
@@ -55,6 +61,11 @@ struct single_channel_retrying_amqp_connection {
                                            const fc::microseconds& retry_interval,
                                            channel_ready_callback_t ready, failed_callback_t failed,
                                            fc::logger logger = fc::logger::get());
+   // amqp via tls
+   single_channel_retrying_amqp_connection(boost::asio::io_context& io_context, const AMQP::Address& address, boost::asio::ssl::context & ssl_ctx,
+                                           const fc::microseconds& retry_interval,
+                                           channel_ready_callback_t ready, failed_callback_t failed,
+                                           fc::logger logger = fc::logger::get());
 
    const AMQP::Address& address() const;
 
@@ -65,4 +76,24 @@ private:
    std::unique_ptr<impl> my;
 };
 
+}
+
+namespace fmt {
+   template<>
+   struct formatter<AMQP::Address> {
+      template<typename ParseContext>
+      constexpr auto parse( ParseContext& ctx ) { return ctx.begin(); }
+
+      template<typename FormatContext>
+      auto format( const AMQP::Address& p, FormatContext& ctx ) {
+         // cover login data (username + password)
+         std::string addr = (std::string)p;
+         auto left = addr.find_first_of("//");
+         auto right = addr.find_first_of("@");
+         if (left == std::string::npos || right == std::string::npos)
+            return format_to( ctx.out(), std::move(addr));
+         else
+            return format_to( ctx.out(), "{}", addr.substr(0, left+2) + "********:********" + addr.substr(right) );
+      }
+   };
 }

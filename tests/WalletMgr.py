@@ -27,6 +27,7 @@ class WalletMgr(object):
         self.host=host
         self.wallets={}
         self.__walletPid=None
+        self.additional_launch_opts = ""
 
     def getWalletEndpointArgs(self):
         if not self.walletd or not self.isLaunched():
@@ -80,8 +81,8 @@ class WalletMgr(object):
                     statusMsg+=" port %d is NOT available." % (self.port)
                 Utils.Print("Launching %s, note similar processes running. %s" % (Utils.EosWalletName, statusMsg))
 
-        cmd="%s --data-dir %s --config-dir %s --http-server-address=%s:%d --verbose-http-errors" % (
-            Utils.EosWalletPath, WalletMgr.__walletDataDir, WalletMgr.__walletDataDir, self.host, self.port)
+        cmd="%s --data-dir %s --config-dir %s --http-server-address=%s:%d --verbose-http-errors %s" % (
+            Utils.EosWalletPath, WalletMgr.__walletDataDir, WalletMgr.__walletDataDir, self.host, self.port, self.additional_launch_opts)
         if Utils.Debug: Utils.Print("cmd: %s" % (cmd))
         with open(WalletMgr.__walletLogOutFile, 'w') as sout, open(WalletMgr.__walletLogErrFile, 'w') as serr:
             popen=subprocess.Popen(cmd.split(), stdout=sout, stderr=serr)

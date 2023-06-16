@@ -35,7 +35,7 @@ struct wasm_ql_plugin_impl : std::enable_shared_from_this<wasm_ql_plugin_impl> {
    void schedule_retry() {
       if (retried++ < max_retries) {
          timer.expires_from_now(boost::posix_time::seconds(1));
-         timer.async_wait([this](auto&) {
+         timer.async_wait([this](auto) {
             ilog("retry...");
             try {
                try {

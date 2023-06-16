@@ -90,7 +90,7 @@ EOSIO_REFLECT(send_error_results, code, message, error)
 namespace b1::rodeos::wasm_ql {
 
 // Report a failure
-static void fail(beast::error_code ec, const char* what) { elog("${w}: ${s}", ("w", what)("s", ec.message())); }
+static void fail(beast::error_code ec, const char* what) { elog("{w}: {s}", ("w", what)("s", ec.message())); }
 
 // Return a reasonable mime type based on the extension of a file.
 beast::string_view mime_type(beast::string_view path) {
@@ -251,6 +251,15 @@ void handle_request(const wasm_ql::http_config& http_config, const wasm_ql::shar
                                  std::string_view{ req.body().data(), req.body().size() }),
                  "application/json"));
          return;
+      } else if (req.target() == "/v1/chain/get_account") {
+         if (req.method() != http::verb::post)
+            return send(
+                    error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
+         auto thread_state = state_cache.get_state();
+         send(ok(query_get_account(*thread_state, temp_contract_kv_prefix,
+                                   std::string_view{req.body().data(), req.body().size()}),
+                 "application/json"));
+         return;
       } else if (req.target() == "/v1/chain/get_abi") { // todo: get_raw_abi. upgrade cleos to use get_raw_abi.
          if (req.method() != http::verb::post)
             return send(
@@ -299,7 +308,7 @@ void handle_request(const wasm_ql::http_config& http_config, const wasm_ql::shar
             send(ok(std::move(json_result), "application/json"));
          } else {
             try {
-               // elog("query failed: ${s}", ("s", e.what()));
+               // elog("query failed: {s}", ("s", e.what()));
                send_error_results err;
                err.code       = (uint16_t)http::status::internal_server_error;
                err.message    = "Internal Service Error";
@@ -377,7 +386,7 @@ void handle_request(const wasm_ql::http_config& http_config, const wasm_ql::shar
       }
    } catch (const eosio::vm::exception& e) {
       try {
-         // elog("query failed: ${s}", ("s", e.what()));
+         // elog("query failed: {s}", ("s", e.what()));
          error_results err;
          err.code       = (uint16_t)http::status::internal_server_error;
          err.message    = "Internal Service Error";
@@ -389,7 +398,7 @@ void handle_request(const wasm_ql::http_config& http_config, const wasm_ql::shar
       }
    } catch (const std::exception& e) {
       try {
-         // elog("query failed: ${s}", ("s", e.what()));
+         // elog("query failed: {s}", ("s", e.what()));
          error_results err;
          err.code       = (uint16_t)http::status::internal_server_error;
          err.message    = "Internal Service Error";
@@ -653,7 +662,7 @@ class listener : public std::enable_shared_from_this<listener> {
          else if(test_ec == boost::system::errc::connection_refused)
             ::unlink(http_config->unix_path.c_str());
          else if(test_ec != boost::system::errc::no_such_file_or_directory)
-            FC_ASSERT(false, "unexpected failure when probing existing wasmql http unix socket: ${e}", ("e", test_ec.message()));
+            FC_ASSERT(false, "unexpected failure when probing existing wasmql http unix socket: {e}", ("e", test_ec.message()));
 
          start_listen(unix_acceptor, unixs::endpoint(http_config->unix_path));
       }
@@ -668,7 +677,7 @@ class listener : public std::enable_shared_from_this<listener> {
       auto check_ec = [&](const char* what) {
          if (!ec)
             return;
-         elog("${w}: ${m}", ("w", what)("m", ec.message()));
+         elog("{w}: {m}", ("w", what)("m", ec.message()));
          FC_ASSERT(false, "unable to open listen socket");
       };
 
@@ -708,14 +717,14 @@ class listener : public std::enable_shared_from_this<listener> {
             // Create the http session and run it
             if constexpr (std::is_same_v<Acceptor, tcp::acceptor>) {
                boost::system::error_code ec;
-               dlog( "Accepting connection from ${ra}:${rp} to ${la}:${lp}",
+               dlog( "Accepting connection from {ra}:{rp} to {la}:{lp}",
                      ("ra", socket.remote_endpoint(ec).address().to_string())("rp", socket.remote_endpoint(ec).port())
                      ("la", socket.local_endpoint(ec).address().to_string())("lp", socket.local_endpoint(ec).port()) );
                std::make_shared<tcp_http_session>( http_config, shared_state, state_cache, std::move( socket ) )->run();
             } else if constexpr (std::is_same_v<Acceptor, unixs::acceptor>) {
                boost::system::error_code ec;
                auto rep = socket.remote_endpoint(ec);
-               dlog( "Accepting connection from ${r}", ("r", rep.path()) );
+               dlog( "Accepting connection from {r}", ("r", rep.path()) );
                std::make_shared<unix_http_session>( http_config, shared_state, state_cache, std::move( socket ) )->run();
             }
          }

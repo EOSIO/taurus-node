@@ -11,7 +11,7 @@
 #include <functional>
 #include <type_traits>
 
-namespace eosio {
+namespace eosio::chain {
 
    /// @cond IMPLEMENTATIONS
 

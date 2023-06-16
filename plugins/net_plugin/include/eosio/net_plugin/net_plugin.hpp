@@ -1,17 +1,13 @@
 #pragma once
+
+#include <eosio/net_plugin/protocol.hpp>
+#include <eosio/net_plugin/connection.hpp>
+
 #include <appbase/application.hpp>
 #include <eosio/chain_plugin/chain_plugin.hpp>
-#include <eosio/net_plugin/protocol.hpp>
 
 namespace eosio {
    using namespace appbase;
-
-   struct connection_status {
-      string            peer;
-      bool              connecting = false;
-      bool              syncing    = false;
-      handshake_message last_handshake;
-   };
 
    class net_plugin : public appbase::plugin<net_plugin>
    {
@@ -27,15 +23,12 @@ namespace eosio {
         void plugin_startup();
         void plugin_shutdown();
 
-        string                            connect( const string& endpoint );
-        string                            disconnect( const string& endpoint );
-        std::optional<connection_status>  status( const string& endpoint )const;
-        vector<connection_status>         connections()const;
+        std::string                            connect( const std::string& endpoint );
+        std::string                            disconnect( const std::string& endpoint );
+        std::optional<p2p::connection_status>  status( const std::string& endpoint )const;
+        vector<p2p::connection_status>         connections()const;
 
       private:
-        std::shared_ptr<class net_plugin_impl> my;
+        std::shared_ptr<class p2p::net_plugin_impl> my;
    };
-
 }
-
-FC_REFLECT( eosio::connection_status, (peer)(connecting)(syncing)(last_handshake) )

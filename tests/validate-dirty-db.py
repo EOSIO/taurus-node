@@ -7,11 +7,12 @@ from TestHelper import TestHelper
 import random
 import subprocess
 import signal
+import time
 
 ###############################################################
 # validate-dirty-db
 #
-# Test for validating the dirty db flag sticks repeated nodeos restart attempts
+# Test for validating NO dirty db flag any more after repeated nodeos restart attempts
 #
 ###############################################################
 
@@ -41,7 +42,7 @@ testSuccessful=False
 def runNodeosAndGetOutput(myTimeout=3):
     """Startup nodeos, wait for timeout (before forced shutdown) and collect output. Stdout, stderr and return code are returned in a dictionary."""
     Print("Launching nodeos process.")
-    cmd="programs/nodeos/nodeos --config-dir etc/eosio/node_bios --data-dir var/lib/node_bios --verbose-http-errors --http-validate-host=false"
+    cmd="programs/nodeos/nodeos --config-dir etc/eosio/node_bios --data-dir var/lib/node_bios --verbose-http-errors --http-validate-host=false --terminate-at-block 5"
     Print("cmd: %s" % (cmd))
     proc=subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if debug: Print("Nodeos process launched.")
@@ -80,17 +81,32 @@ try:
     if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, topo=topo, delay=delay, dontBootstrap=True) is False:
         errorExit("Failed to stand up eos cluster.")
 
-    node=cluster.getNode(0)
+    if not cluster.waitOnClusterSync(timeout=30, blockAdvancing=5):
+        Utils.errorExit("Cluster failed to produce blocks.")
+    else:
+        Utils.Print("Cluster in Sync")
 
-    Print("Kill cluster nodes.")
-    cluster.killall(allInstances=killAll)
+    Print("Kill the cluster.")
+    for node in cluster.getNodes():
+        node.kill(signal.SIGTERM)
 
-    Print("Restart nodeos repeatedly to ensure dirty database flag sticks.")
-    timeout=6
+    cluster.biosNode.kill(signal.SIGTERM)
 
-    for i in range(1,4):
+    # `kill -9` nodeos and make sure it can start back
+    Print("Restart nodeos then kill -9 it repeatedly, ensuring NO dirty database flag.")
+
+    for i in range(3):
         Print("Attempt %d." % (i))
+
+        Print("Start a nodeos and kill it with SIGKILL.")
+        cluster.biosNode.relaunch(cachePopen=True)
+        time.sleep(5)
+
+        cluster.biosNode.kill(signal.SIGKILL)
+
+        timeout=15
         ret = runNodeosAndGetOutput(timeout)
+
         assert(ret)
         assert(isinstance(ret, tuple))
         if not ret[0]:
@@ -100,12 +116,12 @@ try:
         # pylint: disable=unsubscriptable-object
         stderr= ret[1]["stderr"]
         retCode=ret[1]["returncode"]
-        expectedRetCode=2
+        expectedRetCode = 0
         if retCode != expectedRetCode:
             errorExit("Expected return code to be %d, but instead received %d. output={\n%s\n}" % (expectedRetCode, retCode, ret))
         db_dirty_msg="atabase dirty flag set"
-        if db_dirty_msg not in stderr:
-            errorExit("stderr should have contained \"%s\" but it did not. stderr=\n%s" % (db_dirty_msg, stderr))
+        if db_dirty_msg in stderr:
+            errorExit("stderr should NOT have contained \"%s\" but it did. stderr=\n%s" % (db_dirty_msg, stderr))
 
     if debug: Print("Setting test result to success.")
     testSuccessful=True
@@ -114,4 +130,5 @@ finally:
     TestHelper.shutdown(cluster, None, testSuccessful, killEosInstances, False, keepLogs, killAll, dumpErrorDetails)
 
 if debug: Print("Exiting test, exit value 0.")
-exit(0)
+exitCode = 0 if testSuccessful else 1
+exit(exitCode)

@@ -1,4 +1,7 @@
 #include <eosio/producer_api_plugin/producer_api_plugin.hpp>
+#include <eosio/producer_ha_plugin/producer_ha_plugin.hpp>
+#include <eosio/producer_plugin/pending_snapshot.hpp>
+#include <eosio/producer_plugin/producer.hpp>
 #include <eosio/chain/exceptions.hpp>
 
 #include <fc/variant.hpp>
@@ -82,47 +85,64 @@ struct async_result_visitor : public fc::visitor<fc::variant> {
      api_handle.call_name(); \
      eosio::detail::producer_api_plugin_response result{"ok"};
 
+#define INVOKE_V_V_PROD_HA(api_handle, call_name) \
+     body = parse_params<std::string, http_params_types::no_params_required>(body); \
+     api_handle.call_name(); \
+     eosio::detail::producer_api_plugin_response result{#call_name " API not available with producer_ha_plugin enabled, producer_ha_plugin controls the block production status automatically."};
 
 void producer_api_plugin::plugin_startup() {
-   ilog("starting producer_api_plugin");
-   // lifetime of plugin is lifetime of application
-   auto& producer = app().get_plugin<producer_plugin>();
+     ilog("starting producer_api_plugin");
+     // lifetime of plugin is lifetime of application
+     auto& producer = app().get_plugin<producer_plugin>();
+     auto producer_ha = app().find_plugin<producer_ha_plugin>();
+     // pause/resume API's when producer_ha_plugin not active
+     if ( producer_ha && producer_ha->get_state() == producer_ha_plugin::registered){
+          app().get_plugin<http_plugin>().add_api({
+          CALL_WITH_400(producer, producer, pause,
+               INVOKE_V_V(producer, pause), 201),
+          CALL_WITH_400(producer, producer, resume,
+               INVOKE_V_V(producer, resume), 201)}, appbase::priority::medium_high);
+     }
+     // pause/resume API's with producer_ha_plugin active
+     if ( producer_ha && producer_ha->get_state() != producer_ha_plugin::registered){
+          app().get_plugin<http_plugin>().add_api({
+          CALL_WITH_400(producer, producer, pause,
+               INVOKE_V_V_PROD_HA(producer, pause), 201),
+          CALL_WITH_400(producer, producer, resume,
+               INVOKE_V_V_PROD_HA(producer, resume), 201)}, appbase::priority::medium_high);
+     }
 
-   app().get_plugin<http_plugin>().add_api({
-       CALL_WITH_400(producer, producer, pause,
-            INVOKE_V_V(producer, pause), 201),
-       CALL_WITH_400(producer, producer, resume,
-            INVOKE_V_V(producer, resume), 201),
-       CALL_WITH_400(producer, producer, paused,
-            INVOKE_R_V(producer, paused), 201),
-       CALL_WITH_400(producer, producer, get_runtime_options,
-            INVOKE_R_V(producer, get_runtime_options), 201),
-       CALL_WITH_400(producer, producer, update_runtime_options,
-            INVOKE_V_R(producer, update_runtime_options, producer_plugin::runtime_options), 201),
-       CALL_WITH_400(producer, producer, add_greylist_accounts,
-            INVOKE_V_R(producer, add_greylist_accounts, producer_plugin::greylist_params), 201),
-       CALL_WITH_400(producer, producer, remove_greylist_accounts,
-            INVOKE_V_R(producer, remove_greylist_accounts, producer_plugin::greylist_params), 201),
-       CALL_WITH_400(producer, producer, get_greylist,
-            INVOKE_R_V(producer, get_greylist), 201),
-       CALL_WITH_400(producer, producer, get_whitelist_blacklist,
-            INVOKE_R_V(producer, get_whitelist_blacklist), 201),
-       CALL_WITH_400(producer, producer, set_whitelist_blacklist,
-            INVOKE_V_R(producer, set_whitelist_blacklist, producer_plugin::whitelist_blacklist), 201),
-       CALL_WITH_400(producer, producer, get_integrity_hash,
-            INVOKE_R_V(producer, get_integrity_hash), 201),
-       CALL_ASYNC(producer, producer, create_snapshot, producer_plugin::snapshot_information,
-            INVOKE_R_V_ASYNC(producer, create_snapshot), 201),
-       CALL_WITH_400(producer, producer, get_scheduled_protocol_feature_activations,
-            INVOKE_R_V(producer, get_scheduled_protocol_feature_activations), 201),
-       CALL_WITH_400(producer, producer, schedule_protocol_feature_activations,
-            INVOKE_V_R(producer, schedule_protocol_feature_activations, producer_plugin::scheduled_protocol_feature_activations), 201),
-       CALL_WITH_400(producer, producer, get_supported_protocol_features,
-            INVOKE_R_R_II(producer, get_supported_protocol_features,
-                                 producer_plugin::get_supported_protocol_features_params), 201),
-       CALL_WITH_400(producer, producer, get_account_ram_corrections,
-            INVOKE_R_R(producer, get_account_ram_corrections, producer_plugin::get_account_ram_corrections_params), 201),
-   }, appbase::priority::medium_high);
+     app().get_plugin<http_plugin>().add_api({
+          CALL_WITH_400(producer, producer, paused,
+               INVOKE_R_V(producer, paused), 201),
+          CALL_WITH_400(producer, producer, get_runtime_options,
+               INVOKE_R_V(producer, get_runtime_options), 201),
+          CALL_WITH_400(producer, producer, update_runtime_options,
+               INVOKE_V_R(producer, update_runtime_options, producer_plugin::runtime_options), 201),
+          CALL_WITH_400(producer, producer, add_greylist_accounts,
+               INVOKE_V_R(producer, add_greylist_accounts, producer_plugin::greylist_params), 201),
+          CALL_WITH_400(producer, producer, remove_greylist_accounts,
+               INVOKE_V_R(producer, remove_greylist_accounts, producer_plugin::greylist_params), 201),
+          CALL_WITH_400(producer, producer, get_greylist,
+               INVOKE_R_V(producer, get_greylist), 201),
+          CALL_WITH_400(producer, producer, get_whitelist_blacklist,
+               INVOKE_R_V(producer, get_whitelist_blacklist), 201),
+          CALL_WITH_400(producer, producer, set_whitelist_blacklist,
+               INVOKE_V_R(producer, set_whitelist_blacklist, producer_plugin::whitelist_blacklist), 201),
+          CALL_WITH_400(producer, producer, get_integrity_hash,
+               INVOKE_R_V(producer, get_integrity_hash), 201),
+          CALL_ASYNC(producer, producer, create_snapshot, snapshot_information,
+               INVOKE_R_V_ASYNC(producer, create_snapshot), 201),
+          CALL_WITH_400(producer, producer, get_scheduled_protocol_feature_activations,
+               INVOKE_R_V(producer, get_scheduled_protocol_feature_activations), 201),
+          CALL_WITH_400(producer, producer, schedule_protocol_feature_activations,
+               INVOKE_V_R(producer, schedule_protocol_feature_activations, producer_plugin::scheduled_protocol_feature_activations), 201),
+          CALL_WITH_400(producer, producer, get_supported_protocol_features,
+               INVOKE_R_R_II(producer, get_supported_protocol_features,
+                                   producer_plugin::get_supported_protocol_features_params), 201),
+          CALL_WITH_400(producer, producer, get_account_ram_corrections,
+               INVOKE_R_R(producer, get_account_ram_corrections, producer_plugin::get_account_ram_corrections_params), 201),
+     }, appbase::priority::medium_high);
 }
 
 void producer_api_plugin::plugin_initialize(const variables_map& options) {

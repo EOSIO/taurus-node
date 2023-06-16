@@ -22,7 +22,7 @@ BOOST_AUTO_TEST_SUITE(ram_tests)
 /*************************************************************************************
  * ram_tests test case
  *************************************************************************************/
-BOOST_FIXTURE_TEST_CASE(ram_tests, eosio_system::eosio_system_tester) { try {
+BOOST_FIXTURE_TEST_CASE(ram_tests, eosio_system::eosio_system_tester<validating_tester>) { try {
    auto init_request_bytes = 80000 + 7110; // `7110' is for table token row
    const auto increment_contract_bytes = 10000;
    const auto table_allocation_bytes = 12000;
@@ -75,7 +75,7 @@ BOOST_FIXTURE_TEST_CASE(ram_tests, eosio_system::eosio_system_tester) { try {
    buyrambytes(config::system_account_name, "testram11111"_n, more_ram);
    buyrambytes(config::system_account_name, "testram22222"_n, more_ram);
 
-   TESTER* tester = this;
+   base_type* tester = this;
    // allocate just under the allocated bytes
    tester->push_action( "testram11111"_n, "setentry"_n, "testram11111"_n, mvo()
                         ("payer", "testram11111")

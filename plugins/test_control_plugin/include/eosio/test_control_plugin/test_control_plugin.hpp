@@ -20,7 +20,7 @@ class read_write {
          : my(test_control) {}
 
       struct kill_node_on_producer_params {
-         name      producer;
+         chain::name      producer;
          uint32_t  where_in_sequence;
          bool      based_on_lib;
       };

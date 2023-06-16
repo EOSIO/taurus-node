@@ -3,6 +3,9 @@
 using namespace eosio;
 
 extern "C" {
+#if __clang_major__ >= 13
+   [[clang::export_name("apply")]]
+#endif   
    void apply( uint64_t receiver, uint64_t first_receiver, uint64_t action ) {
       check( receiver == first_receiver, "rejecting all notifications" );
 

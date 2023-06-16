@@ -23,9 +23,9 @@ The following information shows the different positionals and options you can us
 
 ## Requirements
 * Install the currently supported version of `cleos.`
-[[info | Note]] 
-| The `cleos` tool is bundled with the EOSIO software. [Installing EOSIO](../../00_install/index.md) will install the `cleos` and `keosd` command line tools. 
-* You have access to an EOSIO blockchain.
+[[info | Note]]
+| The `cleos` tool is bundled with the EOSIO-Taurus software. [Installing EOSIO-Taurus](../../../00_install/index.md) will install the `cleos` and `keosd` command line tools.
+* You have access to an EOSIO-Taurus blockchain.
 
 ## Examples
 
@@ -40,11 +40,11 @@ cleos get account eosio
 **Example Output**
 ```console
 privileged: true
-permissions: 
+permissions:
      owner     1:    1 EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV
         active     1:    1 EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV
-memory: 
-     quota:        -1 bytes  used:      1.22 Mb   
+memory:
+     quota:        -1 bytes  used:      1.22 Mb
 
 net bandwidth: (averaged over 3 days)
      used:                -1 bytes
@@ -53,8 +53,8 @@ net bandwidth: (averaged over 3 days)
 
 cpu bandwidth: (averaged over 3 days)
      used:                -1 us
-     available:           -1 us   
-     limit:               -1 us   
+     available:           -1 us
+     limit:               -1 us
 
 producers:     <not voted>
 ```
@@ -130,5 +130,3 @@ cleos get account eosio --json
 }
 ```
 
-## See Also
-- [Accounts and Permissions](https://developers.eos.io/welcome/v2.1/protocol/accounts_and_permissions) protocol document.

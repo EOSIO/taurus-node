@@ -4,8 +4,8 @@
 # Project related configuration options
 #---------------------------------------------------------------------------
 DOXYFILE_ENCODING      = UTF-8
-PROJECT_NAME           = "EOS.IO"
-PROJECT_NUMBER         = "EOSIO ${DOXY_EOS_VERSION}"
+PROJECT_NAME           = "EOSIO-Taurus"
+PROJECT_NUMBER         = "EOSIO-Taurus ${DOXY_EOS_VERSION}"
 PROJECT_BRIEF          =
 PROJECT_LOGO           = eos-logo.png
 OUTPUT_DIRECTORY       =
@@ -210,8 +210,8 @@ HTML_INDEX_NUM_ENTRIES = 100
 GENERATE_DOCSET        = NO
 DOCSET_FEEDNAME        = "Doxygen generated docs"
 DOCSET_BUNDLE_ID       = io.eos
-DOCSET_PUBLISHER_ID    = one.block
-DOCSET_PUBLISHER_NAME  = block.one
+DOCSET_PUBLISHER_ID    = eosio-taurus
+DOCSET_PUBLISHER_NAME  = EOSIO-Taurus
 GENERATE_HTMLHELP      = NO
 CHM_FILE               =
 HHC_LOCATION           =

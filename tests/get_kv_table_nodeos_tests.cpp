@@ -36,7 +36,7 @@ using namespace fc;
 
 BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
-   eosio::chain_apis::read_only::get_table_rows_result result;
+   eosio::chain_apis::table_query::get_table_rows_result result;
    auto chk_result = [&](int row, int data, bool show_payer = false) {
       char bar[5] = {'b', 'o', 'b', 'a', 0};
       bar[3] += data - 1; // 'a' + data - 1
@@ -78,8 +78,8 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    //////////////////////////////
    // primarykey
    //////////////////////////////
-   eosio::chain_apis::read_only plugin(*(this->control), {}, fc::microseconds::maximum());
-   eosio::chain_apis::read_only::get_kv_table_rows_params p;
+   eosio::chain_apis::table_query plugin(*(this->control), fc::microseconds::maximum());
+   eosio::chain_apis::table_query::get_kv_table_rows_params p;
    p.code = "kvtable"_n;
    p.table = "kvtable"_n;
    p.index_name = "primarykey"_n;
@@ -89,18 +89,18 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.upper_bound = {};
    p.json = true;
    p.reverse = false;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 1);
 
    p.show_payer = true;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 1, p.show_payer);
 
    p.show_payer = false;
    p.reverse = true;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 1);
    p.reverse = false;
@@ -108,29 +108,29 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.index_name = "primarykey"_n;
    p.index_value = "bobj";
    p.encode_type = "";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 10);
 
    p.encode_type = "name";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 10);
 
    p.encode_type = "name";
    p.index_value = "bob";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(0u, result.rows.size());
 
    p.index_value = "bobx";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(0u, result.rows.size());
 
    p.show_payer = true;
    p.index_value = {};
    p.lower_bound = "bobb";
    p.upper_bound = "bobe";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(4u, result.rows.size());
    chk_result(0, 2, p.show_payer);
    chk_result(1, 3, p.show_payer);
@@ -140,18 +140,18 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.index_value = "boba";
    p.lower_bound = "bobb";
    p.upper_bound = "bobe";
-   BOOST_CHECK_THROW(plugin.read_only::get_kv_table_rows(p), contract_table_query_exception);
+   BOOST_CHECK_THROW(plugin.table_query::get_kv_table_rows(p), contract_table_query_exception);
 
    p.index_value = {};
    p.lower_bound = "bobe";
    p.upper_bound = "bobb";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(0u, result.rows.size());
 
    p.show_payer = false;
    p.lower_bound = "aaaa";
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
    chk_result(0, 1);
    chk_result(1, 2);
@@ -166,31 +166,31 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = "boba";
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
    chk_result(0, 1);
    chk_result(9, 10);
 
    p.lower_bound = "bobj";
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 10);
 
    p.lower_bound = "bobz";
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(0u, result.rows.size());
 
    p.lower_bound = "bob";
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
 
    p.reverse = true;
    p.lower_bound = {};
    p.upper_bound = "bobz";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    chk_result(0, 10);
    chk_result(1, 9);
    chk_result(2, 8);
@@ -205,35 +205,35 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.reverse = true;
    p.lower_bound = "bobc";
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(8u, result.rows.size());
 
    p.reverse = false;
    p.lower_bound = {};
    p.upper_bound = "bobz";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
 
    p.lower_bound = "bobc";
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(8u, result.rows.size());
 
    p.reverse = false;
    p.lower_bound = {};
    p.upper_bound = "bobz";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
 
    p.reverse = true;
    p.lower_bound = "bobj";
    p.upper_bound = "bobz";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
 
    p.lower_bound = "bobb";
    p.upper_bound = "bobe";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(4u, result.rows.size());
    chk_result(0, 5);
    chk_result(1, 4);
@@ -242,7 +242,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = "";
    p.upper_bound = "bobe";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(5u, result.rows.size());
    chk_result(0, 5);
    chk_result(1, 4);
@@ -254,7 +254,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = "boba";
    p.upper_bound = {};
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key_bytes != "", true);
@@ -263,7 +263,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = result.next_key_bytes;
    p.encode_type = "bytes";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    chk_result(0, 3);
    chk_result(1, 4);
@@ -271,7 +271,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = result.next_key_bytes;
    p.encode_type = "bytes";
    p.limit = 1;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    chk_result(0, 5);
@@ -279,7 +279,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = result.next_key_bytes;
    p.encode_type = "bytes";
    p.limit = 20;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(5u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, false);
    chk_result(0, 6);
@@ -296,7 +296,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = "boba";
    p.upper_bound = {};
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key, "bobc");
@@ -305,7 +305,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    chk_result(1, 2);
 
    p.lower_bound = result.next_key;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.next_key, "bobe");
    BOOST_REQUIRE_EQUAL(result.next_key_bytes, "3D0EA00000000000");
@@ -314,7 +314,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = result.next_key;
    p.limit = 1;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key, "bobf");
@@ -323,7 +323,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = result.next_key;
    p.limit = 20;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(5u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, false);
    BOOST_REQUIRE_EQUAL(result.next_key, "");
@@ -338,7 +338,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.upper_bound = "bobj";
    p.lower_bound = {};
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key, "bobh");
@@ -348,7 +348,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.upper_bound = result.next_key;
    p.limit = 7;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(7u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key, "boba");
@@ -363,7 +363,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.upper_bound = result.next_key;
    p.limit = 20;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, false);
    BOOST_REQUIRE_EQUAL(result.next_key, "");
@@ -379,19 +379,19 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.encode_type = "hex";
    p.lower_bound = {};
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 10);
 
    p.index_value = "10";
    p.encode_type = "";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 10);
 
    p.index_value = "10";
    p.encode_type = "dec";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 10);
 
@@ -399,7 +399,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.encode_type = "hex";
    p.lower_bound = "1";
    p.upper_bound = "10";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
 
 
@@ -407,7 +407,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.encode_type = "dec";
    p.lower_bound = "0";
    p.upper_bound = "10";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
    chk_result(0, 1);
    chk_result(1, 2);
@@ -421,7 +421,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = "2";
    p.upper_bound = "9";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(8u, result.rows.size());
    chk_result(0, 2);
    chk_result(1, 3);
@@ -434,7 +434,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = "0";
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
    chk_result(0, 1);
    chk_result(1, 2);
@@ -448,7 +448,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = "1";
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
    chk_result(0, 1);
    chk_result(1, 2);
@@ -462,20 +462,20 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = "10";
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 10);
 
    p.lower_bound = "11";
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(0u, result.rows.size());
 
    p.reverse = false;
    p.lower_bound = "0";
    p.upper_bound = {};
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    chk_result(0, 1);
@@ -484,7 +484,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = result.next_key_bytes;
    p.encode_type = "bytes";
    p.limit = 3;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(3u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    chk_result(0, 3);
@@ -494,7 +494,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = result.next_key_bytes;
    p.encode_type = "bytes";
    p.limit = 20;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(5, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, false);
    chk_result(0, 6);
@@ -512,7 +512,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = "0";
    p.upper_bound = {};
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key, std::to_string(3));
@@ -522,7 +522,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = result.next_key;
    p.limit = 3;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(3u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key, std::to_string(6));
@@ -533,7 +533,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = result.next_key;
    p.limit = 4;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(4, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key, std::to_string(10));
@@ -544,7 +544,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    chk_result(3, 9);
 
    p.lower_bound = result.next_key;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, false);
    BOOST_REQUIRE_EQUAL(result.next_key, "");
@@ -555,7 +555,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = "0";
    p.upper_bound = {};
    p.limit = 4;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(4u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key, std::to_string(5));
@@ -567,7 +567,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = result.next_key;
    p.limit = 5;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(5u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key, "A");
@@ -579,7 +579,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    chk_result(4, 9);
 
    p.lower_bound = result.next_key;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, false);
    BOOST_REQUIRE_EQUAL(result.next_key, "");
@@ -588,7 +588,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = "10";
    p.limit = 20; //maximize limit for the following test cases
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(0u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, false);
    BOOST_REQUIRE_EQUAL(result.next_key, "");
@@ -604,28 +604,28 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.upper_bound = {};
    p.reverse = false;
 
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 1);
 
    p.encode_type = "string";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 1);
 
    p.index_value = "bobj";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 10);
 
    p.index_value = "bobx";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(0u, result.rows.size());
 
    p.index_value = {};
    p.lower_bound = "bobb";
    p.upper_bound = "bobe";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(4u, result.rows.size());
    chk_result(0, 2);
    chk_result(1, 3);
@@ -635,81 +635,81 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.index_value = {};
    p.lower_bound = "boba1";
    p.upper_bound = "bobj";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(9u, result.rows.size());
 
    p.index_value = {};
    p.lower_bound = "boba";
    p.upper_bound = "bobj1";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
 
    p.index_value = {};
    p.lower_bound = "boba";
    p.upper_bound = "c";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
 
    p.index_value = {};
    p.lower_bound = "a";
    p.upper_bound = "c";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
 
 
    p.lower_bound = "aaaa";
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
    chk_result(0, 1);
 
    p.lower_bound = "boba";
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
    chk_result(0, 1);
 
    p.lower_bound = "bobj";
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 10);
 
    p.lower_bound = "bobz";
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(0u, result.rows.size());
 
    p.lower_bound = "b";
    p.upper_bound = "bobj1";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
 
    p.lower_bound = "bobj";
    p.upper_bound = "bobz";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
 
    p.reverse = true;
    p.lower_bound = {};
    p.upper_bound = "bobz";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
    chk_result(0, 10);
 
    p.lower_bound = "b";
    p.upper_bound = "bobj1";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
 
    p.lower_bound = "bobj";
    p.upper_bound = "bobz";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
 
    p.lower_bound = "bobb";
    p.upper_bound = "bobe";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(4u, result.rows.size());
    chk_result(0, 5);
    chk_result(1, 4);
@@ -718,7 +718,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = {};
    p.upper_bound = "bobe";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(5u, result.rows.size());
    chk_result(0, 5);
    chk_result(1, 4);
@@ -730,7 +730,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = "boba";
    p.upper_bound = {};
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    chk_result(0, 1);
@@ -739,7 +739,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = result.next_key_bytes;
    p.encode_type = "bytes";
    p.limit = 3;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(3u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    chk_result(0, 3);
@@ -748,7 +748,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = result.next_key_bytes;
    p.limit = 20;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(5u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, false);
    chk_result(0, 6);
@@ -765,7 +765,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = "boba";
    p.upper_bound = {};
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key, "bobc");
@@ -775,7 +775,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = result.next_key;
    p.limit = 3;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(3u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key, "bobf");
@@ -786,7 +786,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = result.next_key;
    p.limit = 20;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(5u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, false);
    BOOST_REQUIRE_EQUAL(result.next_key, "");
@@ -806,7 +806,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.encode_type = "hex";
    p.lower_bound = {};
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 1);
 
@@ -814,18 +814,18 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.encode_type = "";
    p.lower_bound = "10";
    p.upper_bound = "100";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
 
    p.encode_type = "dec";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
 
    p.index_value = {};
    p.encode_type = "dec";
    p.lower_bound = "0";
    p.upper_bound = "110";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
    chk_result(0, 1);
    chk_result(1, 2);
@@ -846,7 +846,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.encode_type = "hex";
    p.lower_bound = {};
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 6);
 
@@ -854,18 +854,18 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.encode_type = "";
    p.lower_bound = "-10";
    p.upper_bound = "100";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(7u, result.rows.size());
 
    p.encode_type = "dec";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(7u, result.rows.size());
 
    p.index_value = {};
    p.encode_type = "dec";
    p.lower_bound = "-100";
    p.upper_bound = "100";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
    chk_result(0, 1);
    chk_result(1, 2);
@@ -882,7 +882,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = "-100";
    p.upper_bound = "100";
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key_bytes != "", true);
@@ -893,7 +893,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.upper_bound = {};
    p.encode_type = "bytes";
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key_bytes != "", true);
@@ -908,7 +908,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = "-100";
    p.upper_bound = "100";
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key, std::to_string(-20));
@@ -919,7 +919,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = result.next_key;
    p.upper_bound = {};
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key, std::to_string(0));
@@ -936,7 +936,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.encode_type = "dec";
    p.lower_bound = {};
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
    chk_result(0, 6);
 
@@ -945,18 +945,18 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = "-100";
    p.upper_bound = "100";
    p.limit = 10;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(3u, result.rows.size());
 
    p.encode_type = "dec";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(3u, result.rows.size());
 
    p.index_value = {};
    p.encode_type = "dec";
    p.lower_bound = "-1000";
    p.upper_bound = "1000";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
    chk_result(0, 1);
    chk_result(1, 2);
@@ -973,7 +973,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = "-1000";
    p.upper_bound = "1000";
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key_bytes != "", true);
@@ -984,7 +984,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = result.next_key_bytes;
    p.upper_bound = {};
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key_bytes != "", true);
@@ -999,7 +999,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = "-1000";
    p.upper_bound = "1000";
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key, std::to_string(-200));
@@ -1010,7 +1010,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = result.next_key;
    p.upper_bound = {};
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key, std::to_string(0));
@@ -1028,18 +1028,18 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = "0.0";
    p.upper_bound = "100";
    p.limit = 20;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
 
    p.encode_type = "dec";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
 
    p.index_value = {};
    p.encode_type = "dec";
    p.lower_bound = "0.001";
    p.upper_bound = "1000.0";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(9u, result.rows.size());
    chk_result(0, 2);
    chk_result(1, 3);
@@ -1055,7 +1055,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.encode_type = "dec";
    p.lower_bound = "0.001";
    p.upper_bound = {};
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(9u, result.rows.size());
    chk_result(0, 2);
    chk_result(8, 10);
@@ -1064,21 +1064,21 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.encode_type = "dec";
    p.lower_bound = "-0.0001";
    p.upper_bound = "0.00001";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
 
    p.index_value = {};
    p.encode_type = "dec";
    p.lower_bound = "-10.0001";
    p.upper_bound = "0.00001";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
 
    p.index_value = {};
    p.encode_type = "dec";
    p.lower_bound = "0.00001";
    p.upper_bound = "10.00001";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(9u, result.rows.size());
 
    p.reverse = true;
@@ -1087,42 +1087,42 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = "0.0";
    p.upper_bound = "100";
    p.limit = 20;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(10u, result.rows.size());
 
    p.index_value = {};
    p.encode_type = "dec";
    p.lower_bound = "0.001";
    p.upper_bound = "1000.0";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(9u, result.rows.size());
 
    p.index_value = {};
    p.encode_type = "dec";
    p.lower_bound = {};
    p.upper_bound = "4.039999999";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(4u, result.rows.size());
 
    p.index_value = {};
    p.encode_type = "dec";
    p.lower_bound = "-0.0001";
    p.upper_bound = "0.00001";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
 
    p.index_value = {};
    p.encode_type = "dec";
    p.lower_bound = "-10.0001";
    p.upper_bound = "0.00001";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(1u, result.rows.size());
 
    p.index_value = {};
    p.encode_type = "dec";
    p.lower_bound = "0.00001";
    p.upper_bound = "10.00001";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(9u, result.rows.size());
 
    p.reverse = false;
@@ -1131,7 +1131,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = "0.02";
    p.upper_bound = "3.03000001";
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key_bytes != "", true);
@@ -1142,7 +1142,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = result.next_key_bytes;
    p.upper_bound = {};
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key_bytes != "", true);
@@ -1157,7 +1157,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.lower_bound = "-0.02";
    p.upper_bound = "-0.01";
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(0u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, false);
    BOOST_REQUIRE_EQUAL(result.next_key, "");
@@ -1165,7 +1165,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
    p.upper_bound = {};
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key.find("2.02") != string::npos, true);
@@ -1174,7 +1174,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    chk_result(1, 2);
 
    p.lower_bound = result.next_key;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key.find("4.04") != string::npos, true);
@@ -1185,7 +1185,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = "0.02";
    p.upper_bound = "3.03000001";
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key.find("3.03") != string::npos, true);
@@ -1196,7 +1196,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
    p.lower_bound = result.next_key;
    p.upper_bound = {};
    p.limit = 2;
-   result = plugin.read_only::get_kv_table_rows(p);
+   result = plugin.table_query::get_kv_table_rows(p);
    BOOST_REQUIRE_EQUAL(2u, result.rows.size());
    BOOST_REQUIRE_EQUAL(result.more, true);
    BOOST_REQUIRE_EQUAL(result.next_key.find("5.05") != string::npos, true);
@@ -1212,7 +1212,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
     p.lower_bound = {};
     p.upper_bound = {};
     p.limit = 9;
-    result = plugin.read_only::get_kv_table_rows(p);
+    result = plugin.table_query::get_kv_table_rows(p);
     BOOST_REQUIRE_EQUAL(9u, result.rows.size());
     BOOST_REQUIRE_EQUAL(result.more, true);
     BOOST_REQUIRE_EQUAL(result.next_key, std::to_string(10));
@@ -1228,7 +1228,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
     chk_result(8, 9);
 
     p.limit = 20;
-    result = plugin.read_only::get_kv_table_rows(p);
+    result = plugin.table_query::get_kv_table_rows(p);
     BOOST_REQUIRE_EQUAL(10u, result.rows.size());
     BOOST_REQUIRE_EQUAL(result.more, false);
     BOOST_REQUIRE_EQUAL(result.next_key, "");
@@ -1246,7 +1246,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
 
     p.reverse = true;
     p.limit = 9;
-    result = plugin.read_only::get_kv_table_rows(p);
+    result = plugin.table_query::get_kv_table_rows(p);
     BOOST_REQUIRE_EQUAL(9u, result.rows.size());
     BOOST_REQUIRE_EQUAL(result.more, true);
     BOOST_REQUIRE_EQUAL(result.next_key, std::to_string(1));
@@ -1262,7 +1262,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
     chk_result(8, 2);
 
     p.limit = 20;
-    result = plugin.read_only::get_kv_table_rows(p);
+    result = plugin.table_query::get_kv_table_rows(p);
     BOOST_REQUIRE_EQUAL(10u, result.rows.size());
     BOOST_REQUIRE_EQUAL(result.more, false);
     BOOST_REQUIRE_EQUAL(result.next_key, "");
@@ -1282,7 +1282,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
     p.reverse = false;
     p.lower_bound = {};
     p.upper_bound = "9";
-    result = plugin.read_only::get_kv_table_rows(p);
+    result = plugin.table_query::get_kv_table_rows(p);
     BOOST_REQUIRE_EQUAL(9u, result.rows.size());
     BOOST_REQUIRE_EQUAL(result.more, false);
     BOOST_REQUIRE_EQUAL(result.next_key, "");
@@ -1301,7 +1301,7 @@ BOOST_FIXTURE_TEST_CASE( get_kv_table_nodeos_test, TESTER ) try {
     p.reverse = true;
     p.lower_bound = "2";
     p.upper_bound = {};
-    result = plugin.read_only::get_kv_table_rows(p);
+    result = plugin.table_query::get_kv_table_rows(p);
     BOOST_REQUIRE_EQUAL(9u, result.rows.size());
     BOOST_REQUIRE_EQUAL(result.more, false);
     BOOST_REQUIRE_EQUAL(result.next_key, "");

@@ -7,6 +7,64 @@
 #include <eosio/privileged.hpp>
 #include <eosio/producer_schedule.hpp>
 
+#if defined( __eosio_cdt_major__) &&  __eosio_cdt_major__ <= 2
+
+#if ! __has_include (<eosio/table.h>)
+
+extern "C" __attribute__((eosio_wasm_import)) void set_kv_parameters_packed(const void* params, uint32_t size);
+
+namespace eosio {
+   /**
+    *  Tunable KV configuration that can be changed via consensus
+    *  @ingroup privileged
+    */
+   struct kv_parameters {
+      /**
+      * The maximum key size
+      * @brief The maximum key size
+      */
+      uint32_t max_key_size;
+
+      /**
+      * The maximum value size
+      * @brief The maximum value size
+      */
+      uint32_t max_value_size;
+
+      /**
+       * The maximum number of iterators
+      * @brief The maximum number of iterators
+       */
+      uint32_t max_iterators;
+
+      EOSLIB_SERIALIZE( kv_parameters,
+                        (max_key_size)
+                        (max_value_size)(max_iterators)
+      )
+   };
+
+   /**
+    *  Set the kv parameters
+    *
+    *  @ingroup privileged
+    *  @param params - New kv parameters to set
+    */
+   inline void set_kv_parameters(const eosio::kv_parameters& params) {
+      // set_kv_parameters_packed expects version, max_key_size,
+      // max_value_size, and max_iterators,
+      // while kv_parameters only contains max_key_size, max_value_size,
+      // and max_iterators. That's why we place uint32_t in front
+      // of kv_parameters in buf
+      char buf[sizeof(uint32_t) + sizeof(eosio::kv_parameters)];
+      eosio::datastream<char *> ds( buf, sizeof(buf) );
+      ds << uint32_t(0);  // fill in version
+      ds << params;
+      set_kv_parameters_packed( buf, ds.tellp() );
+   }
+}
+#endif
+#endif
+
 namespace eosiobios {
 
    using eosio::action_wrapper;
@@ -67,9 +125,9 @@ namespace eosiobios {
    };
 
    /**
-    * The `eosio.bios` is the first sample of system contract provided by `block.one` through the EOSIO platform. It is a minimalist system contract because it only supplies the actions that are absolutely critical to bootstrap a chain and nothing more. This allows for a chain agnostic approach to bootstrapping a chain.
+    * The `eosio.bios` is an example of system contract. It is a minimalist system contract because it only supplies the actions that are absolutely critical to bootstrap a chain and nothing more. This allows for a chain agnostic approach to bootstrapping a chain.
     *
-    * Just like in the `eosio.system` sample contract implementation, there are a few actions which are not implemented at the contract level (`newaccount`, `updateauth`, `deleteauth`, `linkauth`, `unlinkauth`, `canceldelay`, `onerror`, `setabi`, `setcode`), they are just declared in the contract so they will show in the contract's ABI and users will be able to push those actions to the chain via the account holding the `eosio.system` contract, but the implementation is at the EOSIO core level. They are referred to as EOSIO native actions.
+    * Just like in the `eosio.system` sample contract implementation, there are a few actions which are not implemented at the contract level (`newaccount`, `updateauth`, `deleteauth`, `linkauth`, `unlinkauth`, `canceldelay`, `onerror`, `setabi`, `setcode`), they are just declared in the contract so they will show in the contract's ABI and users will be able to push those actions to the chain via the account holding the `eosio.system` contract, but the implementation is at the EOSIO-Taurus core level. They are referred to as EOSIO-Taurus native actions.
     */
    class [[eosio::contract("eosio.bios")]] bios : public eosio::contract {
       public:
@@ -118,7 +176,7 @@ namespace eosiobios {
          /**
           * Link authorization action assigns a specific action from a contract to a permission you have created. Five system
           * actions can not be linked `updateauth`, `deleteauth`, `linkauth`, `unlinkauth`, and `canceldelay`.
-          * This is useful because when doing authorization checks, the EOSIO based blockchain starts with the
+          * This is useful because when doing authorization checks, the EOSIO-Taurus based blockchain starts with the
           * action needed to be authorized (and the contract belonging to), and looks up which permission
           * is needed to pass authorization validation. If a link is set, that permission is used for authoraization
           * validation otherwise then active is the default, with the exception of `eosio.any`.
@@ -244,6 +302,9 @@ namespace eosiobios {
          [[eosio::action]]
          void setkvparams( const eosio::kv_parameters& params );
 
+
+         [[eosio::action]] 
+         void setwparams(const eosio::wasm_parameters& params);
          /**
           * Require authorization action, checks if the account name `from` passed in as param has authorization to access
           * current action, that is, if it is listed in the action’s allowed permissions vector.
@@ -268,6 +329,9 @@ namespace eosiobios {
           */
          [[eosio::action]]
          void reqactivated( const eosio::checksum256& feature_digest );
+
+         [[eosio::action]]
+         void init();
 
          struct [[eosio::table]] abi_hash {
             name              owner;

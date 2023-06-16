@@ -23,6 +23,8 @@ class amqp_trx_plugin : public appbase::plugin<amqp_trx_plugin> {
    void plugin_startup();
    void plugin_shutdown();
    void handle_sighup() override;
+   void start();
+   void stop();
 
  private:
    std::shared_ptr<struct amqp_trx_plugin_impl> my;

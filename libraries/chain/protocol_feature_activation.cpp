@@ -19,7 +19,7 @@ namespace eosio { namespace chain {
       for( const auto& d : protocol_features ) {
          auto res = s.insert( d );
          EOS_ASSERT( res.second, ill_formed_protocol_feature_activation,
-                     "Protocol feature digest ${d} was repeated in the protocol feature activation extension",
+                     "Protocol feature digest {d} was repeated in the protocol feature activation extension",
                      ("d", d)
          );
       }

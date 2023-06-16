@@ -38,7 +38,6 @@ struct context_free_system_callbacks {
    }
 };
 
-template <typename Backend>
 struct data_state {
    eosio::input_stream input_data;
    std::vector<char>   output_data;

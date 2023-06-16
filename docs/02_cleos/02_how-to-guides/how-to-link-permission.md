@@ -8,8 +8,8 @@ Make sure you meet the following requirements:
 
 * Install the currently supported version of `cleos.`
 [[info | Note]]
-| `Cleos` is bundled with the EOSIO software. [Installing EOSIO](../../00_install/index.md) will also install the `cleos` and `keosd` comand line tools. 
-* You have an EOSIO account and access to the account's `active` private key.
+| `Cleos` is bundled with the EOSIO-Taurus software. [Installing EOSIO-Taurus](../../00_install/index.md) will also install the `cleos` and `keosd` comand line tools.
+* You have an EOSIO-Taurus account and access to the account's `active` private key.
 * You have created a custom permission. See [cleos set account permission](../03_command-reference/set/set-account-permission.md).
 
 ## Command Reference

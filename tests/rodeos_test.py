@@ -169,6 +169,9 @@ class Rodeos:
     def get_info(self):
         return Utils.runCmdArrReturnJson(['curl', '-H', 'Accept: application/json', self.endpoint + 'v1/chain/get_info'])
 
+    def get_account(self, account):
+        request_body = {"account_name": account}
+        return Utils.runCmdArrReturnJson(['curl', '-X', 'POST', '-H', 'Content-Type: application/json', '-H', 'Accept: application/json', self.endpoint + 'v1/chain/get_account', '--data', json.dumps(request_body)])
 
 rodeos = None
 try:
@@ -189,7 +192,7 @@ try:
                 "--state-history-stride {0} " 
                 "--state-history-endpoint {1} "
                 "--plugin eosio::net_api_plugin --wasm-runtime eos-vm-jit -l logging.json " 
-                "--signing-delay {2}").format(stateHistoryStride, stateHistoryEndpoint, signing_delay)})
+                "--signing-delay {2} --cpu-effort-percent {3}").format(stateHistoryStride, stateHistoryEndpoint, signing_delay, 60)})
 
     producerNodeIndex = 0
     producerNode = cluster.getNode(producerNodeIndex)
@@ -223,7 +226,7 @@ try:
     cfTrxId = trans["transaction_id"]
 
     # Wait until the cfd trx block is executed to become irreversible 
-    producerNode.waitForIrreversibleBlock(cfTrxBlockNum, timeout=30) 
+    producerNode.waitForIrreversibleBlock(cfTrxBlockNum, timeout=60)
     
     Utils.Print("verify the account payloadless from producer node")
     trans = producerNode.getEosAccount("payloadless", exitOnError=False)
@@ -247,6 +250,38 @@ try:
         assert response["block_num"] == cfTrxBlockNum, "Rodeos responds with wrong block"
         nodeos_response = producerNode.getBlock(cfTrxBlockNum)
         verify_nodeos_rodeos_get_block_responses(nodeos_response, response)
+
+        if signing_delay == 0:
+            Utils.Print("Verify rodeos get_account endpoint works")
+            new_acct = Account("bob")
+            new_acct.ownerPublicKey = "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV"
+            new_acct.activePublicKey = "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV"
+            producerNode.createAccount(new_acct, cluster.eosioAccount)
+
+            new_active_perms = {
+                "threshold":1,
+                "keys":[{"key":"EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV","weight":1}],
+                "accounts":[{"permission":{"actor":new_acct.name,"permission":"active"},"weight":50}]
+            }
+            cmd = "set account permission " + payloadlessAcc.name + " active " + " '{}' owner".format(json.dumps(new_active_perms))
+            try:
+                trans = producerNode.processCleosCmd(cmd, cmd, silentErrors=True)
+            except TypeError:
+                # due to empty JSON response, which is expected
+                pass
+            time.sleep(60)
+
+            response = rodeos.get_account(payloadlessAcc.name)
+            Utils.Print(response)
+            assert response["account_name"] == payloadlessAcc.name, "Rodeos responds with wrong account name"
+            assert len(response['permissions']) == 2, "Rodeos responds with wrong number of permissions"
+            assert response['permissions'][0]['perm_name'] == 'active', "Rodeos responds with wrong permission name"
+            assert response['permissions'][1]['perm_name'] == 'owner', "Rodeos responds with wrong permission name"
+            assert response['permissions'][0]['required_auth']['threshold'] == 1, "Rodeos responds with wrong threshold"
+            assert len(response['permissions'][0]['required_auth']['accounts']) == 1, "Rodeos responds with wrong number of accounts"
+            assert response['permissions'][0]['required_auth']['accounts'][0]['permission']['actor'] == new_acct.name, "Rodeos responds with wrong associated key to the active permissions of " + payloadlessAcc.name
+            # rodeos get_account returns public keys in PUB_K1 format
+            assert response['permissions'][0]['required_auth']['keys'][0]['key'] == "PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63", "Rodeos responds with wrong public key"
 
         # Verify no skipped blocks
         first_block_num = 0

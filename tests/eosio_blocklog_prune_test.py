@@ -56,6 +56,7 @@ try:
 
     abs_path = os.path.abspath(os.getcwd() + '/../unittests/contracts/eosio.token/eosio.token.abi')
     traceNodeosArgs=" --plugin eosio::trace_api_plugin --trace-rpc-abi eosio.token=" + abs_path
+    extraNodeosArgs = traceNodeosArgs
     assert cluster.launch(
         pnodes=1,
         prodCount=1,
@@ -63,7 +64,7 @@ try:
         totalNodes=3,
         useBiosBootFile=False,
         loadSystemContract=False,
-        extraNodeosArgs=traceNodeosArgs,
+        extraNodeosArgs=extraNodeosArgs,
         specificExtraNodeosArgs={
             0: "--plugin eosio::state_history_plugin --trace-history --disable-replay-opts --sync-fetch-span 200 --state-history-endpoint 127.0.0.1:8080 --plugin eosio::net_api_plugin --enable-stale-production --signing-delay {}".format(signing_delay) ,
             2: "--validation-mode light --p2p-reject-incomplete-blocks 0"})

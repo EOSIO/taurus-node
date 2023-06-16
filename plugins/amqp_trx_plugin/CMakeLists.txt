@@ -7,4 +7,6 @@ add_library( amqp_trx_plugin
 target_link_libraries( amqp_trx_plugin state_history chain_plugin producer_plugin abieos appbase fc amqp amqpcpp )
 target_include_directories( amqp_trx_plugin PUBLIC include )
 
+if (NOT TAURUS_NODE_AS_LIB)
 add_subdirectory(test)
+endif()

@@ -2,12 +2,6 @@
 
 namespace eosiobios {
 
-// move this to CDT after this release
-extern "C" {
-   __attribute__((eosio_wasm_import))
-   void set_parameters_packed(const char*, std::size_t);
-}
-
 void bios::setabi( name account, const std::vector<char>& abi ) {
    abi_hash_table table(get_self(), get_self().value);
    auto itr = table.find( account.value );
@@ -49,12 +43,17 @@ void bios::setparams( const eosio::blockchain_parameters& params ) {
 
 void bios::setpparams( const std::vector<char>& params ) {
    require_auth( get_self() );
-   set_parameters_packed( params.data(), params.size() );
+   eosio::internal_use_do_not_use::set_parameters_packed( params.data(), params.size() );
 }
 
 void bios::setkvparams( const eosio::kv_parameters& params ) {
    require_auth( get_self() );
    set_kv_parameters( params );
+}
+
+void bios::setwparams(const eosio::wasm_parameters& params) {
+   require_auth( get_self() );
+   set_wasm_parameters(params);
 }
 
 void bios::reqauth( name from ) {
@@ -70,4 +69,38 @@ void bios::reqactivated( const eosio::checksum256& feature_digest ) {
    check( is_feature_activated( feature_digest ), "protocol feature is not activated" );
 }
 
+
+
+void bios::init() {
+   eosio::blockchain_parameters params;
+   eosio::get_blockchain_parameters(params);
+   params.max_inline_action_size    = 0xffff'ffff;
+   params.max_transaction_net_usage = params.max_block_net_usage - 10;
+   eosio::set_blockchain_parameters(params);
+   eosio::set_kv_parameters(eosio::kv_parameters{
+      .max_key_size = 1024,
+      .max_value_size = 1024 * 1024,
+      .max_iterators = 1024
+   });
+   eosio::set_wasm_parameters({
+      .max_mutable_global_bytes = 1024,
+      .max_table_elements       = 2048,
+      .max_section_elements     = 8192,
+      .max_linear_memory_init   = 128 * 1024,
+      .max_func_local_bytes     = 8192,
+      .max_nested_structures    = 1024,
+      .max_symbol_bytes         = 8192,
+      .max_code_bytes           = 20 * 1024 * 1024,
+      .max_module_bytes         = 20 * 1024 * 1024,
+      .max_pages                = 528,
+      .max_call_depth           = 251
+   });
+
+   // set max_action_return_value_size to 20MB
+   char                     buffer[12];
+   eosio::datastream<char*> ds((char*)&buffer, sizeof(buffer));
+   // 20mb is MAX_SIZE_OF_BYTE_ARRAYS that is defined in fc and limit imposed by eosio
+   ds << eosio::unsigned_int(uint32_t(1)) << eosio::unsigned_int(uint32_t(17)) << uint32_t(20 * 1024 * 1024);
+   eosio::internal_use_do_not_use::set_parameters_packed(buffer, ds.tellp());
+}
 }

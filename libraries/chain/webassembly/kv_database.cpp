@@ -6,8 +6,8 @@ namespace eosio { namespace chain { namespace webassembly {
       return context.kv_erase(contract, key.data(), key.size());
    }
 
-   int64_t  interface::kv_set(uint64_t contract, span<const char> key, span<const char> value, account_name payer) {
-      return context.kv_set(contract, key.data(), key.size(), value.data(), value.size(), payer);
+   int64_t  interface::kv_set(uint64_t contract, span<const char> key, span<const char> value, uint64_t payer) {
+      return context.kv_set(contract, key.data(), key.size(), value.data(), value.size(), account_name{payer});
    }
 
    bool     interface::kv_get(uint64_t contract, span<const char> key, uint32_t* value_size) {

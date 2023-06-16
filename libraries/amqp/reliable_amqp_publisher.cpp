@@ -17,11 +17,17 @@
 
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
+#include <fstream>
 
 namespace eosio {
 
 struct reliable_amqp_publisher_impl {
    reliable_amqp_publisher_impl(const std::string& url, const std::string& exchange, const std::string& routing_key,
+                                const boost::filesystem::path& unconfirmed_path,
+                                reliable_amqp_publisher::error_callback_t on_fatal_error,
+                                const std::optional<std::string>& message_id);
+   // amqp via tls
+   reliable_amqp_publisher_impl(const std::string& url, boost::asio::ssl::context & ssl_ctx, const std::string& exchange, const std::string& routing_key,
                                 const boost::filesystem::path& unconfirmed_path,
                                 reliable_amqp_publisher::error_callback_t on_fatal_error,
                                 const std::optional<std::string>& message_id);
@@ -84,18 +90,59 @@ reliable_amqp_publisher_impl::reliable_amqp_publisher_impl(const std::string& ur
          fc::raw::unpack(file, message_deque);
          if( !message_deque.empty() )
             batch_num = message_deque.back().num;
-         ilog("AMQP existing persistent file ${f} loaded with ${c} unconfirmed messages for ${a} publishing to \"${e}\".",
+         ilog("AMQP existing persistent file {f} loaded with {c} unconfirmed messages for {a} publishing to \"{e}\".",
               ("f", data_file_path.generic_string())("c",message_deque.size())("a", retrying_connection.address())("e", exchange));
-      } FC_RETHROW_EXCEPTIONS(error, "Failed to load previously unconfirmed AMQP messages from ${f}", ("f", (fc::path)data_file_path));
+      } FC_RETHROW_EXCEPTIONS(error, "Failed to load previously unconfirmed AMQP messages from {f}", ("f", ((fc::path)data_file_path).string()));
    }
    else {
-      boost::filesystem::ofstream o(data_file_path);
-      FC_ASSERT(o.good(), "Failed to create unconfirmed AMQP message file at ${f}", ("f", (fc::path)data_file_path));
+      std::ofstream o(data_file_path.c_str());
+      FC_ASSERT(o.good(), "Failed to create unconfirmed AMQP message file at {f}", ("f", ((fc::path)data_file_path).string()));
    }
    boost::filesystem::remove(data_file_path, ec);
 
    thread = std::thread([this]() {
       fc::set_os_thread_name("amqp");
+      while(true) {
+         try {
+            ctx.run();
+            break;
+         }
+         FC_LOG_AND_DROP();
+      }
+   });
+}
+
+reliable_amqp_publisher_impl::reliable_amqp_publisher_impl(const std::string& url, boost::asio::ssl::context & ssl_ctx, const std::string& exchange, const std::string& routing_key,
+                                                           const boost::filesystem::path& unconfirmed_path,
+                                                           reliable_amqp_publisher::error_callback_t on_fatal_error,
+                                                           const std::optional<std::string>& message_id) :
+  retrying_connection(ctx, url, ssl_ctx, fc::milliseconds(250), [this](AMQP::Channel* c){channel_ready(c);}, [this](){channel_failed();}),
+  on_fatal_error(std::move(on_fatal_error)),
+  data_file_path(unconfirmed_path), exchange(exchange), routing_key(routing_key), message_id(message_id) {
+
+   boost::system::error_code ec;
+   boost::filesystem::create_directories(data_file_path.parent_path(), ec);
+
+   if(boost::filesystem::exists(data_file_path)) {
+      try {
+         fc::datastream<fc::cfile> file;
+         file.set_file_path(data_file_path);
+         file.open("rb");
+         fc::raw::unpack(file, message_deque);
+         if( !message_deque.empty() )
+            batch_num = message_deque.back().num;
+         ilog("AMQP existing persistent file {f} loaded with {c} unconfirmed messages for {a} publishing to \"{e}\".",
+              ("f", data_file_path.generic_string())("c",message_deque.size())("a", retrying_connection.address())("e", exchange));
+      } FC_RETHROW_EXCEPTIONS(error, "Failed to load previously unconfirmed AMQP messages from {f}", ("f", ((fc::path)data_file_path).string()));
+   }
+   else {
+      std::ofstream o(data_file_path.c_str());
+      FC_ASSERT(o.good(), "Failed to create unconfirmed AMQP message file at {f}", ("f", ((fc::path)data_file_path).string()));
+   }
+   boost::filesystem::remove(data_file_path, ec);
+
+   thread = std::thread([this]() {
+      fc::set_os_thread_name("amqps");
       while(true) {
          try {
             ctx.run();
@@ -138,6 +185,7 @@ reliable_amqp_publisher_impl::~reliable_amqp_publisher_impl() {
 }
 
 void reliable_amqp_publisher_impl::channel_ready(AMQP::Channel* c) {
+   ilog("channel ready: {c}", ("c", (uint64_t)(void*)c));
    channel = c;
    pump_queue();
 }
@@ -176,6 +224,9 @@ void reliable_amqp_publisher_impl::pump_queue() {
    channel->commitTransaction().onSuccess([this](){
       message_deque.erase(message_deque.begin(), message_deque.begin()+in_flight);
    })
+   .onError([](const char* message) {
+      wlog( "channel commit error: {e}", ("e", message) );
+   })
    .onFinalize([this]() {
       in_flight = 0;
       //unfortuately we don't know if an error is due to something recoverable or if an error is due
@@ -191,7 +242,7 @@ void reliable_amqp_publisher_impl::verify_max_queue_size() {
    constexpr unsigned max_queued_messages = 1u << 20u;
 
    if(message_deque.size() > max_queued_messages) {
-      elog("AMQP connection ${a} publishing to \"${e}\" has reached ${max} unconfirmed messages",
+      elog("AMQP connection {a} publishing to \"{e}\" has reached {max} unconfirmed messages",
            ("a", retrying_connection.address())("e", exchange)("max", max_queued_messages));
       std::string err = "AMQP publishing to " + exchange + " has reached " + std::to_string(message_deque.size()) + " unconfirmed messages";
       if( on_fatal_error) on_fatal_error(err);

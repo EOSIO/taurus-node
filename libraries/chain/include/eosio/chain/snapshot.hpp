@@ -5,6 +5,7 @@
 #include <fc/variant_object.hpp>
 #include <boost/core/demangle.hpp>
 #include <ostream>
+#include <rapidjson/document.h>
 
 namespace eosio { namespace chain {
    /**
@@ -180,7 +181,7 @@ namespace eosio { namespace chain {
             auto orig = data.id;
             f();
             EOS_ASSERT(orig == data.id, snapshot_exception,
-                       "Snapshot for ${type} mutates row member \"id\" which is illegal",
+                       "Snapshot for {type} mutates row member \"id\" which is illegal",
                        ("type",boost::core::demangle( typeid( T ).name() )));
          }
 
@@ -281,6 +282,8 @@ namespace eosio { namespace chain {
 
       virtual void return_to_header() = 0;
 
+      virtual bool validate_chain_id() const { return true; }
+
       virtual ~snapshot_reader(){};
 
       protected:
@@ -342,12 +345,48 @@ namespace eosio { namespace chain {
          std::streampos          header_pos;
          std::streampos          section_pos;
          uint64_t                row_count;
+   };
 
+   class ostream_json_snapshot_writer : public snapshot_writer {
+      public:
+         explicit ostream_json_snapshot_writer(std::ostream& snapshot);
+
+         void write_start_section( const std::string& section_name ) override;
+         void write_row( const detail::abstract_snapshot_row_writer& row_writer ) override;
+         void write_end_section() override;
+         void finalize();
+
+         static const uint32_t magic_number = 0x30510550;
+
+      private:
+         detail::ostream_wrapper snapshot;
+         uint64_t                row_count;
+   };
+
+   class json_snapshot_reader : public snapshot_reader {
+      public:
+         explicit json_snapshot_reader(const std::string& snapshot_path, bool validate_chain_id = true);
+
+         void validate() const override;
+         bool has_section( const string& section_name ) override;
+         void set_section( const string& section_name ) override;
+         bool read_row( detail::abstract_snapshot_row_reader& row_reader ) override;
+         bool empty () override;
+         void clear_section() override;
+         void return_to_header() override;
+         bool validate_chain_id() const override { return assert_chain_id; }
+
+      private:
+         rapidjson::Document snapshot;
+         std::string         sect_name;
+         uint64_t            num_rows;
+         uint64_t            cur_row;
+         bool                assert_chain_id;
    };
 
    class istream_snapshot_reader : public snapshot_reader {
       public:
-         explicit istream_snapshot_reader(std::istream& snapshot);
+         explicit istream_snapshot_reader(std::istream& snapshot, bool validate_chain_id = true);
 
          void validate() const override;
          bool has_section( const string& section_name ) override;
@@ -357,6 +396,8 @@ namespace eosio { namespace chain {
          void clear_section() override;
          void return_to_header() override;
 
+         bool validate_chain_id() const override { return assert_chain_id; }
+
       private:
          bool validate_section() const;
 
@@ -364,6 +405,7 @@ namespace eosio { namespace chain {
          std::streampos header_pos;
          uint64_t       num_rows;
          uint64_t       cur_row;
+         bool           assert_chain_id;
    };
 
    class integrity_hash_snapshot_writer : public snapshot_writer {

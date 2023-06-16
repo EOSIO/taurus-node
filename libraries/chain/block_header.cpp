@@ -46,13 +46,13 @@ namespace eosio { namespace chain {
 
          auto match = decompose_t::extract<block_header_extension>( id, e.second, iter->second );
          EOS_ASSERT( match, invalid_block_header_extension,
-                     "Block header extension with id type ${id} is not supported",
+                     "Block header extension with id type {id} is not supported",
                      ("id", id)
          );
 
          if( match->enforce_unique ) {
             EOS_ASSERT( i == 0 || id > id_type_lower_bound, invalid_block_header_extension,
-                        "Block header extension with id type ${id} is not allowed to repeat",
+                        "Block header extension with id type {id} is not allowed to repeat",
                         ("id", id)
             );
          }

@@ -185,7 +185,7 @@ BOOST_FIXTURE_TEST_CASE( abi_from_variant, TESTER ) try {
             return abi_serializer(abi, abi_serializer::create_yield_function( abi_serializer_max_time ));
          }
          return std::optional<abi_serializer>();
-      } FC_RETHROW_EXCEPTIONS(error, "Failed to find or parse ABI for ${name}", ("name", name))
+      } FC_RETHROW_EXCEPTIONS(error, "Failed to find or parse ABI for {name}", ("name", name))
    };
 
    fc::variant pretty_trx = mutable_variant_object()
@@ -1905,7 +1905,7 @@ BOOST_AUTO_TEST_CASE( billed_cpu_test ) try {
 
    auto push_trx = [&]( const transaction_metadata_ptr& trx, fc::time_point deadline,
                      uint32_t billed_cpu_time_us, bool explicit_billed_cpu_time, uint32_t subjective_cpu_bill_us ) {
-      auto r = chain.control->push_transaction( trx, deadline, billed_cpu_time_us, explicit_billed_cpu_time, subjective_cpu_bill_us );
+      auto r = chain.control->push_transaction( trx, deadline, fc::microseconds::maximum(), billed_cpu_time_us, explicit_billed_cpu_time, subjective_cpu_bill_us );
       if( r->except_ptr ) std::rethrow_exception( r->except_ptr );
       if( r->except ) throw *r->except;
       return r;

@@ -1,15 +1,15 @@
 
 ## Overview
 
-The `trace_api_plugin` provides a consumer-focused long-term API for retrieving retired actions and related metadata from a specified block. The plugin stores serialized block trace data to the filesystem for later retrieval via HTTP RPC requests. For detailed information about the definition of this application programming interface see the [Trace API reference](api-reference/index.md).
+The `trace_api_plugin` provides a consumer-focused long-term API for retrieving retired actions and related metadata from a specified block. The plugin stores serialized block trace data to the filesystem for later retrieval via HTTP RPC requests.
 
 ## Purpose
 
-While integrating applications such as block explorers and exchanges with an EOSIO blockchain, the user might require a complete transcript of actions processed by the blockchain, including those spawned from the execution of smart contracts and scheduled transactions. The `trace_api_plugin` serves this need. The purpose of the plugin is to provide:
+While integrating applications such as block explorers and exchanges with an EOSIO-Taurus blockchain, the user might require a complete transcript of actions processed by the blockchain, including those spawned from the execution of smart contracts and scheduled transactions. The `trace_api_plugin` serves this need. The purpose of the plugin is to provide:
 
 * A transcript of retired actions and related metadata
 * A consumer-focused long-term API to retrieve blocks
-* Maintainable resource commitments at the EOSIO nodes
+* Maintainable resource commitments at the EOSIO-Taurus nodes
 
 Therefore, one crucial goal of the `trace_api_plugin` is to improve the maintenance of node resources (file system, disk space, memory used, etc.). This goal is different from the existing `history_plugin` which provides far more configurable filtering and querying capabilities, or the existing `state_history_plugin` which provides a binary streaming interface to access structural chain data, action data, as well as state deltas.
 
@@ -32,48 +32,48 @@ These can be specified from both the `nodeos` command-line or the `config.ini` f
 ```console
 Config Options for eosio::trace_api_plugin:
 
-  --trace-dir arg (="traces")           the location of the trace directory 
-                                        (absolute path or relative to 
+  --trace-dir arg (="traces")           the location of the trace directory
+                                        (absolute path or relative to
                                         application data dir)
-  --trace-slice-stride arg (=10000)     the number of blocks each "slice" of 
-                                        trace data will contain on the 
+  --trace-slice-stride arg (=10000)     the number of blocks each "slice" of
+                                        trace data will contain on the
                                         filesystem
   --trace-minimum-irreversible-history-blocks arg (=-1)
-                                        Number of blocks to ensure are kept 
-                                        past LIB for retrieval before "slice" 
+                                        Number of blocks to ensure are kept
+                                        past LIB for retrieval before "slice"
                                         files can be automatically removed.
-                                        A value of -1 indicates that automatic 
+                                        A value of -1 indicates that automatic
                                         removal of "slice" files will be turned
                                         off.
   --trace-minimum-uncompressed-irreversible-history-blocks arg (=-1)
-                                        Number of blocks to ensure are 
-                                        uncompressed past LIB. Compressed 
-                                        "slice" files are still accessible but 
-                                        may carry a performance loss on 
+                                        Number of blocks to ensure are
+                                        uncompressed past LIB. Compressed
+                                        "slice" files are still accessible but
+                                        may carry a performance loss on
                                         retrieval
-                                        A value of -1 indicates that automatic 
-                                        compression of "slice" files will be 
+                                        A value of -1 indicates that automatic
+                                        compression of "slice" files will be
                                         turned off.
-  --trace-rpc-abi arg                   ABIs used when decoding trace RPC 
+  --trace-rpc-abi arg                   ABIs used when decoding trace RPC
                                         responses.
-                                        There must be at least one ABI 
-                                        specified OR the flag trace-no-abis 
+                                        There must be at least one ABI
+                                        specified OR the flag trace-no-abis
                                         must be used.
                                         ABIs are specified as "Key=Value" pairs
                                         in the form <account-name>=<abi-def>
                                         Where <abi-def> can be:
-                                           an absolute path to a file 
+                                           an absolute path to a file
                                         containing a valid JSON-encoded ABI
                                            a relative path from `data-dir` to a
-                                        file containing a valid JSON-encoded 
+                                        file containing a valid JSON-encoded
                                         ABI
-                                        
-  --trace-no-abis                       Use to indicate that the RPC responses 
+
+  --trace-no-abis                       Use to indicate that the RPC responses
                                         will not use ABIs.
-                                        Failure to specify this option when 
-                                        there are no trace-rpc-abi 
+                                        Failure to specify this option when
+                                        there are no trace-rpc-abi
                                         configuations will result in an Error.
-                                        This option is mutually exclusive with 
+                                        This option is mutually exclusive with
                                         trace-rpc-api
 ```
 
@@ -90,7 +90,7 @@ The following plugins are loaded with default settings if not specified on the c
 # config.ini
 plugin = eosio::chain_plugin
 [options]
-plugin = eosio::http_plugin 
+plugin = eosio::http_plugin
 [options]
 ```
 ```sh
@@ -101,14 +101,14 @@ nodeos ... --plugin eosio::chain_plugin [options]  \
 
 ## Configuration Example
 
-Here is a `nodeos` configuration example for the `trace_api_plugin` when tracing some EOSIO reference contracts:
+Here is a `nodeos` configuration example for the `trace_api_plugin` when tracing some EOSIO-Taurus reference contracts:
 
 ```sh
 nodeos --data-dir data_dir --config-dir config_dir --trace-dir traces_dir
---plugin eosio::trace_api_plugin 
---trace-rpc-abi=eosio=abis/eosio.abi 
---trace-rpc-abi=eosio.token=abis/eosio.token.abi 
---trace-rpc-abi=eosio.msig=abis/eosio.msig.abi 
+--plugin eosio::trace_api_plugin
+--trace-rpc-abi=eosio=abis/eosio.abi
+--trace-rpc-abi=eosio.token=abis/eosio.token.abi
+--trace-rpc-abi=eosio.msig=abis/eosio.msig.abi
 --trace-rpc-abi=eosio.wrap=abis/eosio.wrap.abi
 ```
 
@@ -128,7 +128,7 @@ where `<S>` and `<E>` are the starting and ending block numbers for the slice pa
 #### trace_&lt;S&gt;-&lt;E&gt;.log
 
 The trace data log is an append only log that stores the actual binary serialized block data. The contents include the transaction and action trace data needed to service the RPC requests augmented by the per-action ABIs. Two block types are supported:
-  
+
   * `block_trace_v0`
   * `block_trace_v1`
 
@@ -154,7 +154,7 @@ Compressed trace log files have the `.clog` file extension (see [Compression of 
 The data is compressed into raw zlib form with full-flush *seek points* placed at regular intervals. A decompressor can start from any of these *seek points* without reading previous data and it can also traverse a seek point without issue if it appears within the data.
 
 [[info | Size reduction of trace logs]]
-| Data compression can reduce the space growth of trace logs twentyfold! For instance, with 512 seek points and using the test dataset on the EOS public network, data compression reduces the growth of the trace directory from &#126;50 GiB/day to &#126;2.5 GiB/day for full data. Due to the high redundancy of the trace log contents, the compression is still comparable to `gzip -9`. The decompressed data is also made immediately available via the [Trace RPC API](api-reference/index.md) without any service degradation.
+| Data compression can reduce the space growth of trace logs twentyfold! For instance, with 512 seek points and using the test dataset on the EOS public network, data compression reduces the growth of the trace directory from &#126;50 GiB/day to &#126;2.5 GiB/day for full data. Due to the high redundancy of the trace log contents, the compression is still comparable to `gzip -9`. The decompressed data is also made immediately available via the Trace RPC API without any service degradation.
 
 #### Role of seek points
 
@@ -166,10 +166,10 @@ One of the main design goals of the `trace_api_plugin` is to minimize the manual
 
 ### Removal of log files
 
-To allow the removal of previous trace log files created by the `trace_api_plugin`, you can use the following option: 
+To allow the removal of previous trace log files created by the `trace_api_plugin`, you can use the following option:
 
 ```sh
-  --trace-minimum-irreversible-history-blocks N (=-1) 
+  --trace-minimum-irreversible-history-blocks N (=-1)
 ```
 
 If the argument `N` is 0 or greater, the plugin will only keep `N` blocks on disk before the current LIB block. Any trace log file with block numbers lesser than then previous `N` blocks will be scheduled for automatic removal.
@@ -191,7 +191,7 @@ If resource usage cannot be effectively managed via the `trace-minimum-irreversi
 
 ## Manual Maintenance
 
-The `trace-dir` option defines the directory on the filesystem where the trace log files are stored by the `trace_api_plugin`. These files are stable once the LIB block has progressed past a given slice and then can be deleted at any time to reclaim filesystem space. The deployed EOSIO system will tolerate any out-of-process management system that removes some or all of these files in this directory regardless of what data they represent, or whether there is a running `nodeos` instance accessing them or not.  Data which would nominally be available, but is no longer so due to manual maintenance, will result in a HTTP 404 response from the appropriate API endpoint(s).
+The `trace-dir` option defines the directory on the filesystem where the trace log files are stored by the `trace_api_plugin`. These files are stable once the LIB block has progressed past a given slice and then can be deleted at any time to reclaim filesystem space. The deployed EOSIO-Taurus system will tolerate any out-of-process management system that removes some or all of these files in this directory regardless of what data they represent, or whether there is a running `nodeos` instance accessing them or not.  Data which would nominally be available, but is no longer so due to manual maintenance, will result in a HTTP 404 response from the appropriate API endpoint(s).
 
 [[info | For node operators]]
 | Node operators can take full control over the lifetime of the historical data available in their nodes via the `trace-api-plugin` and the `trace-minimum-irreversible-history-blocks` and `trace-minimum-uncompressed-irreversible-history-blocks` options in conjunction with any external filesystem resource manager.

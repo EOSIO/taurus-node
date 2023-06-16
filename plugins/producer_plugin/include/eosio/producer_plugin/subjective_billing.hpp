@@ -7,6 +7,7 @@
 #include <eosio/chain/resource_limits.hpp>
 #include <eosio/chain/resource_limits_private.hpp>
 #include <eosio/chain/config.hpp>
+#include <eosio/chain/to_string.hpp>
 
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/member.hpp>
@@ -76,7 +77,7 @@ private:
       if( aitr != _account_subjective_bill_cache.end() ) {
          aitr->second.pending_cpu_us -= entry.subjective_cpu_bill;
          EOS_ASSERT( aitr->second.pending_cpu_us >= 0, chain::tx_resource_exhaustion,
-                     "Logic error in subjective account billing ${a}", ("a", entry.account) );
+                     "Logic error in subjective account billing {a}", ("a", entry.account) );
          if( aitr->second.empty(time_ordinal) ) _account_subjective_bill_cache.erase( aitr );
       }
    }
@@ -162,7 +163,7 @@ public:
       }
 
       if (sub_bill_info) {
-         EOS_ASSERT(sub_bill_info->pending_cpu_us >= in_block_pending_cpu_us, chain::tx_resource_exhaustion, "Logic error subjective billing ${a}", ("a", first_auth) );
+         EOS_ASSERT(sub_bill_info->pending_cpu_us >= in_block_pending_cpu_us, chain::tx_resource_exhaustion, "Logic error subjective billing {a}", ("a", first_auth.to_string()) );
          uint32_t sub_bill = sub_bill_info->pending_cpu_us - in_block_pending_cpu_us + sub_bill_info->expired_accumulator.value_at(time_ordinal, expired_accumulator_average_window );
          return sub_bill;
       } else {
@@ -200,7 +201,7 @@ public:
             num_expired++;
          }
 
-         fc_dlog( log, "Processed ${n} subjective billed transactions, Expired ${expired}",
+         fc_dlog( log, "Processed {n} subjective billed transactions, Expired {expired}",
                   ("n", orig_count)( "expired", num_expired ) );
       }
       return !exhausted;

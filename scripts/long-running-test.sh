@@ -7,9 +7,6 @@ RABBITMQ_SERVER_DETACHED='rabbitmq-server -detached'
 [[ -z "$TEST" ]] && export TEST="$1"
 if [[ "$(uname)" == 'Linux' ]]; then
     . /etc/os-release
-    if [[ "$ID" == 'centos' ]]; then
-        [[ -f /opt/rh/rh-python36/enable ]] && source /opt/rh/rh-python36/enable
-    fi
 fi
 cd "$GIT_ROOT/build"
 # tests

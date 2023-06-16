@@ -23,6 +23,9 @@ import json
 #
 ###############################################################
 
+# give it 30 mins to run
+Utils.set_timeout(30*60)
+
 Print=Utils.Print
 
 appArgs = AppArgs()

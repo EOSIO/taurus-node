@@ -12,7 +12,7 @@ namespace eosio {
 using chain::bytes;
 using std::shared_ptr;
 
-typedef shared_ptr<struct state_history_plugin_impl> state_history_ptr;
+typedef std::unique_ptr<struct state_history_plugin_impl> state_history_ptr;
 
 class state_history_plugin : public plugin<state_history_plugin> {
  public:

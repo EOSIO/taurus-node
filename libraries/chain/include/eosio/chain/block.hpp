@@ -150,6 +150,13 @@ namespace eosio { namespace chain {
 
       fc::enum_type<uint8_t,prune_state_type> prune_state{prune_state_type::complete_legacy};
       deque<transaction_receipt>              transactions; /// new or generated transactions
+
+      /*
+       * NOTE: the block_extensions in a block being built will be updated by a separated thread
+       * created by the finalized_block() function call. During the separated thread is running, this
+       * field should not be read/updated by any other threads, without race condition protections.
+       */
+
       extensions_type                         block_extensions;
 
       std::size_t maximum_pruned_pack_size( packed_transaction::cf_compression_type segment_compression ) const;
@@ -164,7 +171,7 @@ namespace eosio { namespace chain {
          return padded_size;
       }
       template<typename Stream>
-      void unpack(Stream& stream, packed_transaction::cf_compression_type segment_compression) {
+      void unpack(Stream& stream, packed_transaction::cf_compression_type) {
          fc::raw::unpack(stream, *this);
       }
 

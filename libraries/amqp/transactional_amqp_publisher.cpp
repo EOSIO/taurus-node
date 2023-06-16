@@ -24,6 +24,11 @@ struct transactional_amqp_publisher_impl {
                                      const fc::microseconds& time_out,
                                      bool dedup,
                                      transactional_amqp_publisher::error_callback_t on_fatal_error);
+   // amqp via tls
+   transactional_amqp_publisher_impl(const std::string& url, boost::asio::ssl::context & ssl_ctx, const std::string& exchange,
+                                     const fc::microseconds& time_out,
+                                     bool dedup,
+                                     transactional_amqp_publisher::error_callback_t on_fatal_error);
    ~transactional_amqp_publisher_impl();
    void wait_for_signal(std::shared_ptr<boost::asio::signal_set> ss);
    void pump_queue();

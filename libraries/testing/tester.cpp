@@ -2,9 +2,12 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <eosio/testing/tester.hpp>
 #include <eosio/chain/block_log.hpp>
+#include <eosio/chain/block_state.hpp>
+#include <eosio/chain/to_string.hpp>
 #include <eosio/chain/wast_to_wasm.hpp>
 #include <eosio/chain/eosio_contract.hpp>
 #include <eosio/chain/generated_transaction_object.hpp>
+#include <eosio/chain/to_string.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
@@ -355,25 +358,13 @@ namespace eosio { namespace testing {
 
       if( !skip_pending_trxs ) {
          for( auto itr = unapplied_transactions.begin(); itr != unapplied_transactions.end();  ) {
-            auto trace = control->push_transaction( itr->trx_meta, fc::time_point::maximum(), DEFAULT_BILLED_CPU_TIME_US, true, 0 );
+            auto trace = control->push_transaction( itr->trx_meta, fc::time_point::maximum(), fc::microseconds::maximum(), DEFAULT_BILLED_CPU_TIME_US, true, 0 );
             traces.emplace_back( trace );
             if(!no_throw && trace->except) {
                // this always throws an fc::exception, since the original exception is copied into an fc::exception
                trace->except->dynamic_rethrow_exception();
             }
             itr = unapplied_transactions.erase( itr );
-         }
-
-         vector<transaction_id_type> scheduled_trxs;
-         while ((scheduled_trxs = get_scheduled_transactions()).size() > 0 ) {
-            for( const auto& trx : scheduled_trxs ) {
-               auto trace = control->push_scheduled_transaction( trx, fc::time_point::maximum(), DEFAULT_BILLED_CPU_TIME_US, true );
-               traces.emplace_back( trace );
-               if( !no_throw && trace->except ) {
-                  // this always throws an fc::exception, since the original exception is copied into an fc::exception
-                  trace->except->dynamic_rethrow_exception();
-               }
-            }
          }
       }
 
@@ -432,13 +423,13 @@ namespace eosio { namespace testing {
          }
       });
 
-      control->finalize_block([&](digest_type d) {
+      control->finalize_block([&](block_state_ptr bsp, bool wtmsig_enabled, const digest_type& d) {
          std::vector<signature_type> sigs;
          sigs.reserve(signing_keys.size());
          std::transform(signing_keys.begin(), signing_keys.end(), std::back_inserter(sigs),
                         [&d](const auto& k) { return k.sign(d); });
-         return sigs;
-      }).get()(); 
+         bsp->assign_signatures(std::move(sigs), wtmsig_enabled);
+      }).get()();
 
       last_produced_block[control->head_block_state()->header.producer] =
           control->head_block_state()->id;
@@ -458,19 +449,6 @@ namespace eosio { namespace testing {
          for( uint32_t i = 0; i < n; ++i )
             produce_block();
       }
-   }
-
-   vector<transaction_id_type> base_tester::get_scheduled_transactions() const {
-      const auto& idx = control->db().get_index<generated_transaction_multi_index,by_delay>();
-
-      vector<transaction_id_type> result;
-
-      auto itr = idx.begin();
-      while( itr != idx.end() && itr->delay_until <= control->pending_block_time() ) {
-         result.emplace_back(itr->trx_id);
-         ++itr;
-      }
-      return result;
    }
 
    void base_tester::produce_blocks_until_end_of_round() {
@@ -574,11 +552,11 @@ namespace eosio { namespace testing {
             fc::microseconds::maximum() :
             fc::microseconds( deadline - fc::time_point::now() );
       auto fut = transaction_metadata::start_recover_keys( ptrx, control->get_thread_pool(), control->get_chain_id(), time_limit, transaction_metadata::trx_type::input );
-      auto r = control->push_transaction( fut.get(), deadline, billed_cpu_time_us, billed_cpu_time_us > 0, 0 );
+      auto r = control->push_transaction( fut.get(), deadline, fc::microseconds::maximum(), billed_cpu_time_us, billed_cpu_time_us > 0, 0 );
       if( r->except_ptr ) std::rethrow_exception( r->except_ptr );
       if( r->except ) throw *r->except;
       return r;
-   } FC_RETHROW_EXCEPTIONS( warn, "transaction_header: ${header}", ("header", transaction_header(trx.get_transaction()) )) }
+   } FC_RETHROW_EXCEPTIONS( warn, "transaction_header: {header}", ("header", transaction_header(trx.get_transaction()) )) }
 
    transaction_trace_ptr base_tester::push_transaction( const signed_transaction& trx,
                                                         fc::time_point deadline,
@@ -599,12 +577,12 @@ namespace eosio { namespace testing {
             fc::microseconds( deadline - fc::time_point::now() );
       auto ptrx = std::make_shared<packed_transaction>( signed_transaction(trx), true, c );
       auto fut = transaction_metadata::start_recover_keys( std::move( ptrx ), control->get_thread_pool(), control->get_chain_id(), time_limit, transaction_metadata::trx_type::input );
-      auto r = control->push_transaction( fut.get(), deadline, billed_cpu_time_us, billed_cpu_time_us > 0, 0 );
+      auto r = control->push_transaction( fut.get(), deadline, fc::microseconds::maximum(), billed_cpu_time_us, billed_cpu_time_us > 0, 0 );
       if (no_throw) return r;
       if( r->except_ptr ) std::rethrow_exception( r->except_ptr );
       if( r->except)  throw *r->except;
       return r;
-   } FC_RETHROW_EXCEPTIONS( warn, "transaction_header: ${header}, billed_cpu_time_us: ${billed}",
+   } FC_RETHROW_EXCEPTIONS( warn, "transaction_header: {header}, billed_cpu_time_us: {billed}",
                             ("header", transaction_header(trx) ) ("billed", billed_cpu_time_us))
    }
 
@@ -677,7 +655,7 @@ namespace eosio { namespace testing {
       }
 
       return push_transaction( trx );
-   } FC_CAPTURE_AND_RETHROW( (code)(acttype)(auths)(data)(expiration)(delay_sec) ) }
+   } FC_CAPTURE_AND_RETHROW( (code)(acttype)(auths)(fc::json::to_string(data, fc::time_point::now() + fc::exception::format_time_limit))(expiration)(delay_sec) ) } // ?
 
    action base_tester::get_action( account_name code, action_name acttype, vector<permission_level> auths,
                                    const variant_object& data )const { try {
@@ -686,7 +664,7 @@ namespace eosio { namespace testing {
       chain::abi_serializer abis(abi, abi_serializer::create_yield_function( abi_serializer_max_time ));
 
       string action_type_name = abis.get_action_type(acttype);
-      FC_ASSERT( action_type_name != string(), "unknown action type ${a}", ("a",acttype) );
+      FC_ASSERT( action_type_name != string(), "unknown action type {a}", ("a",acttype) );
 
 
       action act;
@@ -864,7 +842,7 @@ namespace eosio { namespace testing {
                                    .account    = account,
                                    .permission = perm,
                                    .parent     = parent,
-                                   .auth       = move(auth),
+                                   .auth       = std::move(auth),
                                 });
 
          set_transaction_headers(trx);

@@ -81,36 +81,6 @@ namespace eosio { namespace chain {
              auth.permission == eosio::chain::config::active_name;
    }
 
-   #define STORAGE_EVENT_ID( FORMAT, ... ) \
-      fc::format_string( FORMAT, fc::mutable_variant_object()__VA_ARGS__ )
-
-   struct storage_usage_trace {
-   public:
-      storage_usage_trace(uint32_t action_id, std::string event_id, const char* family, const char* operation)
-      :storage_usage_trace(action_id, std::move(event_id), family, operation, ".")
-      {}
-
-      storage_usage_trace(uint32_t action_id, std::string&& event_id, const char* family, const char* operation, const char* legacy_tag)
-      :action_id(action_id),event_id(std::move(event_id)),family(family),operation(operation),legacy_tag(legacy_tag)
-      {}
-
-      uint32_t          action_id  = 0;
-      const std::string event_id   = "generic";
-      const char*       family     = "generic";
-      const char*       operation  = "generic";
-      const char*       legacy_tag = "generic";
-
-   private:
-      storage_usage_trace(uint32_t action_id)
-      :action_id(action_id)
-      {}
-
-      friend storage_usage_trace generic_storage_usage_trace(uint32_t);
-   };
-
-   inline storage_usage_trace generic_storage_usage_trace(uint32_t action_id) {
-      return {action_id};
-   }
 } }  /// namespace eosio::chain
 
 FC_REFLECT( eosio::chain::account_delta,

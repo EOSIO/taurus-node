@@ -19,4 +19,9 @@ namespace eosio { namespace chain { namespace webassembly {
    name interface::get_sender() const {
       return context.get_sender();
    }
+
+   void interface::push_event( span<const char> event ) const {
+      context.push_event( event.data(), event.size() );
+   }
+
 }}} // ns eosio::chain::webassembly

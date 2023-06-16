@@ -48,7 +48,7 @@ class signature_provider_plugin_impl {
                   return se_key.sign(digest);
                };
 
-         EOS_THROW(chain::secure_enclave_exception, "${k} not found in Secure Enclave", ("k", pubkey));
+         EOS_THROW(chain::secure_enclave_exception, "{k} not found in Secure Enclave", ("k", pubkey.to_string()));
       }
 #endif
 
@@ -105,7 +105,7 @@ void signature_provider_plugin::set_program_options(options_description&, option
                      "milliseconds to delay the signature signing when using default signature provider");
 }
 
-const char* const signature_provider_plugin::signature_provider_help_text() const {
+const char* signature_provider_plugin::signature_provider_help_text() const {
    return "Key=Value pairs in the form <public-key>=<provider-spec>\n"
           "Where:\n"
           "   <public-key>    \tis a string form of a valid EOSIO public key\n\n"
@@ -148,7 +148,7 @@ signature_provider_plugin::signature_provider_for_specification(const std::strin
 
    if(spec_type_str == "KEY") {
       chain::private_key_type priv(spec_data);
-      EOS_ASSERT(pubkey == priv.get_public_key(), chain::plugin_config_exception, "Private key does not match given public key for ${pub}", ("pub", pubkey));
+      EOS_ASSERT(pubkey == priv.get_public_key(), chain::plugin_config_exception, "Private key does not match given public key for {pub}", ("pub", pubkey.to_string()));
       return std::make_pair(pubkey, my->make_key_signature_provider(priv));
    }
    else if(spec_type_str == "KEOSD")
@@ -161,7 +161,7 @@ signature_provider_plugin::signature_provider_for_specification(const std::strin
    else if(spec_type_str == "SE")
       return std::make_pair(pubkey, my->make_se_signature_provider(pubkey));
 #endif
-   EOS_THROW(chain::plugin_config_exception, "Unsupported key provider type \"${t}\"", ("t", spec_type_str));
+   EOS_THROW(chain::plugin_config_exception, "Unsupported key provider type \"{t}\"", ("t", spec_type_str));
 }
 
 signature_provider_plugin::signature_provider_type

@@ -3,7 +3,6 @@
 #include <eosio/chain/transaction.hpp>
 #include <eosio/chain/contract_table_objects.hpp>
 #include <eosio/chain/backing_store/kv_context.hpp>
-#include <eosio/chain/backing_store/db_context.hpp>
 #include <eosio/chain/backing_store/db_chainbase_iter_store.hpp>
 #include <eosio/chain/backing_store/db_secondary_key_helper.hpp>
 #include <fc/utility.hpp>
@@ -51,16 +50,11 @@ class apply_context {
                   o.payer         = payer;
                });
 
-               std::string event_id;
                context.db.modify( tab, [&]( auto& t ) {
                  ++t.count;
-
-                  if (context.control.get_deep_mind_logger() != nullptr) {
-                     event_id = backing_store::db_context::table_event(t.code, t.scope, t.table, name(id));
-                  }
                });
 
-               context.update_db_usage( payer, config::billable_size_v<ObjectType>, backing_store::db_context::secondary_add_trace(context.get_action_id(), std::move(event_id)) );
+               context.update_db_usage( payer, config::billable_size_v<ObjectType> );
 
                itr_cache.cache_table( tab );
                return itr_cache.add( obj );
@@ -72,12 +66,7 @@ class apply_context {
                const auto& table_obj = itr_cache.get_table( obj.t_id );
                EOS_ASSERT( table_obj.code == context.receiver, table_access_violation, "db access violation" );
 
-               std::string event_id;
-               if (context.control.get_deep_mind_logger() != nullptr) {
-                  event_id = backing_store::db_context::table_event(table_obj.code, table_obj.scope, table_obj.table, name(obj.primary_key));
-               }
-
-               context.update_db_usage( obj.payer, -( config::billable_size_v<ObjectType> ), backing_store::db_context::secondary_rem_trace(context.get_action_id(), std::move(event_id)) );
+               context.update_db_usage( obj.payer, -( config::billable_size_v<ObjectType> ) );
 
 //               context.require_write_lock( table_obj.scope );
 
@@ -105,14 +94,9 @@ class apply_context {
 
                int64_t billing_size =  config::billable_size_v<ObjectType>;
 
-               std::string event_id;
-               if (context.control.get_deep_mind_logger() != nullptr) {
-                  event_id = backing_store::db_context::table_event(table_obj.code, table_obj.scope, table_obj.table, name(obj.primary_key));
-               }
-
                if( obj.payer != payer ) {
-                  context.update_db_usage( obj.payer, -(billing_size), backing_store::db_context::secondary_update_rem_trace(context.get_action_id(), std::string(event_id)) );
-                  context.update_db_usage( payer, +(billing_size), backing_store::db_context::secondary_update_add_trace(context.get_action_id(), std::move(event_id)) );
+                  context.update_db_usage( obj.payer, -(billing_size) );
+                  context.update_db_usage( payer, +(billing_size) );
                }
 
                context.db.modify( obj, [&]( auto& o ) {
@@ -335,9 +319,6 @@ class apply_context {
       void exec();
       void execute_inline( action&& a );
       void execute_context_free_inline( action&& a );
-      void schedule_deferred_transaction( const uint128_t& sender_id, account_name payer, transaction&& trx, bool replace_existing );
-      bool cancel_deferred_transaction( const uint128_t& sender_id, account_name sender );
-      bool cancel_deferred_transaction( const uint128_t& sender_id ) { return cancel_deferred_transaction(sender_id, receiver); }
 
    protected:
       uint32_t schedule_action( uint32_t ordinal_of_action_to_schedule, account_name receiver, bool context_free );
@@ -389,7 +370,7 @@ class apply_context {
    /// Database methods:
    public:
 
-      void update_db_usage( const account_name& payer, int64_t delta, const storage_usage_trace& trace );
+      void update_db_usage( const account_name& payer, int64_t delta );
 
       int  db_store_i64( name scope, name table, const account_name& payer, uint64_t id, const char* buffer, size_t buffer_size );
       void db_update_i64( int iterator, account_name payer, const char* buffer, size_t buffer_size );
@@ -445,7 +426,7 @@ class apply_context {
       uint64_t next_recv_sequence( const account_metadata_object& receiver_account );
       uint64_t next_auth_sequence( account_name actor );
 
-      void add_ram_usage( account_name account, int64_t ram_delta, const storage_usage_trace& trace );
+      void add_ram_usage( account_name account, int64_t ram_delta );
 
       void finalize_trace( action_trace& trace, const fc::time_point& start );
 
@@ -455,6 +436,7 @@ class apply_context {
       const action& get_action()const { return *act; }
 
       action_name get_sender() const;
+      void push_event( const char* data, size_t size ) const;
 
       uint32_t get_action_id() const;
       void increment_action_id();

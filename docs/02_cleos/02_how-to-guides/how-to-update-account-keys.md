@@ -1,23 +1,23 @@
 
 ## Overview
-This how-to guide provides instructions on how to update an account keys for an EOSIO blockchain account using the cleos CLI tool. 
+This how-to guide provides instructions on how to update an account keys for an EOSIO-Taurus blockchain account using the cleos CLI tool.
 
 The example uses `cleos` to update the keys for the **alice** account.
 
 ## Before you Begin
-Make sure you meet the following requirements: 
+Make sure you meet the following requirements:
 
 * Install the currently supported version of `cleos.`
 [[info | Note]]
-| The `cleos` tool is bundled with the EOSIO software. [Installing EOSIO](../../00_install/index.md) will install the `cleos` and `keosd` command line tools.  
-* You have an EOSIO account and access to the account's private key.
+| The `cleos` tool is bundled with the EOSIO-Taurus software. [Installing EOSIO-Taurus](../../00_install/index.md) will install the `cleos` and `keosd` command line tools.
+* You have an EOSIO-Taurus account and access to the account's private key.
 
 ## Reference
 See the following reference guides for command line usage and related options:
 
 * [cleos create key](../03_command-reference/create/key.md) command
 * [cleos wallet import](../03_command-reference/wallet/import.md) command
-* [cleos set account](../03_command-reference/set/set-account.md) command
+* [cleos set account permission](../03_command-reference/set/set-account-permission.md) command
 
 ## Procedure
 The following step shows how to change the keys for the `active` permissions:
@@ -54,7 +54,7 @@ cleos set account permission alice active EOS5zG7PsdtzQ9achTdRtXwHieL7yyigBFiJDR
 **Where**
 * `alice` = The name of the account to update the key.
 * `active`= The name of the permission to update the key.
-* `EOS5zG7PsdtzQ9achTdRtXwHieL7yyigBFiJDRAQonqBsfKyL3XhC` = The new public key. 
+* `EOS5zG7PsdtzQ9achTdRtXwHieL7yyigBFiJDRAQonqBsfKyL3XhC` = The new public key.
 * `-p alice@owner` = The permission used to authorize the transaction.
 
 **Example Output**
@@ -72,13 +72,13 @@ cleos get account alice
 
 **Example Output**
 ```shell
-permissions: 
+permissions:
      owner     1:    1 EOS6c5UjmyRsZSdikLbpAoMdg4V7FQwvdhep3KMxUifzmpDnoLVPe
         active     1:    1 EOS5zG7PsdtzQ9achTdRtXwHieL7yyigBFiJDRAQonqBsfKyL3XhC
-memory: 
-     quota:       xxx  used:      2.66 KiB  
+memory:
+     quota:       xxx  used:      2.66 KiB
 
-net bandwidth: 
+net bandwidth:
      used:               xxx
      available:          xxx
      limit:              xxx
@@ -90,4 +90,4 @@ cpu bandwidth:
 ```
 
 ## Summary
-In conclusion, by following these instructions you are able to change the keys used by an account. 
+In conclusion, by following these instructions you are able to change the keys used by an account.

@@ -276,7 +276,13 @@ constexpr auto intrinsic_table = boost::hana::make_tuple(
    "env.push_data"_s,
    "env.print_time_us"_s,
    "env.get_input_data"_s,
-   "env.set_output_data"_s
+   "env.set_output_data"_s,
+   "env.coverage_getinc"_s,
+   "env.coverage_dump"_s,
+   "env.push_event"_s,
+   "env.verify_rsa_sha256_sig"_s,
+   "env.verify_ecdsa_sig"_s,
+   "env.is_supported_ecdsa_pubkey"_s
 );
 
 }}}

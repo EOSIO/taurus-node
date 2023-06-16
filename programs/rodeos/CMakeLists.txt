@@ -1,3 +1,6 @@
+if("eos-vm-jit" IN_LIST EOSIO_WASM_RUNTIMES)
+
+
 file(GLOB HEADERS *.hpp streams/*.hpp)
 add_executable( ${RODEOS_EXECUTABLE_NAME}
   cloner_plugin.cpp
@@ -47,4 +50,4 @@ install( TARGETS
    ${RODEOS_EXECUTABLE_NAME} RUNTIME DESTINATION ${CMAKE_INSTALL_FULL_BINDIR} COMPONENT base
 )
 
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/rocksdb_options.ini DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
+endif()

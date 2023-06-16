@@ -52,7 +52,7 @@ namespace Runtime
 	// A resolver that always returns failure.
 	struct NullResolver : Resolver
 	{
-		bool resolve(const std::string& moduleName,const std::string& exportName,IR::ObjectType type,Runtime::ObjectInstance*& outObject) override
+		bool resolve(const std::string&, const std::string&, IR::ObjectType, Runtime::ObjectInstance*&) override
 		{
 			return false;
 		}

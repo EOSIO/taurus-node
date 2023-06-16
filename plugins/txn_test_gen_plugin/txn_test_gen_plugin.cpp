@@ -110,7 +110,7 @@ struct txn_test_gen_plugin_impl {
 
       for (size_t i = 0; i < trxs->size(); ++i) {
          cp.accept_transaction( std::make_shared<packed_transaction>(signed_transaction(trxs->at(i)), true),
-               [=](const std::variant<fc::exception_ptr, transaction_trace_ptr>& result){
+               [this, next](const std::variant<fc::exception_ptr, transaction_trace_ptr>& result){
             if (std::holds_alternative<fc::exception_ptr>(result)) {
                next(std::get<fc::exception_ptr>(result));
             } else {
@@ -313,7 +313,7 @@ struct txn_test_gen_plugin_impl {
       thread_pool.emplace( "txntest", thread_pool_size );
       timer = std::make_shared<boost::asio::high_resolution_timer>(thread_pool->get_executor());
 
-      ilog("Started transaction test plugin; generating ${p} transactions every ${m} ms by ${t} load generation threads",
+      ilog("Started transaction test plugin; generating {p} transactions every {m} ms by {t} load generation threads",
          ("p", batch_size) ("m", period) ("t", thread_pool_size));
 
       boost::asio::post( thread_pool->get_executor(), [this]() {
@@ -327,7 +327,7 @@ struct txn_test_gen_plugin_impl {
       boost::asio::post( thread_pool->get_executor(), [this]() {
          send_transaction([this](const fc::exception_ptr& e){
             if (e) {
-               elog("pushing transaction failed: ${e}", ("e", e->to_detail_string()));
+               elog("pushing transaction failed: {e}", ("e", e->to_detail_string()));
                if(running && stop_on_trx_failed)
                   stop_generation();
             }
@@ -412,7 +412,7 @@ struct txn_test_gen_plugin_impl {
       ilog("Stopping transaction generation test");
 
       if (_txcount) {
-         ilog("${d} transactions executed, ${t}us / transaction", ("d", _txcount)("t", _total_us / (double)_txcount));
+         ilog("{d} transactions executed, {t}us / transaction", ("d", _txcount)("t", _total_us / (double)_txcount));
          _txcount = _total_us = 0;
       }
    }
@@ -457,7 +457,7 @@ void txn_test_gen_plugin::plugin_initialize(const variables_map& options) {
       my->stop_on_trx_failed = options.at("txn-test-gen-stop-on-push-failed").as<bool>();
 
       EOS_ASSERT( my->thread_pool_size > 0, chain::plugin_config_exception,
-                  "txn-test-gen-threads ${num} must be greater than 0", ("num", my->thread_pool_size) );
+                  "txn-test-gen-threads {num} must be greater than 0", ("num", my->thread_pool_size) );
    } FC_LOG_AND_RETHROW()
 }
 

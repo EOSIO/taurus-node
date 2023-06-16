@@ -34,7 +34,7 @@ namespace eosio { namespace chain {
 
          void validate() const {
             EOS_ASSERT(std::clamp(version, minimum_version, current_version) == version, bad_database_version_exception,
-                       "state database version is incompatible, please restore from a compatible snapshot or replay!",
+                       "state database version {version} is incompatible, please restore from a compatible snapshot or replay!",
                        ("version", version)("minimum_version", minimum_version)("maximum_version", current_version));
          }
       };

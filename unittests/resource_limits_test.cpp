@@ -18,7 +18,7 @@ class resource_limits_fixture: private chainbase_fixture<1024*1024>, public reso
    public:
       resource_limits_fixture()
       :chainbase_fixture()
-      ,resource_limits_manager(*chainbase_fixture::_db, []() { return nullptr; })
+      ,resource_limits_manager(*chainbase_fixture::_db)
       {
          add_indices();
          initialize_database();
@@ -252,11 +252,11 @@ BOOST_AUTO_TEST_SUITE(resource_limits_test)
       process_account_limit_updates();
 
       for (uint64_t idx = 0; idx < expected_iterations - 1; idx++) {
-         add_pending_ram_usage(account, increment, generic_storage_usage_trace(0));
+         add_pending_ram_usage(account, increment);
          verify_account_ram_usage(account);
       }
 
-      add_pending_ram_usage(account, increment, generic_storage_usage_trace(0));
+      add_pending_ram_usage(account, increment);
       BOOST_REQUIRE_THROW(verify_account_ram_usage(account), ram_usage_exceeded);
    } FC_LOG_AND_RETHROW();
 
@@ -266,7 +266,7 @@ BOOST_AUTO_TEST_SUITE(resource_limits_test)
       set_account_limits(account, 100, -1, -1 );
       verify_account_ram_usage(account);
       process_account_limit_updates();
-      BOOST_REQUIRE_THROW(add_pending_ram_usage(account, -101, generic_storage_usage_trace(0)), transaction_exception);
+      BOOST_REQUIRE_THROW(add_pending_ram_usage(account, -101), transaction_exception);
 
    } FC_LOG_AND_RETHROW();
 
@@ -276,11 +276,11 @@ BOOST_AUTO_TEST_SUITE(resource_limits_test)
       set_account_limits(account, UINT64_MAX, -1, -1 );
       verify_account_ram_usage(account);
       process_account_limit_updates();
-      add_pending_ram_usage(account, UINT64_MAX/2, generic_storage_usage_trace(0));
+      add_pending_ram_usage(account, UINT64_MAX/2);
       verify_account_ram_usage(account);
-      add_pending_ram_usage(account, UINT64_MAX/2, generic_storage_usage_trace(0));
+      add_pending_ram_usage(account, UINT64_MAX/2);
       verify_account_ram_usage(account);
-      BOOST_REQUIRE_THROW(add_pending_ram_usage(account, 2, generic_storage_usage_trace(0)), transaction_exception);
+      BOOST_REQUIRE_THROW(add_pending_ram_usage(account, 2), transaction_exception);
 
    } FC_LOG_AND_RETHROW();
 
@@ -295,7 +295,7 @@ BOOST_AUTO_TEST_SUITE(resource_limits_test)
       initialize_account(account);
       set_account_limits(account, limit, -1, -1 );
       process_account_limit_updates();
-      add_pending_ram_usage(account, commit, generic_storage_usage_trace(0));
+      add_pending_ram_usage(account, commit);
       verify_account_ram_usage(account);
 
       for (int idx = 0; idx < expected_iterations - 1; idx++) {
@@ -486,7 +486,7 @@ BOOST_AUTO_TEST_SUITE(resource_limits_test)
          const auto& trxs = trigger_block->transactions;
          for( const auto& a : trxs )
             trx_digests.emplace_back( a.digest() );
-         trigger_block->transaction_mroot = merkle( move(trx_digests) );
+         trigger_block->transaction_mroot = merkle( std::move(trx_digests) );
 
          // Re-sign the block
          auto header_bmroot = digest_type::hash( std::make_pair( trigger_block->digest(), main_block_mroot ) );
@@ -528,7 +528,7 @@ BOOST_AUTO_TEST_SUITE(resource_limits_test)
          const auto& trxs = trigger_block->transactions;
          for( const auto& a : trxs )
             trx_digests.emplace_back( a.digest() );
-         trigger_block->transaction_mroot = merkle( move(trx_digests) );
+         trigger_block->transaction_mroot = merkle( std::move(trx_digests) );
 
          // Re-sign the block
          auto header_bmroot = digest_type::hash( std::make_pair( trigger_block->digest(), main_block_mroot ) );

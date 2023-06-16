@@ -16,15 +16,15 @@ auto to_uint64_t(T n) -> std::enable_if_t<std::is_same_v<T, eosio::chain::name>,
    return n.to_uint64_t();
 }
 
-eosio::checksum256 convert(const eosio::chain::checksum_type& obj) {
+inline eosio::checksum256 convert(const eosio::chain::checksum_type& obj) {
    static_assert( sizeof(eosio::checksum256) == sizeof(eosio::chain::checksum_type), "convert may need updated" );
    std::array<uint8_t, 32> bytes;
    static_assert(bytes.size() == sizeof(obj));
-   memcpy(bytes.data(), &obj, bytes.size());
+   memcpy(bytes.data(), &obj, obj.data_size());
    return eosio::checksum256(bytes);
 }
 
-eosio::ship_protocol::account_delta convert(const eosio::chain::account_delta& obj) {
+inline eosio::ship_protocol::account_delta convert(const eosio::chain::account_delta& obj) {
    static_assert( sizeof(eosio::ship_protocol::account_delta) == sizeof(eosio::chain::account_delta), "convert may need updated" );
    static_assert( fc::reflector<eosio::chain::account_delta>::total_member_count == 2, "convert may need updated" );
    eosio::ship_protocol::account_delta result;
@@ -33,7 +33,7 @@ eosio::ship_protocol::account_delta convert(const eosio::chain::account_delta& o
    return result;
 }
 
-eosio::ship_protocol::action_receipt_v0 convert(const eosio::chain::action_receipt& obj) {
+inline eosio::ship_protocol::action_receipt_v0 convert(const eosio::chain::action_receipt& obj) {
    static_assert( fc::reflector<eosio::chain::action_receipt>::total_member_count == 7, "convert may need updated" );
    eosio::ship_protocol::action_receipt_v0 result;
    result.receiver.value  = to_uint64_t(obj.receiver);
@@ -47,7 +47,7 @@ eosio::ship_protocol::action_receipt_v0 convert(const eosio::chain::action_recei
    return result;
 }
 
-eosio::ship_protocol::action convert(const eosio::chain::action& obj) {
+inline eosio::ship_protocol::action convert(const eosio::chain::action& obj) {
    static_assert( sizeof(eosio::ship_protocol::action) == sizeof(std::tuple<eosio::name,eosio::name,std::vector<permission_level>,eosio::input_stream>), "convert may need updated" );
    static_assert( fc::reflector<eosio::chain::action>::total_member_count == 4, "convert may need updated" );
    eosio::ship_protocol::action result;
@@ -60,7 +60,7 @@ eosio::ship_protocol::action convert(const eosio::chain::action& obj) {
    return result;
 }
 
-eosio::ship_protocol::action_trace_v1 convert(const eosio::chain::action_trace& obj) {
+inline eosio::ship_protocol::action_trace_v1 convert(const eosio::chain::action_trace& obj) {
    static_assert( fc::reflector<eosio::chain::action_trace>::total_member_count == 18, "convert may need updated" );
    eosio::ship_protocol::action_trace_v1 result;
    result.action_ordinal.value         = obj.action_ordinal.value;
@@ -82,7 +82,7 @@ eosio::ship_protocol::action_trace_v1 convert(const eosio::chain::action_trace& 
    return result;
 }
 
-eosio::ship_protocol::transaction_trace_v0 convert(const eosio::chain::transaction_trace& obj) {
+inline eosio::ship_protocol::transaction_trace_v0 convert(const eosio::chain::transaction_trace& obj) {
    static_assert( fc::reflector<eosio::chain::transaction_trace>::total_member_count == 13, "convert may need updated" );
    eosio::ship_protocol::transaction_trace_v0 result{};
    result.id = convert(obj.id);

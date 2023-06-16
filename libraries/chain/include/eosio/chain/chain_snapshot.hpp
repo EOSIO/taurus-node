@@ -34,7 +34,7 @@ struct chain_snapshot_header {
       auto max = current_version;
       EOS_ASSERT(version >= min && version <= max,
               snapshot_validation_exception,
-              "Unsupported version of chain snapshot: ${version}. Supported version must be between ${min} and ${max} inclusive.",
+              "Unsupported version of chain snapshot: {version}. Supported version must be between {min} and {max} inclusive.",
               ("version",version)("min",min)("max",max));
    }
 };

@@ -8,7 +8,18 @@ namespace eosio { namespace chain {
    enum class backing_store_type {
       CHAINBASE, // A name for regular users. Uses Chainbase.
    };
+   
+   inline void handle_db_exhaustion() {
+      elog("database memory exhausted: increase chain-state-db-size-mb");
+      //return 1 -- it's what programs/nodeos/main.cpp considers "BAD_ALLOC"
+      std::_Exit(1);
+   }
 
+   inline void handle_bad_alloc() {
+      elog("std::bad_alloc - memory exhausted");
+      //return -2 -- it's what programs/nodeos/main.cpp reports for std::exception
+      std::_Exit(-2);
+   }
 }} // namespace eosio::chain
 
 namespace fc {

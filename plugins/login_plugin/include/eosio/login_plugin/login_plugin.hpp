@@ -37,7 +37,7 @@ class login_plugin : public plugin<login_plugin> {
 
    struct finalize_login_request_results {
       chain::sha256 digest{};
-      flat_set<chain::public_key_type> recovered_keys{};
+      boost::container::flat_set<chain::public_key_type> recovered_keys{};
       bool permission_satisfied = false;
       std::string error{};
    };
@@ -75,7 +75,7 @@ class login_plugin : public plugin<login_plugin> {
    do_not_use_get_secret_results do_not_use_get_secret(const do_not_use_get_secret_params&);
 
  private:
-   unique_ptr<class login_plugin_impl> my;
+   std::unique_ptr<class login_plugin_impl> my;
 };
 
 } // namespace eosio

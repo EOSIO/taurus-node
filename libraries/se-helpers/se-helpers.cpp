@@ -42,7 +42,7 @@ void secure_enclave_key::impl::populate_public_key() {
 
   if(error) {
       auto release_error = fc::make_scoped_exit([&error](){CFRelease(error);});
-      FC_ASSERT(false, "Failed to get public key from Secure Enclave: ${m}", ("m", string_for_cferror(error)));
+      FC_ASSERT(false, "Failed to get public key from Secure Enclave: {m}", ("m", string_for_cferror(error)));
   }
 
   fc::datastream<const char*> ds(serialized_public_key, sizeof(serialized_public_key));
@@ -86,7 +86,7 @@ fc::crypto::signature secure_enclave_key::sign(const fc::sha256& digest) const {
    if(error) {
       auto release_error = fc::make_scoped_exit([&error](){CFRelease(error);});
       std::string error_string = string_for_cferror(error);
-      FC_ASSERT(false, "Failed to sign digest in Secure Enclave: ${m}", ("m", error_string));
+      FC_ASSERT(false, "Failed to sign digest in Secure Enclave: {m}", ("m", error_string));
    }
 
    const UInt8* der_bytes = CFDataGetBytePtr(signature);
@@ -146,7 +146,7 @@ secure_enclave_key create_key() {
    SecKeyRef privateKey = SecKeyCreateRandomKey(attributesDic, &error);
    if(error) {
       auto release_error = fc::make_scoped_exit([&error](){CFRelease(error);});
-      FC_ASSERT(false, "Failed to create key in Secure Enclave: ${m}", ("m", string_for_cferror(error)));
+      FC_ASSERT(false, "Failed to create key in Secure Enclave: {m}", ("m", string_for_cferror(error)));
    }
 
    return secure_enclave_key(privateKey);

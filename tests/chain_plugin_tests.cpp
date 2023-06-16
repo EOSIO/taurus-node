@@ -30,6 +30,7 @@
 using namespace eosio;
 using namespace eosio::chain;
 using namespace eosio::testing;
+using namespace appbase;
 using namespace fc;
 
 namespace std{
@@ -103,7 +104,7 @@ BOOST_FIXTURE_TEST_CASE( get_block_with_invalid_abi, TESTER ) try {
    char headnumstr[20];
    sprintf(headnumstr, "%d", headnum);
    chain_apis::read_only::get_block_params param{headnumstr};
-   chain_apis::read_only plugin(*(this->control), {}, fc::microseconds::maximum());
+   chain_apis::read_only plugin(*(this->control), {}, fc::microseconds::maximum(), {});
 
 
    // block should be decoded successfully
@@ -137,7 +138,7 @@ BOOST_FIXTURE_TEST_CASE( get_info, TESTER ) try {
    produce_blocks(1);
 
    chain_apis::read_only::get_info_params p;
-   chain_apis::read_only plugin(*(this->control), {}, fc::microseconds::maximum());
+   chain_apis::read_only plugin(*(this->control), {}, fc::microseconds::maximum(), {});
 
    auto info = plugin.get_info({});
    BOOST_TEST(info.server_version == version_to_fixed_str(app().version()));
@@ -187,7 +188,7 @@ BOOST_FIXTURE_TEST_CASE( get_consensus_parameters, TESTER ) try {
    produce_blocks(1);
 
    chain_apis::read_only::get_info_params p;
-   chain_apis::read_only plugin(*(this->control), {}, fc::microseconds::maximum());
+   chain_apis::read_only plugin(*(this->control), {}, fc::microseconds::maximum(), {});
 
    auto parms = plugin.get_consensus_parameters({});
 
@@ -239,7 +240,7 @@ BOOST_FIXTURE_TEST_CASE( get_all_accounts, TESTER ) try {
 
    produce_block();
 
-   chain_apis::read_only plugin(*(this->control), {}, fc::microseconds::maximum());
+   chain_apis::read_only plugin(*(this->control), {}, fc::microseconds::maximum(), {});
 
    chain_apis::read_only::get_all_accounts_params p;
    p.limit = 6;
@@ -482,13 +483,13 @@ BOOST_FIXTURE_TEST_CASE( get_account, TESTER ) try {
 
    produce_block();
 
-   chain_apis::read_only plugin(*(this->control), {}, fc::microseconds::maximum());
+   chain_apis::read_only plugin(*(this->control), {}, fc::microseconds::maximum(), {});
 
    chain_apis::read_only::get_account_params p{"alice"_n};
 
    chain_apis::read_only::get_account_results result = plugin.read_only::get_account(p);
 
-   auto check_result_basic = [](chain_apis::read_only::get_account_results result, eosio::name nm, bool isPriv) {
+   auto check_result_basic = [](chain_apis::read_only::get_account_results result, chain::name nm, bool isPriv) {
       BOOST_REQUIRE_EQUAL(nm, result.account_name);
       BOOST_REQUIRE_EQUAL(isPriv, result.privileged);
 
@@ -561,5 +562,17 @@ BOOST_FIXTURE_TEST_CASE( get_account, TESTER ) try {
       }
    }
 } FC_LOG_AND_RETHROW() /// get_account
+
+BOOST_FIXTURE_TEST_CASE( get_genesis, TESTER ) try {
+   produce_blocks(2);
+
+   chain::genesis_state default_genesis;
+
+   chain_apis::read_only plugin(*(this->control), {}, fc::microseconds::maximum(), default_genesis);
+
+   chain_apis::read_only::get_genesis_result result = plugin.read_only::get_genesis({});
+
+   BOOST_REQUIRE_EQUAL(result.initial_configuration, default_genesis.initial_configuration);   
+} FC_LOG_AND_RETHROW() /// get_genesis
 
 BOOST_AUTO_TEST_SUITE_END()

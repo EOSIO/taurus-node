@@ -7,6 +7,7 @@
 
 #include <fc/log/logger.hpp>
 #include <fc/log/logger_config.hpp>
+#include <fc/io/json.hpp>
 #include <fc/log/trace.hpp>
 
 #include <boost/asio/connect.hpp>
@@ -35,19 +36,23 @@ using rodeos::rodeos_filter;
 
 struct cloner_session;
 
+struct filter_ele {
+   std::string name;
+   std::string wasm;
+   uint32_t    index;
+};
+
 struct cloner_config : ship_client::connection_config {
    uint32_t    skip_to                   = 0;
    uint32_t    stop_before               = 0;
    bool        exit_on_filter_wasm_error = false;
-   eosio::name filter_name = {}; // todo: remove
-   std::string filter_wasm = {}; // todo: remove
+   std::vector<filter_ele>   filter_list = {};
    bool        profile = false;
    bool        undo_stack_enabled = false;
    uint32_t    force_write_stride = 0;
 
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
    eosio::chain::eosvmoc::config eosvmoc_config;
-   bool                          eosvmoc_tierup = false;
 #endif
 };
 
@@ -63,7 +68,7 @@ struct cloner_plugin_impl : std::enable_shared_from_this<cloner_plugin_impl> {
 
    void schedule_retry() {
       timer.expires_from_now(boost::posix_time::seconds(1));
-      timer.async_wait([this](auto&) {
+      timer.async_wait([this](auto) {
          ilog("retry...");
          start();
       });
@@ -89,17 +94,30 @@ struct cloner_session : ship_client::connection_callbacks, std::enable_shared_fr
    std::optional<rodeos_db_snapshot>             rodeos_snapshot;
    std::shared_ptr<ship_client::connection_base> connection;
    bool                                          reported_block = false;
-   std::unique_ptr<rodeos_filter>                filter         = {}; // todo: remove
+
+   struct filter_type {
+      std::unique_ptr<rodeos_filter> filter;
+      uint32_t index;
+   };
+
+   std::vector<filter_type> filters = {}; // todo: remove
 
    cloner_session(cloner_plugin_impl* my) : my(my), config(my->config) {
       // todo: remove
-      if (!config->filter_wasm.empty())
-         filter = std::make_unique<rodeos_filter>(config->filter_name, config->filter_wasm, config->profile
+      if (!config->filter_list.empty())
+         for (auto& filter: config->filter_list) {
+#ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
+	    bfs::path code_cache_dir = app().data_dir() / (filter.name + std::string{"_wasm"});
+#endif
+            filters.emplace_back( filter_type { std::make_unique<rodeos_filter>(eosio::name{filter.name}, filter.wasm, config->profile
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
                                                   ,
-                                                  app().data_dir(), config->eosvmoc_config, config->eosvmoc_tierup
+                                                  code_cache_dir, config->eosvmoc_config
 #endif
-         );
+            ),
+                filter.index });
+         }
+      ilog("number of filters: {n}", ("n", filters.size()));
    }
 
    void connect(asio::io_context& ioc) {
@@ -107,12 +125,12 @@ struct cloner_session : ship_client::connection_callbacks, std::enable_shared_fr
       rodeos_snapshot->force_write_stride = config->force_write_stride;
 
       ilog("cloner database status:");
-      ilog("    revisions:    ${f} - ${r}",
+      ilog("    revisions:    {f} - {r}",
            ("f", rodeos_snapshot->undo_stack->first_revision())("r", rodeos_snapshot->undo_stack->revision()));
-      ilog("    chain:        ${a}", ("a", eosio::convert_to_json(rodeos_snapshot->chain_id)));
-      ilog("    head:         ${a} ${b}",
+      ilog("    chain:        {a}", ("a", eosio::convert_to_json(rodeos_snapshot->chain_id)));
+      ilog("    head:         {a} {b}",
            ("a", rodeos_snapshot->head)("b", eosio::convert_to_json(rodeos_snapshot->head_id)));
-      ilog("    irreversible: ${a} ${b}",
+      ilog("    irreversible: {a} {b}",
            ("a", rodeos_snapshot->irreversible)("b", eosio::convert_to_json(rodeos_snapshot->irreversible_id)));
 
       rodeos_snapshot->end_write(true);
@@ -128,7 +146,7 @@ struct cloner_session : ship_client::connection_callbacks, std::enable_shared_fr
    }
 
    bool received(get_status_result_v0& status, eosio::input_stream bin) override {
-      ilog("nodeos has chain ${c}", ("c", eosio::convert_to_json(status.chain_id)));
+      ilog("nodeos has chain {c}", ("c", eosio::convert_to_json(status.chain_id)));
       if (rodeos_snapshot->chain_id == eosio::checksum256{})
          rodeos_snapshot->chain_id = status.chain_id;
       if (rodeos_snapshot->chain_id != status.chain_id)
@@ -167,13 +185,16 @@ struct cloner_session : ship_client::connection_callbacks, std::enable_shared_fr
       if (!result.this_block)
          return true;
       if (config->stop_before && result.this_block->block_num >= config->stop_before) {
-         ilog("block ${b}: stop requested", ("b", result.this_block->block_num));
+         ilog("block {b}: stop requested", ("b", result.this_block->block_num));
          rodeos_snapshot->end_write(true);
          db->flush(false, false);
          return false;
       }
-      if (rodeos_snapshot->head && result.this_block->block_num > rodeos_snapshot->head + 1)
-         throw std::runtime_error("state-history plugin is missing block " + std::to_string(rodeos_snapshot->head + 1));
+      if (rodeos_snapshot->head && result.this_block->block_num > rodeos_snapshot->head + 1) {
+         std::string msg = "state-history plugin is missing block " + std::to_string(rodeos_snapshot->head + 1);
+         ilog(msg);
+         throw ship_client::retriable_failure(msg);
+      }
 
       using namespace eosio::literals;
       auto trace_id  = to_trace_id(result.this_block->block_id);
@@ -188,10 +209,19 @@ struct cloner_session : ship_client::connection_callbacks, std::enable_shared_fr
 
       bool near      = result.this_block->block_num + 4 >= result.last_irreversible.block_num;
       bool write_now = !(result.this_block->block_num % 200) || near;
-      if (write_now || !reported_block)
-         ilog("block ${b} ${i}",
-              ("b", result.this_block->block_num)(
-                    "i", result.this_block->block_num <= result.last_irreversible.block_num ? "irreversible" : ""));
+      if (write_now || !reported_block) {
+         static uint64_t log_counter = 0;
+         if (log_counter++ % 1000 == 0) {
+            ilog("block {b} {i}",
+                 ("b", result.this_block->block_num)
+                 ("i", result.this_block->block_num <= result.last_irreversible.block_num ? "irreversible" : ""));
+
+         } else {
+            dlog("block {b} {i}",
+                 ("b", result.this_block->block_num)
+                 ("i", result.this_block->block_num <= result.last_irreversible.block_num ? "irreversible" : ""));
+         }
+      }
       reported_block = true;
 
       {
@@ -203,17 +233,20 @@ struct cloner_session : ship_client::connection_callbacks, std::enable_shared_fr
          rodeos_snapshot->write_deltas(result, [] { return app().is_quiting(); });
       }
 
-      if (filter) {
+      if (!filters.empty()) {
          auto filter_span = fc_create_span(blk_span, "filter");
-         if (my->streamer)
-            my->streamer->start_block(result.this_block->block_num);
-         filter->process(*rodeos_snapshot, result, bin, [&](const char* data, uint64_t data_size) {
-            if (my->streamer) {
-               my->streamer->stream_data(data, data_size);
-            }
-         });
-         if (my->streamer)
-            my->streamer->stop_block(result.this_block->block_num);
+
+         for (auto& filter: filters) {
+            if (my->streamer)
+               my->streamer->start_block(result.this_block->block_num, filter.index);
+            filter.filter->process(*rodeos_snapshot, result, bin, [&](const char* data, uint64_t data_size) {
+               if (my->streamer) {
+                  my->streamer->stream_data(data, data_size, filter.index);
+               }
+            });
+            if (my->streamer)
+               my->streamer->stop_block(result.this_block->block_num, filter.index);
+         }
       }
       if( app().is_quiting() )
          return false;
@@ -299,11 +332,21 @@ void cloner_plugin::set_program_options(options_description& cli, options_descri
    op("telemetry-wait-timeout-seconds", bpo::value<uint32_t>()->default_value(0),
       "Initial wait time for Zipkin to become available, stop the program if the connection cannot be established within the wait time.");
    // todo: remove
-   op("filter-name", bpo::value<std::string>(), "Filter name");
-   op("filter-wasm", bpo::value<std::string>(), "Filter wasm");
+   op("filter-name", bpo::value<std::string>(), "Filter name. Deprecated. Use filter-name-* instead");
+   op("filter-wasm", bpo::value<std::string>(), "Filter wasm. Deprecated. Use filter-wams-* instead");
+
+   // Multiple filter contracts support
+   for (uint32_t i = 0; i < max_num_streamers; ++i) {
+      std::string i_str = std::to_string(i);
+      std::string name_str = std::string{"filter-name-"} + i_str;
+      std::string wasm_str = std::string{"filter-wasm-"} + i_str;
+      op(name_str.c_str(), bpo::value<std::string>(), "Filter name");
+      op(wasm_str.c_str(), bpo::value<std::string>(), "Filter wasm");
+   }
+
    op("profile-filter", bpo::bool_switch(), "Enable filter profiling");
    op("enable-undo-stack", bpo::value<bool>()->default_value(false), "Enable undo stack");
-   op("force-write-stride", bpo::value<uint32_t>()->default_value(100000), 
+   op("force-write-stride", bpo::value<uint32_t>()->default_value(10000),
       "Maximum number of blocks to process before forcing rocksdb to flush. This option is primarily useful to control re-sync durations "
       "under disaster recovery scenarios (when rodeos has unexpectedly exited, the option ensures blocks stored in rocksdb are at most "
       "force-write-stride blocks behind the current head block being processed by rodeos. However, saving too frequently may affect performance. "
@@ -352,13 +395,38 @@ void cloner_plugin::plugin_initialize(const variables_map& options) {
       my->config->skip_to     = options.count("clone-skip-to") ? options["clone-skip-to"].as<uint32_t>() : 0;
       my->config->stop_before = options.count("clone-stop") ? options["clone-stop"].as<uint32_t>() : 0;
       my->config->exit_on_filter_wasm_error = options["clone-exit-on-filter-wasm-error"].as<bool>();
+
+      // Old way, deprecated
       if (options.count("filter-name") && options.count("filter-wasm")) {
-         my->config->filter_name = eosio::name{ options["filter-name"].as<std::string>() };
-         my->config->filter_wasm = options["filter-wasm"].as<std::string>();
-         my->config->profile     = options["profile-filter"].as<bool>();
+         my->config->filter_list.emplace_back(filter_ele{options["filter-name"].as<std::string>(), options["filter-wasm"].as<std::string>(), 0});  // index 0
       } else if (options.count("filter-name") || options.count("filter-wasm")) {
          throw std::runtime_error("filter-name and filter-wasm must be used together");
       }
+
+      std::set<std::string> names {};
+      for (uint32_t i = 0; i < max_num_streamers; ++i) {
+         std::string i_str = std::to_string(i);
+         std::string name_str = std::string{"filter-name-"} + i_str;
+         std::string wasm_str = std::string{"filter-wasm-"} + i_str;
+
+         if ( options.count(name_str) && options.count(wasm_str) ) {
+            std::string name = options[name_str].as<std::string>();
+            std::string wasm = options[wasm_str].as<std::string>();
+
+            EOS_ASSERT(names.find(name) == names.end(), eosio::chain::plugin_exception, "Filter name " + name + " used multiple times");
+            EOS_ASSERT(my->config->filter_list.size() == 0 || i > 0, eosio::chain::plugin_exception, "legacy and mulitiple filter contracts cannot be mixed");
+            my->config->filter_list.emplace_back(filter_ele{name, wasm, i});
+	    names.insert(name);
+         } else {
+	    EOS_ASSERT(options.count(name_str) == 0 && options.count(wasm_str) == 0, eosio::chain::plugin_exception, name_str + " and " + wasm_str + " must be used together");
+         }
+      }
+
+      my->config->profile = options["profile-filter"].as<bool>();
+
+      EOS_ASSERT(my->config->filter_list.size() <= max_num_streamers, eosio::chain::plugin_exception, "number of filter contracts: {num_names} greater than max_num_streamers: {max_num_streamers}", ("num_names", my->config->filter_list.size()) ("max_num_streamers", max_num_streamers));
+      ilog("number of filter contracts: {num_filters}", ("num_filters", my->config->filter_list.size()));
+
       my->config->undo_stack_enabled = options["enable-undo-stack"].as<bool>();
 
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
@@ -367,7 +435,8 @@ void cloner_plugin::plugin_initialize(const variables_map& options) {
       if (options.count("eos-vm-oc-compile-threads"))
          my->config->eosvmoc_config.threads = options.at("eos-vm-oc-compile-threads").as<uint64_t>();
       if (options["eos-vm-oc-enable"].as<bool>())
-         my->config->eosvmoc_tierup = true;
+         my->config->eosvmoc_config.tierup = true;
+      my->config->eosvmoc_config.persistent = false;
 #endif
 
       if (options.count("telemetry-url")) {
@@ -400,6 +469,14 @@ void cloner_plugin::handle_sighup() {
 
 void cloner_plugin::set_streamer(std::shared_ptr<streamer_t> streamer) {
    my->streamer = std::move(streamer);
+}
+
+// Check every id in streamers' filter_ids is in my->config->filter_list
+void cloner_plugin::validate_filter_ids(std::set<int>&& ids) {
+   for (auto &filter: my->config->filter_list) {
+      ids.erase(filter.index);
+   }
+   EOS_ASSERT(ids.empty(), eosio::chain::plugin_exception, "No filter contracts exist for streamers {id} ", ("id", ids));
 }
 
 } // namespace b1

@@ -5,7 +5,7 @@ link_text: Third-Party Logging And Tracing Integration
 
 ## Overview
 
-To stay informed about the overall and detailed performance of your EOSIO-based blockchain node(s), you can make use of the telemetry tools available. EOSIO offers integration with two such telemetry tools:
+To stay informed about the overall and detailed performance of your EOSIO-based blockchain node(s), you can make use of the telemetry tools available. EOSIO-Taurus offers integration with two such telemetry tools:
 
 * [Deep-mind logger](10_deep_mind_logger.md)
 * [Zipkin tracer](20_zipkin_tracer.md)

@@ -33,12 +33,16 @@
 
 namespace eosio { namespace chain {
 
-   wasm_interface::wasm_interface(vm_type vm, bool eosvmoc_tierup, const chainbase::database& d, const boost::filesystem::path data_dir, const eosvmoc::config& eosvmoc_config, bool profile)
-     : my( new wasm_interface_impl(vm, eosvmoc_tierup, d, data_dir, eosvmoc_config, profile) ) {}
+   wasm_interface::wasm_interface(vm_type vm, const chainbase::database& d, const boost::filesystem::path data_dir, const eosvmoc::config& eosvmoc_config, bool profile, const native_module_config& native_config)
+     : my( new wasm_interface_impl(vm, d, data_dir, eosvmoc_config, profile, native_config) ) {}
 
    wasm_interface::~wasm_interface() {}
 
    void wasm_interface::validate(const controller& control, const bytes& code) {
+
+      if (control.get_config().wasm_runtime == vm_type::native_module)
+         return;
+         
       const auto& pso = control.db().get<protocol_state_object>();
 
       if (control.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
@@ -129,6 +133,8 @@ std::istream& operator>>(std::istream& in, wasm_interface::vm_type& runtime) {
       runtime = eosio::chain::wasm_interface::vm_type::eos_vm_jit;
    else if (s == "eos-vm-oc")
       runtime = eosio::chain::wasm_interface::vm_type::eos_vm_oc;
+   else if (s == "native-module")
+      runtime = eosio::chain::wasm_interface::vm_type::native_module;
    else
       in.setstate(std::ios_base::failbit);
    return in;

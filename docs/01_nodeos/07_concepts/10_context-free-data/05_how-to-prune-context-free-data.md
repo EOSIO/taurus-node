@@ -8,7 +8,7 @@ link_text: How to prune context-free data
 This how-to procedure showcases the steps to prune context-free data (CFD) from a transaction. The process involves launching the [`eosio-blocklog`](../../../10_utilities/eosio-blocklog.md) utility with the `--prune-transactions` option, the transaction ID(s) that contain(s) the context-free data, and additional options as specified below.
 
 [[caution | Data Pruning on Public Chains]]
-| Pruning transaction data is not suitable for public EOSIO blockchains, unless previously agreed upon through EOSIO consensus by a supermajority of producers. Even if a producing node on a public EOSIO network prunes context-free data from a transaction, only their node would be affected. The integrity of the blockchain would not be compromised.
+| Pruning transaction data is not suitable for public EOSIO-Taurus blockchains, unless previously agreed upon through EOSIO-Taurus consensus by a supermajority of producers. Even if a producing node on a public EOSIO-Taurus network prunes context-free data from a transaction, only their node would be affected. The integrity of the blockchain would not be compromised.
 
 ## Prerequisites
 

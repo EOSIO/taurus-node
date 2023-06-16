@@ -256,3 +256,16 @@ DataStream& operator >> ( DataStream& ds, float128_t& v ) {
    fc::uint128_to_float128(uint128_v, v);
    return ds;
 }
+
+namespace fmt {
+   template<typename T>
+   struct formatter<chainbase::oid<T>> {
+      template<typename ParseContext>
+      constexpr auto parse( ParseContext& ctx ) { return ctx.begin(); }
+
+      template<typename FormatContext>
+      auto format( const chainbase::oid<T>&, FormatContext& ctx ) {
+         return format_to( ctx.out(), "{}", std::string_view(boost::core::demangle(typeid(chainbase::oid<T>).name())) );
+      }
+   };
+}

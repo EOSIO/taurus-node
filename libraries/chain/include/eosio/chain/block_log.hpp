@@ -55,7 +55,10 @@ namespace eosio { namespace chain {
 
          void reset( const genesis_state& gs, const signed_block_ptr& genesis_block, packed_transaction::cf_compression_type segment_compression);
          void reset( const chain_id_type& chain_id, uint32_t first_block_num );
-         
+
+         // flush the block logs
+         void flush();
+
          block_id_type    read_block_id_by_num(uint32_t block_num)const;
 
          std::unique_ptr<signed_block>   read_signed_block_by_num(uint32_t block_num) const;
@@ -103,6 +106,8 @@ namespace eosio { namespace chain {
           * @param n Only test 1 block out of every n blocks. If n is 0, it is maximum between 1 and the ceiling of the total number blocks divided by 8.
           */
          static void smoke_test(fc::path block_dir, uint32_t n);
+
+         static void blog_summary(fc::path block_dir);
 
    private:
          std::unique_ptr<detail::block_log_impl> my;

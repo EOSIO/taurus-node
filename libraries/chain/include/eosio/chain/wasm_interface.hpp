@@ -12,6 +12,7 @@ namespace eosio { namespace chain {
    class wasm_runtime_interface;
    class controller;
    namespace eosvmoc { struct config; }
+   struct native_module_config;
 
    struct wasm_exit {
       int32_t code = 0;
@@ -26,7 +27,8 @@ namespace eosio { namespace chain {
          enum class vm_type {
             eos_vm,
             eos_vm_jit,
-            eos_vm_oc
+            eos_vm_oc,
+            native_module
          };
 
          //return string description of vm_type
@@ -36,12 +38,14 @@ namespace eosio { namespace chain {
                 return "eos-vm";
              case vm_type::eos_vm_oc:
                 return "eos-vm-oc";
+             case vm_type::native_module:
+                return "native-module";
              default:
                  return "eos-vm-jit";
              }
          }
 
-         wasm_interface(vm_type vm, bool eosvmoc_tierup, const chainbase::database& d, const boost::filesystem::path data_dir, const eosvmoc::config& eosvmoc_config, bool profile);
+         wasm_interface(vm_type vm, const chainbase::database& d, const boost::filesystem::path data_dir, const eosvmoc::config& eosvmoc_config, bool profile, const native_module_config& native_config);
          ~wasm_interface();
 
          //call before dtor to skip what can be minutes of dtor overhead with some runtimes; can cause leaks
@@ -72,4 +76,4 @@ namespace eosio{ namespace chain {
    std::istream& operator>>(std::istream& in, wasm_interface::vm_type& runtime);
 }}
 
-FC_REFLECT_ENUM( eosio::chain::wasm_interface::vm_type, (eos_vm)(eos_vm_jit)(eos_vm_oc) )
+FC_REFLECT_ENUM( eosio::chain::wasm_interface::vm_type, (eos_vm)(eos_vm_jit)(eos_vm_oc)(native_module) )

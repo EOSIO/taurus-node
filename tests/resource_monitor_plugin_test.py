@@ -13,6 +13,9 @@ import re
 from datetime import datetime
 from datetime import timedelta
 
+# give it 30 mins to run
+Utils.set_timeout(30*60)
+
 Print=Utils.Print
 errorExit=Utils.errorExit
 
@@ -115,7 +118,9 @@ def testCommon(title, extraNodeosArgs, expectedMsgs):
             errorExit ("Log should have contained \"%s\"" % (expectedMsgs))
 
 def extractTimestamp(msg):
-    matches = re.compile("\s+([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3})\s").search(msg)
+    matches = re.compile("\s+([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{1,6})\s").search(msg)
+    if matches is None:
+        errorExit ("Timestamp not found \"%s\"" % (msg))
     return datetime.strptime(matches.group(0).strip(), '%Y-%m-%dT%H:%M:%S.%f')
 
 intervalTolerance = 0.15 # 15%
@@ -236,4 +241,5 @@ finally:
     TestHelper.shutdown(cluster, None, testSuccessful, killEosInstances, False, keepLogs, killAll, dumpErrorDetails)
 
 if debug: Print("Exiting test, exit value 0.")
-exit(0)
+exitCode = 0 if testSuccessful else 1
+exit(exitCode)

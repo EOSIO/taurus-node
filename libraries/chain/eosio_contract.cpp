@@ -19,6 +19,7 @@
 
 #include <eosio/chain/authorization_manager.hpp>
 #include <eosio/chain/resource_limits.hpp>
+#include <eosio/chain/to_string.hpp>
 
 namespace eosio { namespace chain {
 
@@ -33,7 +34,7 @@ void validate_authority_precondition( const apply_context& context, const author
    for(const auto& a : auth.accounts) {
       auto* acct = context.db.find<account_object, by_name>(a.permission.actor);
       EOS_ASSERT( acct != nullptr, action_validate_exception,
-                  "account '${account}' does not exist",
+                  "account '{account}' does not exist",
                   ("account", a.permission.actor)
                 );
 
@@ -47,7 +48,7 @@ void validate_authority_precondition( const apply_context& context, const author
          context.control.get_authorization_manager().get_permission({a.permission.actor, a.permission.permission});
       } catch( const permission_query_exception& ) {
          EOS_THROW( action_validate_exception,
-                    "permission '${perm}' does not exist",
+                    "permission '{perm}' does not exist",
                     ("perm", a.permission)
                   );
       }
@@ -89,7 +90,7 @@ void apply_eosio_newaccount(apply_context& context) {
 
    auto existing_account = db.find<account_object, by_name>(create.name);
    EOS_ASSERT(existing_account == nullptr, account_name_exists_exception,
-              "Cannot create account named ${name}, as that name is already taken",
+              "Cannot create account named {name}, as that name is already taken",
               ("name", create.name));
 
    const auto& new_account = db.create<account_object>([&](auto& a) {
@@ -117,12 +118,7 @@ void apply_eosio_newaccount(apply_context& context) {
    ram_delta += owner_permission.auth.get_billable_size();
    ram_delta += active_permission.auth.get_billable_size();
 
-   std::string event_id;
-   if (context.control.get_deep_mind_logger() != nullptr) {
-      event_id = STORAGE_EVENT_ID("${name}", ("name", create.name));
-   }
-
-   context.add_ram_usage(create.name, ram_delta, storage_usage_trace(context.get_action_id(), std::move(event_id), "account", "add", "newaccount"));
+   context.add_ram_usage(create.name, ram_delta);
 
 } FC_CAPTURE_AND_RETHROW( (create) ) }
 
@@ -196,20 +192,7 @@ void apply_eosio_setcode(apply_context& context) {
    });
 
    if (new_size != old_size) {
-      const char* operation = "";
-      std::string event_id;
-      if (context.control.get_deep_mind_logger() != nullptr) {
-         operation = "update";
-         if (old_size <= 0) {
-            operation = "add";
-         } else if (new_size <= 0) {
-            operation = "remove";
-         }
-
-         event_id = STORAGE_EVENT_ID("${account}", ("account", act.account));
-      }
-
-      context.add_ram_usage( act.account, new_size - old_size, storage_usage_trace(context.get_action_id(), std::move(event_id), "code", operation, "setcode") );
+      context.add_ram_usage( act.account, new_size - old_size );
    }
 }
 
@@ -236,20 +219,7 @@ void apply_eosio_setabi(apply_context& context) {
    });
 
    if (new_size != old_size) {
-      const char* operation = "";
-      std::string event_id;
-      if (context.control.get_deep_mind_logger() != nullptr) {
-         operation = "update";
-         if (old_size <= 0) {
-            operation = "add";
-         } else if (new_size <= 0) {
-            operation = "remove";
-         }
-
-         event_id = STORAGE_EVENT_ID("${account}", ("account", act.account));
-      }
-
-      context.add_ram_usage( act.account, new_size - old_size, storage_usage_trace(context.get_action_id(), std::move(event_id), "abi", operation, "setabi") );
+      context.add_ram_usage( act.account, new_size - old_size );
    }
 }
 
@@ -267,7 +237,7 @@ void apply_eosio_updateauth(apply_context& context) {
    EOS_ASSERT(update.permission != update.parent, action_validate_exception, "Cannot set an authority as its own parent");
    db.get<account_object, by_name>(update.account);
    EOS_ASSERT(validate(update.auth), action_validate_exception,
-              "Invalid authority: ${auth}", ("auth", update.auth));
+              "Invalid authority: {auth}", ("auth", update.auth));
    if( update.permission == config::active_name )
       EOS_ASSERT(update.parent == config::owner_name, action_validate_exception, "Cannot change active authority's parent from owner", ("update.parent", update.parent) );
    if (update.permission == config::owner_name)
@@ -278,7 +248,7 @@ void apply_eosio_updateauth(apply_context& context) {
    if( update.auth.waits.size() > 0 ) {
       auto max_delay = context.control.get_global_properties().configuration.max_transaction_delay;
       EOS_ASSERT( update.auth.waits.back().wait_sec <= max_delay, action_validate_exception,
-                  "Cannot set delay longer than max_transacton_delay, which is ${max_delay} seconds",
+                  "Cannot set delay longer than max_transacton_delay, which is {max_delay} seconds",
                   ("max_delay", max_delay) );
    }
 
@@ -307,23 +277,13 @@ void apply_eosio_updateauth(apply_context& context) {
 
       int64_t new_size = (int64_t)(config::billable_size_v<permission_object> + permission->auth.get_billable_size());
 
-      std::string event_id;
-      if (context.control.get_deep_mind_logger() != nullptr) {
-         event_id = STORAGE_EVENT_ID("${id}", ("id", permission->id));
-      }
-
-      context.add_ram_usage( permission->owner, new_size - old_size, storage_usage_trace(context.get_action_id(), std::move(event_id), "auth", "update", "updateauth_update") );
+      context.add_ram_usage( permission->owner, new_size - old_size );
    } else {
       const auto& p = authorization.create_permission( update.account, update.permission, parent_id, update.auth, context.get_action_id() );
 
       int64_t new_size = (int64_t)(config::billable_size_v<permission_object> + p.auth.get_billable_size());
 
-      std::string event_id;
-      if (context.control.get_deep_mind_logger() != nullptr) {
-         event_id = STORAGE_EVENT_ID("${id}", ("id", p.id));
-      }
-
-      context.add_ram_usage( update.account, new_size, storage_usage_trace(context.get_action_id(), std::move(event_id), "auth", "add", "updateauth_create") );
+      context.add_ram_usage( update.account, new_size );
    }
 }
 
@@ -345,21 +305,16 @@ void apply_eosio_deleteauth(apply_context& context) {
       const auto& index = db.get_index<permission_link_index, by_permission_name>();
       auto range = index.equal_range(boost::make_tuple(remove.account, remove.permission));
       EOS_ASSERT(range.first == range.second, action_validate_exception,
-                 "Cannot delete a linked authority. Unlink the authority first. This authority is linked to ${code}::${type}.",
+                 "Cannot delete a linked authority. Unlink the authority first. This authority is linked to {code}::{type}.",
                  ("code", range.first->code)("type", range.first->message_type));
    }
 
    const auto& permission = authorization.get_permission({remove.account, remove.permission});
    int64_t old_size = config::billable_size_v<permission_object> + permission.auth.get_billable_size();
 
-   std::string event_id;
-   if (context.control.get_deep_mind_logger() != nullptr) {
-      event_id = STORAGE_EVENT_ID("${id}", ("id", permission.id));
-   }
-
    authorization.remove_permission( permission, context.get_action_id() );
 
-   context.add_ram_usage( remove.account, -old_size, storage_usage_trace(context.get_action_id(), std::move(event_id), "auth", "remove", "deleteauth") );
+   context.add_ram_usage( remove.account, -old_size );
 }
 
 void apply_eosio_linkauth(apply_context& context) {
@@ -374,10 +329,10 @@ void apply_eosio_linkauth(apply_context& context) {
       auto& db = context.db;
       const auto *account = db.find<account_object, by_name>(requirement.account);
       EOS_ASSERT(account != nullptr, account_query_exception,
-                 "Failed to retrieve account: ${account}", ("account", requirement.account)); // Redundant?
+                 "Failed to retrieve account: {account}", ("account", requirement.account)); // Redundant?
       const auto *code = db.find<account_object, by_name>(requirement.code);
       EOS_ASSERT(code != nullptr, account_query_exception,
-                 "Failed to retrieve code for account: ${account}", ("account", requirement.code));
+                 "Failed to retrieve code for account: {account}", ("account", requirement.code));
       if( requirement.requirement != config::eosio_any_name ) {
          const permission_object* permission = nullptr;
          if( context.control.is_builtin_activated( builtin_protocol_feature_t::only_link_to_existing_permission ) ) {
@@ -389,7 +344,7 @@ void apply_eosio_linkauth(apply_context& context) {
          }
 
          EOS_ASSERT(permission != nullptr, permission_query_exception,
-                    "Failed to retrieve permission: ${permission}", ("permission", requirement.requirement));
+                    "Failed to retrieve permission: {permission}", ("permission", requirement.requirement));
       }
 
       auto link_key = boost::make_tuple(requirement.account, requirement.code, requirement.type);
@@ -409,15 +364,9 @@ void apply_eosio_linkauth(apply_context& context) {
             link.required_permission = requirement.requirement;
          });
 
-         std::string event_id;
-         if (context.control.get_deep_mind_logger() != nullptr) {
-            event_id = STORAGE_EVENT_ID("${id}", ("id", l.id));
-         }
-
          context.add_ram_usage(
             l.account,
-            (int64_t)(config::billable_size_v<permission_link_object>),
-            storage_usage_trace(context.get_action_id(), std::move(event_id), "auth_link", "add", "linkauth")
+            (int64_t)(config::billable_size_v<permission_link_object>)
          );
       }
 
@@ -436,27 +385,16 @@ void apply_eosio_unlinkauth(apply_context& context) {
    auto link = db.find<permission_link_object, by_action_name>(link_key);
    EOS_ASSERT(link != nullptr, action_validate_exception, "Attempting to unlink authority, but no link found");
 
-   std::string event_id;
-   if (context.control.get_deep_mind_logger() != nullptr) {
-      event_id = STORAGE_EVENT_ID("${id}", ("id", link->id));
-   }
-
    context.add_ram_usage(
       link->account,
-      -(int64_t)(config::billable_size_v<permission_link_object>),
-      storage_usage_trace(context.get_action_id(), std::move(event_id), "auth_link", "remove", "unlinkauth")
+      -(int64_t)(config::billable_size_v<permission_link_object>)
    );
 
    db.remove(*link);
 }
 
 void apply_eosio_canceldelay(apply_context& context) {
-   auto cancel = context.get_action().data_as<canceldelay>();
-   context.require_authorization(cancel.canceling_auth.actor); // only here to mark the single authority on this action as used
-
-   const auto& trx_id = cancel.trx_id;
-
-   context.cancel_deferred_transaction(transaction_id_to_sender_id(trx_id), account_name());
+   EOS_ASSERT( false, unsupported_feature, "apply_eosio_canceldelay not supported" );
 }
 
 } } // namespace eosio::chain

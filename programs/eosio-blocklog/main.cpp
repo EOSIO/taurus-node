@@ -51,6 +51,7 @@ struct blocklog {
    bool                             fix_irreversible_blocks = false;
    bool                             smoke_test = false;
    bool                             prune_transactions = false;
+   bool                             summary = false;
    bool                             help               = false;
 };
 
@@ -62,7 +63,7 @@ struct report_time {
 
     void report() {
         const auto duration = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - _start).count() / 1000;
-        ilog("eosio-blocklog - ${desc} took ${t} msec", ("desc", _desc)("t", duration));
+        ilog("eosio-blocklog - {desc} took {t} msec", ("desc", _desc)("t", duration));
     }
 
     const std::chrono::high_resolution_clock::time_point _start;
@@ -78,7 +79,7 @@ void blocklog::read_log() {
    EOS_ASSERT( end->block_num() > 1, block_log_exception, "Only one block found in block log" );
 
    //fix message below, first block might not be 1, first_block_num is not set yet
-   ilog( "existing block log contains block num ${first} through block num ${n}",
+   ilog( "existing block log contains block num {first} through block num {n}",
          ("first",block_logger.first_block_num())("n",end->block_num()) );
    if (first_block < block_logger.first_block_num()) {
       first_block = block_logger.first_block_num();
@@ -100,7 +101,7 @@ void blocklog::read_log() {
       } else {
          auto first = fork_db_branch.rbegin();
          auto last = fork_db_branch.rend() - 1;
-         ilog( "existing reversible fork_db block num ${first} through block num ${last} ",
+         ilog( "existing reversible fork_db block num {first} through block num {last} ",
                ("first", (*first)->block_num)( "last", (*last)->block_num ) );
          EOS_ASSERT( end->block_num() + 1 == (*first)->block_num, block_log_exception,
                      "fork_db does not start at end of block log" );
@@ -201,6 +202,8 @@ void blocklog::set_program_options(options_description& cli)
          ("transaction,t", bpo::value<std::vector<std::string> >()->multitoken(), "The transaction id to be pruned")
          ("prune-transactions", bpo::bool_switch(&prune_transactions)->default_value(false),
           "Prune the context free data and signatures from specified transactions of specified block-num.")
+         ("summary", bpo::bool_switch(&summary)->default_value(false),
+          "List log verion, first block number, last block number and total blocks in the blocks.log")
          ("help,h", bpo::bool_switch(&help)->default_value(false), "Print this help message and exit.")
          ;
 }
@@ -256,6 +259,12 @@ void smoke_test(bfs::path block_dir) {
    cout << "\nno problems found\n"; // if get here there were no exceptions
 }
 
+void blog_summary(bfs::path block_dir) {
+   using namespace std;
+   cout << "\nSummary of blocks.log in directory " << block_dir << '\n';
+   block_log::blog_summary(block_dir);
+}
+
 template <typename Log>
 int prune_transactions(const char* type, bfs::path dir, uint32_t block_num,
                        std::vector<transaction_id_type> unpruned_ids) {
@@ -302,6 +311,10 @@ int main(int argc, char** argv) {
       }
       if (blog.smoke_test) {
          smoke_test(vmap.at("blocks-dir").as<bfs::path>());
+         return 0;
+      }
+      if (blog.summary) {
+         blog_summary(vmap.at("blocks-dir").as<bfs::path>());
          return 0;
       }
       if (blog.fix_irreversible_blocks) {
@@ -354,13 +367,13 @@ int main(int argc, char** argv) {
       blog.initialize(vmap);
       blog.read_log();
    } catch( const fc::exception& e ) {
-      elog( "${e}", ("e", e.to_detail_string()));
+      elog( "{e}", ("e", e.to_detail_string()));
       return -1;
    } catch( const boost::exception& e ) {
-      elog("${e}", ("e",boost::diagnostic_information(e)));
+      elog("{e}", ("e",boost::diagnostic_information(e)));
       return -1;
    } catch( const std::exception& e ) {
-      elog("${e}", ("e",e.what()));
+      elog("{e}", ("e",e.what()));
       return -1;
    } catch( ... ) {
       elog("unknown exception");

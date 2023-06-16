@@ -91,7 +91,7 @@ public:
       if(!tcti.empty()) {
 #ifdef HAS_TCTILDR
          rc = Tss2_TctiLdr_Initialize(tcti.c_str(), &tcti_ctx);
-         FC_ASSERT(!rc, "Failed to initialize tss tcti \"${s}\": ${m}", ("s", tcti)("m", Tss2_RC_Decode(rc)));
+         FC_ASSERT(!rc, "Failed to initialize tss tcti \"{s}\": {m}", ("s", tcti)("m", Tss2_RC_Decode(rc)));
 #else
          FC_ASSERT(false, "Non-default tcti definitions not supported with tpm2-tss library in use");
 #endif
@@ -104,7 +104,7 @@ public:
          if(tcti_ctx)
             Tss2_TctiLdr_Finalize(&tcti_ctx);
 #endif
-         FC_ASSERT(!rc, "Failed to initialize tss esys: ${m}", ("m", Tss2_RC_Decode(rc)));
+         FC_ASSERT(!rc, "Failed to initialize tss esys: {m}", ("m", Tss2_RC_Decode(rc)));
       }
    }
 
@@ -133,7 +133,7 @@ TPML_PCR_SELECTION pcr_selection_for_pcrs(const std::vector<unsigned>& pcrs) {
    TPML_PCR_SELECTION pcr_selection = {1u, {{TPM2_ALG_SHA256, (max_pcr_value+7)/8}}};
    FC_ASSERT(pcrs.size() < 8, "Max number of PCRs is 8");
    for(const unsigned& pcr : pcrs) {
-      FC_ASSERT(pcr <= max_pcr_value, "PCR value must be less than or equal to ${m}", ("m",max_pcr_value));
+      FC_ASSERT(pcr <= max_pcr_value, "PCR value must be less than or equal to {m}", ("m",max_pcr_value));
       pcr_selection.pcrSelections[0].pcrSelect[pcr/8u] |= (1u<<(pcr%8u));
    }
    return pcr_selection;
@@ -147,14 +147,14 @@ public:
       TPMT_SYM_DEF symmetric = {TPM2_ALG_NULL};
       rc = Esys_StartAuthSession(esys_ctx.ctx(), ESYS_TR_NONE, ESYS_TR_NONE, ESYS_TR_NONE, ESYS_TR_NONE, ESYS_TR_NONE, NULL,
                                  trial ? TPM2_SE_TRIAL : TPM2_SE_POLICY, &symmetric, TPM2_ALG_SHA256, &session_handle);
-      FC_ASSERT(!rc, "Failed to create TPM auth session: ${m}", ("m", Tss2_RC_Decode(rc)));
+      FC_ASSERT(!rc, "Failed to create TPM auth session: {m}", ("m", Tss2_RC_Decode(rc)));
       auto cleanup_auth_session = fc::make_scoped_exit([&]() {Esys_FlushContext(esys_ctx.ctx(), session_handle);});
 
       TPM2B_DIGEST pcr_digest = {};
       TPML_PCR_SELECTION pcr_selection = pcr_selection_for_pcrs(pcrs);
 
       rc = Esys_PolicyPCR(esys_ctx.ctx(), session_handle, ESYS_TR_NONE, ESYS_TR_NONE, ESYS_TR_NONE, &pcr_digest, &pcr_selection);
-      FC_ASSERT(!rc, "Failed to set PCR policy on session: ${m}", ("m", Tss2_RC_Decode(rc)));
+      FC_ASSERT(!rc, "Failed to set PCR policy on session: {m}", ("m", Tss2_RC_Decode(rc)));
 
       cleanup_auth_session.cancel();
    }
@@ -162,7 +162,7 @@ public:
    fc::sha256 policy_digest() {
       TPM2B_DIGEST* policy_digest;
       TSS2_RC rc = Esys_PolicyGetDigest(esys_ctx.ctx(), session_handle, ESYS_TR_NONE, ESYS_TR_NONE, ESYS_TR_NONE, &policy_digest);
-      FC_ASSERT(!rc, "Failed to get policy digest: ${m}", ("m", Tss2_RC_Decode(rc)));
+      FC_ASSERT(!rc, "Failed to get policy digest: {m}", ("m", Tss2_RC_Decode(rc)));
       auto cleanup_policy_digest = fc::make_scoped_exit([&]() {free(policy_digest);});
       FC_ASSERT(policy_digest->size == sizeof(fc::sha256), "policy digest size isn't expected");
 
@@ -206,7 +206,7 @@ std::set<TPM2_HANDLE> persistent_handles(esys_context& esys_ctx) {
    do {
       TPMS_CAPABILITY_DATA* capability_data = nullptr;
       rc = Esys_GetCapability(esys_ctx.ctx(), ESYS_TR_NONE, ESYS_TR_NONE, ESYS_TR_NONE, TPM2_CAP_HANDLES, prop, TPM2_MAX_CAP_HANDLES, &more_data, &capability_data);
-      FC_ASSERT(!rc, "Failed to query persistent handles: ${m}", ("m", Tss2_RC_Decode(rc)));
+      FC_ASSERT(!rc, "Failed to query persistent handles: {m}", ("m", Tss2_RC_Decode(rc)));
       auto cleanup_capability_data = fc::make_scoped_exit([&]() {free(capability_data);});
 
       FC_ASSERT(capability_data->capability == TPM2_CAP_HANDLES, "TPM returned non-handle reply");
@@ -230,7 +230,7 @@ std::map<fc::crypto::public_key, TPM2_HANDLE> usable_persistent_keys_and_handles
       ESYS_TR object;
       rc = Esys_TR_FromTPMPublic(esys_ctx.ctx(), handle, ESYS_TR_NONE, ESYS_TR_NONE, ESYS_TR_NONE, &object);
       if(rc) {
-         wlog("Failed to load TPM persistent handle: ${m}", ("m", Tss2_RC_Decode(rc)));
+         wlog("Failed to load TPM persistent handle: {m}", ("m", Tss2_RC_Decode(rc)));
          continue;
       }
       auto cleanup_tr_object = fc::make_scoped_exit([&]() {Esys_TR_Close(esys_ctx.ctx(), &object);});
@@ -271,10 +271,10 @@ struct tpm_key::impl {
 
 tpm_key::tpm_key(const std::string& tcti, const fc::crypto::public_key& pubkey, const std::vector<unsigned>& pcrs) : my(tcti, pubkey, pcrs) {
    std::map<fc::crypto::public_key, TPM2_HANDLE> keys = usable_persistent_keys_and_handles(my->esys_ctx);
-   FC_ASSERT(keys.find(pubkey) != keys.end(), "Unable to find persistent key ${k} in TPM via tcti ${t}", ("k", pubkey)("t", tcti));
+   FC_ASSERT(keys.find(pubkey) != keys.end(), "Unable to find persistent key {k} in TPM via tcti {t}", ("k", pubkey.to_string())("t", tcti));
 
    TSS2_RC rc = Esys_TR_FromTPMPublic(my->esys_ctx.ctx(), keys.find(pubkey)->second, ESYS_TR_NONE, ESYS_TR_NONE, ESYS_TR_NONE, &my->key_object);
-   FC_ASSERT(!rc, "Failed to get handle to key ${k}: ${m}", ("k", pubkey)("m", Tss2_RC_Decode(rc)));
+   FC_ASSERT(!rc, "Failed to get handle to key {k}: {m}", ("k", pubkey.to_string())("m", Tss2_RC_Decode(rc)));
 }
 
 tpm_key::~tpm_key() = default;
@@ -312,7 +312,7 @@ fc::crypto::signature tpm_key::sign(const fc::sha256& digest) {
 
    TPMT_SIGNATURE* sig;
    TSS2_RC rc = Esys_Sign(my->esys_ctx.ctx(), my->key_object, session ? session->session() : ESYS_TR_PASSWORD, ESYS_TR_NONE, ESYS_TR_NONE, &d, &scheme, &validation, &sig);
-   FC_ASSERT(!rc, "Failed TPM sign on key ${k}: ${m}", ("k", my->pubkey)("m", Tss2_RC_Decode(rc)));
+   FC_ASSERT(!rc, "Failed TPM sign on key {k}: {m}", ("k", my->pubkey.to_string())("m", Tss2_RC_Decode(rc)));
    auto cleanup_sig = fc::make_scoped_exit([&]() {free(sig);});
 
    return tpm_signature_to_fc_signature(my->sslkey, my->pubkey, digest, sig);
@@ -348,7 +348,7 @@ attested_key create_key_attested(const std::string& tcti, const std::vector<unsi
    rc = Esys_CreatePrimary(esys_ctx.ctx(), ESYS_TR_RH_OWNER, ESYS_TR_PASSWORD, ESYS_TR_NONE, ESYS_TR_NONE,
                                    &empty_sensitive_create, &primary_template, &empty_data, &empty_pcr_selection,
                                    &primary_handle, NULL, NULL, NULL, NULL);
-   FC_ASSERT(!rc, "Failed to create TPM primary key: ${m}", ("m", Tss2_RC_Decode(rc)));
+   FC_ASSERT(!rc, "Failed to create TPM primary key: {m}", ("m", Tss2_RC_Decode(rc)));
 
    {
       auto cleanup_primary = fc::make_scoped_exit([&]() {Esys_FlushContext(esys_ctx.ctx(), primary_handle);});
@@ -363,12 +363,12 @@ attested_key create_key_attested(const std::string& tcti, const std::vector<unsi
       TPM2B_PRIVATE* created_priv;
       rc = Esys_Create(esys_ctx.ctx(), primary_handle, ESYS_TR_PASSWORD, ESYS_TR_NONE, ESYS_TR_NONE, &empty_sensitive_create,
                        &key_creation_template, &empty_data, &empty_pcr_selection, &created_priv, &created_pub, NULL, &creation_hash, &creation_ticket);
-      FC_ASSERT(!rc, "Failed to create key: ${m}", ("m", Tss2_RC_Decode(rc)));
+      FC_ASSERT(!rc, "Failed to create key: {m}", ("m", Tss2_RC_Decode(rc)));
 
       auto cleanup_created_priv = fc::make_scoped_exit([&]() {free(created_priv);});
 
       rc = Esys_Load(esys_ctx.ctx(), primary_handle, ESYS_TR_PASSWORD, ESYS_TR_NONE, ESYS_TR_NONE, created_priv, created_pub, &created_handle);
-      FC_ASSERT(!rc, "Failed to load created key: ${m}", ("m", Tss2_RC_Decode(rc)));
+      FC_ASSERT(!rc, "Failed to load created key: {m}", ("m", Tss2_RC_Decode(rc)));
    }
 
    auto cleanup_created_handle = fc::make_scoped_exit([&]() {Esys_FlushContext(esys_ctx.ctx(), created_handle);});
@@ -380,19 +380,19 @@ attested_key create_key_attested(const std::string& tcti, const std::vector<unsi
       // it's duplicate information. Besides, hashes do not include this header.
       returned_key.public_area.data.resize(created_pub->size+sizeof(uint16_t));
       rc = Tss2_MU_TPM2B_PUBLIC_Marshal(created_pub, (uint8_t*)returned_key.public_area.data.data(), returned_key.public_area.data.size(), NULL);
-      FC_ASSERT(!rc, "Failed to serialize created public area: ${m}", ("m", Tss2_RC_Decode(rc)));
+      FC_ASSERT(!rc, "Failed to serialize created public area: {m}", ("m", Tss2_RC_Decode(rc)));
       FC_ASSERT(returned_key.public_area.data.size() > 2, "Unexpected public area size");
       returned_key.public_area.data.erase(returned_key.public_area.data.begin(), returned_key.public_area.data.begin()+2);
 
       ESYS_TR certifying_key;
       rc = Esys_TR_FromTPMPublic(esys_ctx.ctx(), certifying_key_handle, ESYS_TR_NONE, ESYS_TR_NONE, ESYS_TR_NONE, &certifying_key);
-      FC_ASSERT(!rc, "Failed to get handle to key performing attestation: ${m}", ("m", Tss2_RC_Decode(rc)));
+      FC_ASSERT(!rc, "Failed to get handle to key performing attestation: {m}", ("m", Tss2_RC_Decode(rc)));
       auto cleanup_certifying_object = fc::make_scoped_exit([&]() {Esys_TR_Close(esys_ctx.ctx(), &certifying_key);});
 
       TPM2B_PUBLIC* certifying_pub = nullptr;
       auto cleanup_pub = fc::make_scoped_exit([&]() {free(certifying_pub);});
       rc = Esys_ReadPublic(esys_ctx.ctx(), certifying_key, ESYS_TR_NONE, ESYS_TR_NONE, ESYS_TR_NONE, &certifying_pub, NULL, NULL);
-      FC_ASSERT(!rc, "Failed to get information about key performing attestation: ${m}", ("m", Tss2_RC_Decode(rc)));
+      FC_ASSERT(!rc, "Failed to get information about key performing attestation: {m}", ("m", Tss2_RC_Decode(rc)));
       fc::crypto::public_key certifying_public_key = tpm_pub_to_pub(certifying_pub);
 
       TPMT_SIG_SCHEME scheme = {TPM2_ALG_ECDSA};
@@ -402,12 +402,12 @@ attested_key create_key_attested(const std::string& tcti, const std::vector<unsi
       TPMT_SIGNATURE* certification_signature;
       rc = Esys_CertifyCreation(esys_ctx.ctx(), certifying_key, created_handle, ESYS_TR_PASSWORD, ESYS_TR_NONE, ESYS_TR_NONE,
                                 &empty_data, creation_hash, &scheme, creation_ticket, &certification_info, &certification_signature);
-      FC_ASSERT(!rc, "Failed to attest: ${m}", ("m", Tss2_RC_Decode(rc)));
+      FC_ASSERT(!rc, "Failed to attest: {m}", ("m", Tss2_RC_Decode(rc)));
       auto cleanup_certification_objs = fc::make_scoped_exit([&]() {free(certification_info); free(certification_signature);});
 
       returned_key.creation_certification.data.resize(certification_info->size+sizeof(uint16_t));
       rc = Tss2_MU_TPM2B_ATTEST_Marshal(certification_info, (uint8_t*)returned_key.creation_certification.data.data(), returned_key.creation_certification.data.size(), NULL);
-      FC_ASSERT(!rc, "Failed to serialize attestation: ${m}", ("m", Tss2_RC_Decode(rc)));
+      FC_ASSERT(!rc, "Failed to serialize attestation: {m}", ("m", Tss2_RC_Decode(rc)));
       FC_ASSERT(returned_key.creation_certification.data.size() > 2, "Unexpected public area size");
       returned_key.creation_certification.data.erase(returned_key.creation_certification.data.begin(), returned_key.creation_certification.data.begin()+2);
 
@@ -437,7 +437,7 @@ attested_key create_key_attested(const std::string& tcti, const std::vector<unsi
                           persistent_handle_id, &persistent_handle);
    if(rc == TPM2_RC_NV_DEFINED)
       FC_THROW_EXCEPTION(tpm_key_exists, "Given TPM handle already contains a key");
-   FC_ASSERT(!rc, "Failed to persist TPM key: ${m}", ("m", Tss2_RC_Decode(rc)));
+   FC_ASSERT(!rc, "Failed to persist TPM key: {m}", ("m", Tss2_RC_Decode(rc)));
    Esys_TR_Close(esys_ctx.ctx(), &persistent_handle);
 
    return returned_key;
@@ -457,20 +457,20 @@ fc::crypto::public_key verify_attestation(const attested_key& ak, const std::map
    public_area_bytes.insert(public_area_bytes.begin(), 2, 0);
    *((uint16_t*)public_area_bytes.data()) = htons(ak.public_area.data.size());
    rc = Tss2_MU_TPM2B_PUBLIC_Unmarshal((const uint8_t*)public_area_bytes.data(), public_area_bytes.size(), NULL, &public_area);
-   FC_ASSERT(!rc, "Failed to deserialize public area: ${m}", ("m", Tss2_RC_Decode(rc)));
+   FC_ASSERT(!rc, "Failed to deserialize public area: {m}", ("m", Tss2_RC_Decode(rc)));
 
    std::vector<char> creation_certification_bytes = ak.creation_certification.data;
    creation_certification_bytes.insert(creation_certification_bytes.begin(), 2, 0);
    *((uint16_t*)creation_certification_bytes.data()) = htons(ak.creation_certification.data.size());
    rc = Tss2_MU_TPM2B_ATTEST_Unmarshal((const uint8_t*)creation_certification_bytes.data(), creation_certification_bytes.size(), NULL, &attest);
-   FC_ASSERT(!rc, "Failed to deserialize attest structure: ${m}", ("m", Tss2_RC_Decode(rc)));
+   FC_ASSERT(!rc, "Failed to deserialize attest structure: {m}", ("m", Tss2_RC_Decode(rc)));
 
    rc = Tss2_MU_TPMS_ATTEST_Unmarshal(attest.attestationData, attest.size, NULL, &tpms_attest);
-   FC_ASSERT(!rc, "Failed to deserialize tpms attest structure: ${m}", ("m", Tss2_RC_Decode(rc)));
+   FC_ASSERT(!rc, "Failed to deserialize tpms attest structure: {m}", ("m", Tss2_RC_Decode(rc)));
 
    //ensure that the public key inside the public area matches the eos PUB_ key
    fc::crypto::public_key attested_key = tpm_pub_to_pub(&public_area);
-   FC_ASSERT(ak.pub_key == attested_key, "Attested key ${a} does not match ${k} in json", ("a", attested_key)("k", ak.pub_key));
+   FC_ASSERT(ak.pub_key == attested_key, "Attested key {a} does not match {k} in json", ("a", attested_key.to_string())("k", ak.pub_key.to_string()));
 
    //verify a few obvious things about the attest statement
    FC_ASSERT(tpms_attest.type == TPM2_ST_ATTEST_CREATION, "attestation is not a creation certification");
@@ -558,11 +558,11 @@ nv_data::nv_data(const std::string& tcti, unsigned nv_index, const std::vector<u
       const TPM2B_AUTH auth = {};
       rc = Esys_NV_DefineSpace(my->esys_ctx.ctx(), ESYS_TR_RH_OWNER, ESYS_TR_PASSWORD, ESYS_TR_NONE, ESYS_TR_NONE, &auth, &nv_definition, &my->nv_handle);
    }
-   FC_ASSERT(!rc, "Failed to get esys handle to NVindex: ${m}", ("m", Tss2_RC_Decode(rc)));
+   FC_ASSERT(!rc, "Failed to get esys handle to NVindex: {m}", ("m", Tss2_RC_Decode(rc)));
 
    TPM2B_NV_PUBLIC* nvpub;
    rc = Esys_NV_ReadPublic(my->esys_ctx.ctx(), my->nv_handle, ESYS_TR_NONE, ESYS_TR_NONE, ESYS_TR_NONE, &nvpub, NULL);
-   FC_ASSERT(!rc, "Failed to get NV public area: ${m}", ("m", Tss2_RC_Decode(rc)));
+   FC_ASSERT(!rc, "Failed to get NV public area: {m}", ("m", Tss2_RC_Decode(rc)));
    auto cleanup_readpublic = fc::make_scoped_exit([&]() {free(nvpub);});
 
    my->has_data = nvpub->nvPublic.attributes & TPMA_NV_WRITTEN;
@@ -571,7 +571,7 @@ nv_data::nv_data(const std::string& tcti, unsigned nv_index, const std::vector<u
    TPMS_CAPABILITY_DATA* cap_data;
    rc = Esys_GetCapability(my->esys_ctx.ctx(), ESYS_TR_NONE, ESYS_TR_NONE, ESYS_TR_NONE,
                            TPM2_CAP_TPM_PROPERTIES, TPM2_PT_NV_BUFFER_MAX, 1, NULL, &cap_data);
-   FC_ASSERT(!rc, "Failed to get max NV read/write size: ${m}", ("m", Tss2_RC_Decode(rc)));
+   FC_ASSERT(!rc, "Failed to get max NV read/write size: {m}", ("m", Tss2_RC_Decode(rc)));
    my->max_read_write_buff_size = cap_data->data.tpmProperties.tpmProperty[0].value;
    free(cap_data);
 }
@@ -593,7 +593,7 @@ std::optional<std::vector<char>> nv_data::data() {
       unsigned thisiteration = std::min(my->size - offset, my->max_read_write_buff_size);
       TPM2B_MAX_NV_BUFFER* nv_contents;
       TSS2_RC rc = Esys_NV_Read(my->esys_ctx.ctx(), policy_session ? my->nv_handle : ESYS_TR_RH_OWNER, my->nv_handle, policy_session ? policy_session->session() : ESYS_TR_PASSWORD, ESYS_TR_NONE, ESYS_TR_NONE, thisiteration, offset, &nv_contents);
-      FC_ASSERT(!rc, "Failed to read NV data: ${m}", ("m", Tss2_RC_Decode(rc)));
+      FC_ASSERT(!rc, "Failed to read NV data: {m}", ("m", Tss2_RC_Decode(rc)));
       memcpy(ret.data()+offset, nv_contents->buffer, thisiteration);
       free(nv_contents);
       offset += thisiteration;
@@ -603,7 +603,7 @@ std::optional<std::vector<char>> nv_data::data() {
 }
 
 void nv_data::set_data(const std::vector<char>& data) {
-   FC_ASSERT(data.size() <= my->size, "Setting NV data of size ${s} but NV data area max is {m}", ("s", data.size())("m", my->size));
+   FC_ASSERT(data.size() <= my->size, "Setting NV data of size {s} but NV data area max is {m}", ("s", data.size())("m", my->size));
 
    //pad it up to the public area defined size; makes it easier to know what to read back
    std::vector<char> padded_data = data;
@@ -619,7 +619,7 @@ void nv_data::set_data(const std::vector<char>& data) {
       TPM2B_MAX_NV_BUFFER nv_contents_write = {(uint16_t)thisiteration};
       memcpy(nv_contents_write.buffer, padded_data.data()+offset, thisiteration);
       TSS2_RC rc = Esys_NV_Write(my->esys_ctx.ctx(), policy_session ? my->nv_handle : ESYS_TR_RH_OWNER, my->nv_handle, policy_session ? policy_session->session() : ESYS_TR_PASSWORD, ESYS_TR_NONE, ESYS_TR_NONE, &nv_contents_write, offset);
-      FC_ASSERT(!rc, "Failed to write NV data: ${m}", ("m", Tss2_RC_Decode(rc)));
+      FC_ASSERT(!rc, "Failed to write NV data: {m}", ("m", Tss2_RC_Decode(rc)));
       offset += thisiteration;
    }
 

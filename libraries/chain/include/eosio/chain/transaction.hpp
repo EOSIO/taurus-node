@@ -5,6 +5,7 @@
 
 namespace eosio { namespace chain {
 
+   // !!! Deprecated !!!
    struct deferred_transaction_generation_context : fc::reflect_init {
       static constexpr uint16_t extension_id() { return 0; }
       static constexpr bool     enforce_unique() { return true; }
@@ -56,7 +57,7 @@ namespace eosio { namespace chain {
       uint32_t               ref_block_prefix    = 0UL; ///< specifies the lower 32 bits of the blockid at get_ref_blocknum
       fc::unsigned_int       max_net_usage_words = 0UL; /// upper limit on total network bandwidth (in 8 byte words) billed for this transaction
       uint8_t                max_cpu_usage_ms    = 0; /// upper limit on the total CPU time billed for this transaction
-      fc::unsigned_int       delay_sec           = 0UL; /// number of seconds to delay this transaction for during which it may be canceled.
+      fc::unsigned_int       delay_sec           = 0UL; /// deprecated.
 
       void set_reference_block( const block_id_type& reference_block );
       bool verify_reference_block( const block_id_type& reference_block )const;
@@ -129,6 +130,18 @@ namespace eosio { namespace chain {
          none = 0,
          zlib = 1,
       };
+
+      //return string description of compression_type
+      static std::string compression_type_string(compression_type type) {
+         switch (type) {
+            case compression_type::none:
+               return "none";
+            case compression_type::zlib:
+               return "zlib";
+            default:
+               return "unknown";
+         }
+      }
 
       packed_transaction_v0() = default;
       packed_transaction_v0(packed_transaction_v0&&) = default;

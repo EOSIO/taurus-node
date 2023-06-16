@@ -23,7 +23,7 @@ The following information shows the different positionals and options you can us
 ## Requirements
 * Install the currently supported version of `cleos`.
 [[info | Note]]
-| The `cleos` tool is bundled with the EOSIO software. [Installing EOSIO](../../00_install/index.md) will install the `cleos` and `keosd` command line tools.   
+| The `cleos` tool is bundled with the EOSIO-Taurus software. [Installing EOSIO-Taurus](../../../00_install/index.md) will install the `cleos` and `keosd` command line tools.
 
 ## Examples
 1. Create a new key pair and output to the screen
@@ -41,10 +41,10 @@ Public key: EOS5zG7PsdtzQ9achTdRtXwHieL7yyigBFiJDRAQonqBsfKyL3XhC
 
 2. Create a new key pair and output to a file
 ```shell
-cleos create key --file my_keys.txt 
+cleos create key --file my_keys.txt
 ```
 **Where**
-`--file` keys.txt = Tells the `cleos create key` command to output the private/public keys to  afile called `my_keys.txt`.
+`--file` keys.txt = Tells the `cleos create key` command to output the private/public keys to a file called `my_keys.txt`.
 
 **Example Output**
 ```shell

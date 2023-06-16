@@ -123,19 +123,6 @@ struct unlinkauth {
    }
 };
 
-struct canceldelay {
-   permission_level      canceling_auth;
-   transaction_id_type   trx_id;
-
-   static account_name get_account() {
-      return config::system_account_name;
-   }
-
-   static action_name get_name() {
-      return "canceldelay"_n;
-   }
-};
-
 struct onerror {
    uint128_t      sender_id;
    bytes          sent_trx;
@@ -161,5 +148,4 @@ FC_REFLECT( eosio::chain::updateauth                       , (account)(permissio
 FC_REFLECT( eosio::chain::deleteauth                       , (account)(permission) )
 FC_REFLECT( eosio::chain::linkauth                         , (account)(code)(type)(requirement) )
 FC_REFLECT( eosio::chain::unlinkauth                       , (account)(code)(type) )
-FC_REFLECT( eosio::chain::canceldelay                      , (canceling_auth)(trx_id) )
 FC_REFLECT( eosio::chain::onerror                          , (sender_id)(sent_trx) )

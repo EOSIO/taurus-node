@@ -1,4 +1,4 @@
-#include <b1/rodeos/embedded_rodeos.h>
+#include <b1/rodeos/embedded_rodeos.hpp>
 #include <b1/rodeos/rodeos.hpp>
 #include <fc/scoped_exit.hpp>
 
@@ -190,11 +190,22 @@ extern "C" rodeos_bool rodeos_write_deltas(rodeos_error* error, rodeos_db_snapsh
    });
 }
 
+#ifdef EOSIO_EOS_VM_JIT_RUNTIME_ENABLED
 extern "C" rodeos_filter* rodeos_create_filter(rodeos_error* error, uint64_t name, const char* wasm_filename) {
    return handle_exceptions(error, nullptr, [&]() -> rodeos_filter* { //
       return std::make_unique<rodeos_filter>(eosio::name{ name }, wasm_filename, false).release();
    });
 }
+#endif
+
+#ifdef EOSIO_NATIVE_MODULE_RUNTIME_ENABLED
+namespace b1::embedded_rodeos {
+
+filter::filter(uint64_t name, const char* native_filename, b1::rodeos::native_module_context_type* context)
+    : obj(new rodeos_filter(eosio::name{ name }, native_filename, context)) {}
+} // namespace b1::embedded_rodeos
+
+#endif
 
 extern "C" void rodeos_destroy_filter(rodeos_filter* filter) { std::unique_ptr<rodeos_filter>{ filter }; }
 
@@ -217,19 +228,36 @@ extern "C" rodeos_bool rodeos_run_filter(rodeos_error* error, rodeos_db_snapshot
    });
 }
 
+namespace {
+rodeos_query_handler* create_query_handler(rodeos_db_partition* partition, uint32_t max_console_size,
+                                           uint32_t wasm_cache_size, uint64_t max_exec_time_ms,
+                                           const char*                             contract_dir,
+                                           b1::rodeos::native_module_context_type* native_context) {
+
+   auto shared_state                          = std::make_shared<b1::rodeos::wasm_ql::shared_state>(partition->obj->db);
+   shared_state->max_console_size             = max_console_size;
+   shared_state->wasm_cache_size              = wasm_cache_size;
+   shared_state->max_exec_time_ms             = max_exec_time_ms;
+   shared_state->max_action_return_value_size = MAX_SIZE_OF_BYTE_ARRAYS;
+   shared_state->contract_dir                 = contract_dir ? contract_dir : "";
+   shared_state->native_context               = native_context;
+   return new rodeos_query_handler(partition->obj, shared_state);
+}
+} // namespace
+
+b1::embedded_rodeos::query_handler::query_handler(rodeos_db_partition* partition, uint32_t max_console_size,
+                                                  uint32_t wasm_cache_size, uint64_t max_exec_time_ms,
+                                                  const char*                             contract_dir,
+                                                  b1::rodeos::native_module_context_type* native_context)
+    : obj(create_query_handler(partition, max_console_size, wasm_cache_size, max_exec_time_ms, contract_dir, native_context)) {}
+
 extern "C" rodeos_query_handler* rodeos_create_query_handler(rodeos_error* error, rodeos_db_partition* partition,
                                                              uint32_t max_console_size, uint32_t wasm_cache_size,
                                                              uint64_t max_exec_time_ms, const char* contract_dir) {
    return handle_exceptions(error, nullptr, [&]() -> rodeos_query_handler* {
       if (!partition)
          return error->set("partition is null"), nullptr;
-      auto shared_state              = std::make_shared<b1::rodeos::wasm_ql::shared_state>(partition->obj->db);
-      shared_state->max_console_size = max_console_size;
-      shared_state->wasm_cache_size  = wasm_cache_size;
-      shared_state->max_exec_time_ms = max_exec_time_ms;
-      shared_state->max_action_return_value_size = MAX_SIZE_OF_BYTE_ARRAYS;
-      shared_state->contract_dir     = contract_dir ? contract_dir : "";
-      return std::make_unique<rodeos_query_handler>(partition->obj, shared_state).release();
+      return create_query_handler(partition, max_console_size, wasm_cache_size,max_exec_time_ms, contract_dir, nullptr);
    });
 }
 

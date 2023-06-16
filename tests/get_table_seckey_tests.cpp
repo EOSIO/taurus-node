@@ -69,9 +69,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_next_key_test, TESTER_T, backing_store_
    t.set_abi( "test"_n, contracts::get_table_seckey_test_abi().data() );
    t.produce_block();
 
-   chain_apis::read_only plugin(*(t.control), {}, fc::microseconds::maximum());
-   chain_apis::read_only::get_table_rows_params params = []{
-      chain_apis::read_only::get_table_rows_params params{};
+   chain_apis::table_query plugin(*(t.control), fc::microseconds::maximum());
+   chain_apis::table_query::get_table_rows_params params = []{
+      chain_apis::table_query::get_table_rows_params params{};
       params.json=true;
       params.code="test"_n;
       params.scope="test";
@@ -150,13 +150,13 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_table_next_key_reverse_test, TESTER_T, backin
    t.produce_blocks(1);
 
    // iterate over scope
-   eosio::chain_apis::read_only plugin(*(t.control), {}, fc::microseconds::maximum());
-   eosio::chain_apis::read_only::get_table_by_scope_params param{"eosio"_n, "accounts"_n, "inita", "", 10};
+   eosio::chain_apis::table_query plugin(*(t.control), fc::microseconds::maximum());
+   eosio::chain_apis::table_query::get_table_by_scope_params param{"eosio"_n, "accounts"_n, "inita", "", 10};
 
    param.lower_bound = "a";
    param.upper_bound = "z";
    param.reverse = true;
-   eosio::chain_apis::read_only::get_table_by_scope_result result = plugin.read_only::get_table_by_scope(param);
+   eosio::chain_apis::table_query::get_table_by_scope_result result = plugin.table_query::get_table_by_scope(param);
    BOOST_REQUIRE_EQUAL(5u, result.rows.size());
    BOOST_REQUIRE_EQUAL("", result.more);
 

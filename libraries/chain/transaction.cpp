@@ -13,6 +13,7 @@
 
 namespace eosio { namespace chain {
 
+//!!! Deprecated !!!
 void deferred_transaction_generation_context::reflector_init() {
       static_assert( fc::raw::has_feature_reflector_init_on_unpacked_reflected_types,
                      "deferred_transaction_generation_context expects FC to support reflector_init" );
@@ -66,12 +67,12 @@ fc::microseconds transaction::get_signature_keys( const vector<signature_type>& 
 
    for(const signature_type& sig : signatures) {
       auto now = fc::time_point::now();
-      EOS_ASSERT( now < deadline, tx_cpu_usage_exceeded, "transaction signature verification executed for too long ${time}us",
+      EOS_ASSERT( now < deadline, tx_cpu_usage_exceeded, "transaction signature verification executed for too long {time}us",
                   ("time", now - start)("now", now)("deadline", deadline)("start", start) );
       auto[ itr, successful_insertion ] = recovered_pub_keys.emplace( sig, digest );
       EOS_ASSERT( allow_duplicate_keys || successful_insertion, tx_duplicate_sig,
-                  "transaction includes more than one signature signed using the same key associated with public key: ${key}",
-                  ("key", *itr ) );
+                  "transaction includes more than one signature signed using the same key associated with public key: {key}",
+                  ("key", itr->to_string() ) );
    }
 
    return fc::time_point::now() - start;
@@ -99,13 +100,13 @@ flat_multimap<uint16_t, transaction_extension> transaction::validate_and_extract
 
       auto match = decompose_t::extract<transaction_extension>( id, e.second, iter->second );
       EOS_ASSERT( match, invalid_transaction_extension,
-                  "Transaction extension with id type ${id} is not supported",
+                  "Transaction extension with id type {id} is not supported",
                   ("id", id)
       );
 
       if( match->enforce_unique ) {
          EOS_ASSERT( i == 0 || id > id_type_lower_bound, invalid_transaction_extension,
-                     "Transaction extension with id type ${id} is not allowed to repeat",
+                     "Transaction extension with id type {id} is not allowed to repeat",
                      ("id", id)
          );
       }
@@ -324,7 +325,7 @@ static transaction unpack_transaction(const bytes& packed_trx, packed_transactio
          default:
             EOS_THROW( unknown_transaction_compression, "Unknown transaction compression algorithm" );
       }
-   } FC_CAPTURE_AND_RETHROW( (compression) )
+   } FC_CAPTURE_AND_RETHROW( (packed_transaction_v0::compression_type_string(compression)) )
 }
 
 void packed_transaction_v0::local_unpack_transaction(vector<bytes>&& context_free_data)
@@ -344,7 +345,7 @@ static vector<bytes> unpack_context_free_data(const bytes& packed_context_free_d
          default:
             EOS_THROW( unknown_transaction_compression, "Unknown transaction compression algorithm" );
       }
-   } FC_CAPTURE_AND_RETHROW( (compression) )
+   } FC_CAPTURE_AND_RETHROW( (packed_transaction_v0::compression_type_string(compression)) )
 }
 
 void packed_transaction_v0::local_unpack_context_free_data()
@@ -364,7 +365,7 @@ static bytes pack_transaction(const transaction& trx, packed_transaction_v0::com
          default:
             EOS_THROW(unknown_transaction_compression, "Unknown transaction compression algorithm");
       }
-   } FC_CAPTURE_AND_RETHROW((compression))
+   } FC_CAPTURE_AND_RETHROW( (packed_transaction_v0::compression_type_string(compression)) )
 }
 
 void packed_transaction_v0::local_pack_transaction()
@@ -382,7 +383,7 @@ static bytes pack_context_free_data( const vector<bytes>& cfd, packed_transactio
          default:
             EOS_THROW(unknown_transaction_compression, "Unknown transaction compression algorithm");
       }
-   } FC_CAPTURE_AND_RETHROW((compression))
+   } FC_CAPTURE_AND_RETHROW( (packed_transaction_v0::compression_type_string(compression)) )
 }
 
 void packed_transaction_v0::local_pack_context_free_data()

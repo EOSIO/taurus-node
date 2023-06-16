@@ -55,7 +55,7 @@ private:
       }
       const auto& itr = tracked_blocks.find( trace->block_num );
       if (itr == tracked_blocks.end()) {
-         elog("unable to find tracked block ${block_num}", ("block_num", trace->block_num));
+         elog("unable to find tracked block {block_num}", ("block_num", trace->block_num));
          return;
       }
       auto& tracked = itr->second;
@@ -92,7 +92,7 @@ private:
          const auto& itr = tracked_blocks.find( block_state->block_num );
 
          if (itr == tracked_blocks.end()) {
-            elog("unable to find tracked block ${block_num}", ("block_num", block_state->block_num));
+            elog("unable to find tracked block {block_num}", ("block_num", block_state->block_num));
             return;
          }
          auto& tracked = itr->second;

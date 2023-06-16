@@ -6,19 +6,7 @@ This how-to guide provides instructions on how to vote for block producers.
 
 * Install the latest version of `cleos`.
 
-* Ensure the [reference system contracts](https://developers.eos.io/manuals/eosio.contracts/v1.9/build-and-deploy) are deployed and used to manage system resources.
-
-* Understand the following:
-  * What a [block producer](https://developers.eos.io/welcome/v2.1/protocol-guides/consensus_protocol/#11-block-producers) is.
-  * How [voting](https://developers.eos.io/manuals/eosio.contracts/v1.9/key-concepts/vote) works.
-
 * Unlock your wallet.
-
-## Command Reference
-
-See the following reference guides for command line usage and related options for the `cleos` command:
-
-* The [cleos system voteproducer prods](https://developers.eos.io/manuals/eos/v2.1/cleos/command-reference/system/system-voteproducer-prods) reference.
 
 ## Procedure
 

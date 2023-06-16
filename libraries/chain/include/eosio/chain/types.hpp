@@ -349,9 +349,15 @@ namespace eosio { namespace chain {
       return exts.emplace(insert_itr, eid, std::move(data));
    }
 
-
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
    template<typename Container>
    class end_insert_iterator : public std::iterator< std::output_iterator_tag, void, void, void, void >
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
    {
    protected:
       Container* container;
@@ -403,7 +409,7 @@ namespace eosio { namespace chain {
       template<>
       struct decompose<> {
          template<typename ResultVariant>
-         static auto extract( uint16_t id, const vector<char>& data, ResultVariant& result )
+         static auto extract( uint16_t, const vector<char>&, ResultVariant& )
          -> std::optional<extract_match>
          {
             return {};

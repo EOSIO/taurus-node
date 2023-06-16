@@ -21,6 +21,9 @@
 #include "IR/Validate.h"
 
 #include <eosio/chain/webassembly/eos-vm.hpp>
+#ifdef EOSIO_NATIVE_MODULE_RUNTIME_ENABLED
+#include <eosio/chain/webassembly/native-module.hpp>
+#endif
 #include <eosio/vm/allocator.hpp>
 
 using namespace fc;
@@ -58,7 +61,7 @@ namespace eosio { namespace chain {
       };
 #endif
 
-      wasm_interface_impl(wasm_interface::vm_type vm, bool eosvmoc_tierup, const chainbase::database& d, const boost::filesystem::path data_dir, const eosvmoc::config& eosvmoc_config, bool profile) : db(d), wasm_runtime_time(vm) {
+      wasm_interface_impl(wasm_interface::vm_type vm, const chainbase::database& d, const boost::filesystem::path data_dir, const eosvmoc::config& eosvmoc_config, bool profile, const native_module_config& native_config) : db(d), wasm_runtime_time(vm) {
 #ifdef EOSIO_EOS_VM_RUNTIME_ENABLED
          if(vm == wasm_interface::vm_type::eos_vm)
             runtime_interface = std::make_unique<webassembly::eos_vm_runtime::eos_vm_runtime<eosio::vm::interpreter>>();
@@ -75,11 +78,16 @@ namespace eosio { namespace chain {
          if(vm == wasm_interface::vm_type::eos_vm_oc)
             runtime_interface = std::make_unique<webassembly::eosvmoc::eosvmoc_runtime>(data_dir, eosvmoc_config, d);
 #endif
+
+#ifdef EOSIO_NATIVE_MODULE_RUNTIME_ENABLED
+         if(vm == wasm_interface::vm_type::native_module)
+            runtime_interface = std::make_unique<native_runtime>(native_config);
+#endif
          if(!runtime_interface)
-            EOS_THROW(wasm_exception, "${r} wasm runtime not supported on this platform and/or configuration", ("r", vm));
+            EOS_THROW(wasm_exception, "{r} wasm runtime not supported on this platform and/or configuration", ("r", wasm_interface::vm_type_string(vm)));
 
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
-         if(eosvmoc_tierup) {
+         if(eosvmoc_config.tierup) {
             EOS_ASSERT(vm != wasm_interface::vm_type::eos_vm_oc, wasm_exception, "You can't use EOS VM OC as the base runtime when tier up is activated");
             eosvmoc.emplace(data_dir, eosvmoc_config, d);
          }
@@ -151,45 +159,51 @@ namespace eosio { namespace chain {
          }
 
          if(!it->module) {
-            if(!codeobject)
-               codeobject = &db.get<code_object,by_code_hash>(boost::make_tuple(code_hash, vm_type, vm_version));
 
-            auto timer_pause = fc::make_scoped_exit([&](){
-               trx_context.resume_billing_timer();
-            });
-            trx_context.pause_billing_timer();
-            IR::Module module;
-            std::vector<U8> bytes = {
-                (const U8*)codeobject->code.data(),
-                (const U8*)codeobject->code.data() + codeobject->code.size()};
-            try {
-               Serialization::MemoryInputStream stream((const U8*)bytes.data(),
-                                                       bytes.size());
-               WASM::scoped_skip_checks no_check;
-               WASM::serialize(stream, module);
-               module.userSections.clear();
-            } catch (const Serialization::FatalSerializationException& e) {
-               EOS_ASSERT(false, wasm_serialization_error, e.message.c_str());
-            } catch (const IR::ValidationException& e) {
-               EOS_ASSERT(false, wasm_serialization_error, e.message.c_str());
-            }
-            if (runtime_interface->inject_module(module)) {
+            std::vector<uint8_t> initial_memory;
+            std::vector<U8> bytes;
+
+            if (wasm_runtime_time != wasm_interface::vm_type::native_module) {
+               if(!codeobject)
+                  codeobject = &db.get<code_object,by_code_hash>(boost::make_tuple(code_hash, vm_type, vm_version));
+
+               auto timer_pause = fc::make_scoped_exit([&](){
+                  trx_context.resume_billing_timer();
+               });
+               trx_context.pause_billing_timer();
+               IR::Module module;
+               bytes.assign(
+                  (const U8*)codeobject->code.data(),
+                  (const U8*)codeobject->code.data() + codeobject->code.size());
                try {
-                  Serialization::ArrayOutputStream outstream;
-                  WASM::serialize(outstream, module);
-                  bytes = outstream.getBytes();
+                  Serialization::MemoryInputStream stream((const U8*)bytes.data(),
+                                                         bytes.size());
+                  WASM::scoped_skip_checks no_check;
+                  WASM::serialize(stream, module);
+                  module.userSections.clear();
                } catch (const Serialization::FatalSerializationException& e) {
-                  EOS_ASSERT(false, wasm_serialization_error,
-                             e.message.c_str());
+                  EOS_ASSERT(false, wasm_serialization_error, e.message.c_str());
                } catch (const IR::ValidationException& e) {
-                  EOS_ASSERT(false, wasm_serialization_error,
-                             e.message.c_str());
+                  EOS_ASSERT(false, wasm_serialization_error, e.message.c_str());
                }
+               if (runtime_interface->inject_module(module)) {
+                  try {
+                     Serialization::ArrayOutputStream outstream;
+                     WASM::serialize(outstream, module);
+                     bytes = outstream.getBytes();
+                  } catch (const Serialization::FatalSerializationException& e) {
+                     EOS_ASSERT(false, wasm_serialization_error,
+                              e.message.c_str());
+                  } catch (const IR::ValidationException& e) {
+                     EOS_ASSERT(false, wasm_serialization_error,
+                              e.message.c_str());
+                  }
+               }
+               initial_memory = parse_initial_memory(module);
             }
-
             wasm_instantiation_cache.modify(it, [&](auto& c) {
-               c.module = runtime_interface->instantiate_module((const char*)bytes.data(), bytes.size(), parse_initial_memory(module), code_hash, vm_type, vm_version);
-            });
+                  c.module = runtime_interface->instantiate_module((const char*)bytes.data(), bytes.size(), initial_memory, code_hash, vm_type, vm_version);
+               });
          }
          return it->module;
       }

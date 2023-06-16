@@ -55,7 +55,7 @@ bool include_delta(const chain::protocol_state_object& old, const chain::protoco
    return old.activated_protocol_features != curr.activated_protocol_features;
 }
 
-std::vector<table_delta> create_deltas(const chainbase::database& db, bool full_snapshot) {
+std::vector<table_delta> create_deltas(const chainbase::database& db, bool full_snapshot, bool rodeos) {
    std::vector<table_delta>                          deltas;
    const auto&                                       table_id_index = db.get_index<chain::table_id_multi_index>();
    std::map<uint64_t, const chain::table_id_object*> removed_table_id;
@@ -67,7 +67,7 @@ std::vector<table_delta> create_deltas(const chainbase::database& db, bool full_
       if (obj)
          return *obj;
       auto it = removed_table_id.find(tid);
-      EOS_ASSERT(it != removed_table_id.end(), chain::plugin_exception, "can not found table id ${tid}", ("tid", tid));
+      EOS_ASSERT(it != removed_table_id.end(), chain::plugin_exception, "can not found table id {tid}", ("tid", tid));
       return *it->second;
    };
 
@@ -109,6 +109,9 @@ std::vector<table_delta> create_deltas(const chainbase::database& db, bool full_
       }
    };
 
+   // rodoes tables corresponds to those used by rodeos, see rodeos_tables.hpp
+
+   process_table("permission", db.get_index<chain::permission_index>(), pack_row);
    process_table("account", db.get_index<chain::account_index>(), pack_row);
    process_table("account_metadata", db.get_index<chain::account_metadata_index>(), pack_row);
    process_table("code", db.get_index<chain::code_index>(), pack_row);
@@ -117,25 +120,30 @@ std::vector<table_delta> create_deltas(const chainbase::database& db, bool full_
    process_table("contract_row", db.get_index<chain::key_value_index>(), pack_contract_row);
    process_table("contract_index64", db.get_index<chain::index64_index>(), pack_contract_row);
    process_table("contract_index128", db.get_index<chain::index128_index>(), pack_contract_row);
-   process_table("contract_index256", db.get_index<chain::index256_index>(), pack_contract_row);
-   process_table("contract_index_double", db.get_index<chain::index_double_index>(), pack_contract_row);
-   process_table("contract_index_long_double", db.get_index<chain::index_long_double_index>(), pack_contract_row);
 
-   process_table("key_value", db.get_index<chain::kv_index>(), pack_row);
+   if( !rodeos ) {
+      process_table( "contract_index256", db.get_index<chain::index256_index>(), pack_contract_row );
+      process_table( "contract_index_double", db.get_index<chain::index_double_index>(), pack_contract_row );
+      process_table( "contract_index_long_double", db.get_index<chain::index_long_double_index>(), pack_contract_row );
+   }
 
-   process_table("global_property", db.get_index<chain::global_property_multi_index>(), pack_row);
-   process_table("generated_transaction", db.get_index<chain::generated_transaction_multi_index>(), pack_row);
-   process_table("protocol_state", db.get_index<chain::protocol_state_multi_index>(), pack_row);
+   process_table( "key_value", db.get_index<chain::kv_index>(), pack_row );
 
-   process_table("permission", db.get_index<chain::permission_index>(), pack_row);
-   process_table("permission_link", db.get_index<chain::permission_link_index>(), pack_row);
+   process_table( "global_property", db.get_index<chain::global_property_multi_index>(), pack_row );
 
-   process_table("resource_limits", db.get_index<chain::resource_limits::resource_limits_index>(), pack_row);
-   process_table("resource_usage", db.get_index<chain::resource_limits::resource_usage_index>(), pack_row);
-   process_table("resource_limits_state", db.get_index<chain::resource_limits::resource_limits_state_index>(),
-                 pack_row);
-   process_table("resource_limits_config", db.get_index<chain::resource_limits::resource_limits_config_index>(),
-                 pack_row);
+   if( !rodeos ) {
+      process_table( "generated_transaction", db.get_index<chain::generated_transaction_multi_index>(), pack_row );
+      process_table( "protocol_state", db.get_index<chain::protocol_state_multi_index>(), pack_row );
+
+      process_table( "permission_link", db.get_index<chain::permission_link_index>(), pack_row );
+
+      process_table( "resource_limits", db.get_index<chain::resource_limits::resource_limits_index>(), pack_row );
+      process_table( "resource_usage", db.get_index<chain::resource_limits::resource_usage_index>(), pack_row );
+      process_table( "resource_limits_state", db.get_index<chain::resource_limits::resource_limits_state_index>(),
+                     pack_row );
+      process_table( "resource_limits_config", db.get_index<chain::resource_limits::resource_limits_config_index>(),
+                     pack_row );
+   }
 
    return deltas;
 }

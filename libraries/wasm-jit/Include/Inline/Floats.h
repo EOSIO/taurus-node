@@ -32,14 +32,15 @@ namespace Floats
 			maxExponentBits = 0x7ff,
 		};
 
+      struct UnionBits
+      {
+         U64 significand : 52;
+         U64 exponent : 11;
+         U64 sign : 1;
+      };
 		union
 		{
-			struct
-			{
-				U64 significand : 52;
-				U64 exponent : 11;
-				U64 sign : 1;
-			} bits;
+         UnionBits bits;
 			Float value;
 			Bits bitcastInt;
 		};
@@ -66,14 +67,16 @@ namespace Floats
 			maxExponentBits = 0xff,
 		};
 
+      struct UnionBits
+      {
+         U32 significand : 23;
+         U32 exponent : 8;
+         U32 sign : 1;
+      };
+
 		union
 		{
-			struct
-			{
-				U32 significand : 23;
-				U32 exponent : 8;
-				U32 sign : 1;
-			} bits;
+         UnionBits bits;
 			Float value;
 			Bits bitcastInt;
 		};

@@ -1,6 +1,6 @@
 find_program( NODE_FOUND node )
 
-include_directories( "${CMAKE_SOURCE_DIR}/plugins/wallet_plugin/include" )
+include_directories( "${CMAKE_CURRENT_SOURCE_DIR}/../plugins/wallet_plugin/include" )
 
 file(GLOB UNIT_TESTS "*.cpp")
 
@@ -8,8 +8,8 @@ add_executable( plugin_test ${UNIT_TESTS} )
 target_link_libraries( plugin_test eosio_testing eosio_chain chainbase chain_plugin wallet_plugin fc ${PLATFORM_SPECIFIC_LIBS} )
 
 target_include_directories( plugin_test PUBLIC
-                            ${CMAKE_SOURCE_DIR}/plugins/net_plugin/include
-                            ${CMAKE_SOURCE_DIR}/plugins/chain_plugin/include
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../plugins/net_plugin/include
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../plugins/chain_plugin/include
                             ${CMAKE_BINARY_DIR}/unittests/include/ )
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/core_symbol.py.in ${CMAKE_CURRENT_BINARY_DIR}/core_symbol.py)
@@ -53,22 +53,77 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_producer_watermark_test.py ${C
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/ship_test.py ${CMAKE_CURRENT_BINARY_DIR}/ship_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/ship_client.js ${CMAKE_CURRENT_BINARY_DIR}/ship_client.js COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_high_transaction_test.py ${CMAKE_CURRENT_BINARY_DIR}/nodeos_high_transaction_test.py COPYONLY)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/light_validation_sync_test.py ${CMAKE_CURRENT_BINARY_DIR}/light_validation_sync_test.py COPYONLY)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/eosio_blocklog_prune_test.py ${CMAKE_CURRENT_BINARY_DIR}/eosio_blocklog_prune_test.py COPYONLY)
+if(EOSIO_NOT_REQUIRE_FULL_VALIDATION)
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/light_validation_sync_test.py ${CMAKE_CURRENT_BINARY_DIR}/light_validation_sync_test.py COPYONLY)
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/eosio_blocklog_prune_test.py ${CMAKE_CURRENT_BINARY_DIR}/eosio_blocklog_prune_test.py COPYONLY)
+endif()
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cli_test.py ${CMAKE_CURRENT_BINARY_DIR}/cli_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/plugin_http_api_test.py ${CMAKE_CURRENT_BINARY_DIR}/plugin_http_api_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/resource_monitor_plugin_test.py ${CMAKE_CURRENT_BINARY_DIR}/resource_monitor_plugin_test.py COPYONLY)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rodeos_test.py ${CMAKE_CURRENT_BINARY_DIR}/rodeos_test.py COPYONLY)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rodeos_idle_test.py ${CMAKE_CURRENT_BINARY_DIR}/rodeos_idle_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/test_filter.wasm ${CMAKE_CURRENT_BINARY_DIR}/test_filter.wasm COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/trace_plugin_test.py ${CMAKE_CURRENT_BINARY_DIR}/trace_plugin_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_contrl_c_test.py ${CMAKE_CURRENT_BINARY_DIR}/nodeos_contrl_c_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/amqp_tests.py ${CMAKE_CURRENT_BINARY_DIR}/amqp_tests.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/amqp_tests_with_background_snapshot.py ${CMAKE_CURRENT_BINARY_DIR}/amqp_tests_with_background_snapshot.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/large-lib-test.py ${CMAKE_CURRENT_BINARY_DIR}/large-lib-test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rodeos_plugin_test.py ${CMAKE_CURRENT_BINARY_DIR}/rodeos_plugin_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rodeos_plugin_multi_test.py ${CMAKE_CURRENT_BINARY_DIR}/rodeos_plugin_multi_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rodeos_plugin_multi_kill_restart.py ${CMAKE_CURRENT_BINARY_DIR}/rodeos_plugin_multi_kill_restart.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rodeos_plugin_wasmQL_http_timeout.py ${CMAKE_CURRENT_BINARY_DIR}/rodeos_plugin_wasmQL_http_timeout.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rodeos_plugin_filter_contracts_test.py ${CMAKE_CURRENT_BINARY_DIR}/rodeos_plugin_filter_contracts_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rodeos_plugin_verify_rsa_test.py ${CMAKE_CURRENT_BINARY_DIR}/rodeos_plugin_verify_rsa_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rodeos_plugin_verify_ecdsa_test.py ${CMAKE_CURRENT_BINARY_DIR}/rodeos_plugin_verify_ecdsa_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rodeos_verify_rsa_test.py ${CMAKE_CURRENT_BINARY_DIR}/rodeos_verify_rsa_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rodeos_verify_ecdsa_test.py ${CMAKE_CURRENT_BINARY_DIR}/rodeos_verify_ecdsa_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/read_only_query_tests.py ${CMAKE_CURRENT_BINARY_DIR}/read_only_query_tests.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/p2p_high_latency_test.py ${CMAKE_CURRENT_BINARY_DIR}/p2p_high_latency_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/json_snapshots_test.py ${CMAKE_CURRENT_BINARY_DIR}/json_snapshots_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/load_generator_genesis.json ${CMAKE_CURRENT_BINARY_DIR}/load_generator_genesis.json COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/override_cpu_test.py ${CMAKE_CURRENT_BINARY_DIR}/override_cpu_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/proto_abi_test.py ${CMAKE_CURRENT_BINARY_DIR}/proto_abi_test.py COPYONLY)
+
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_launch_cluster_test.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_launch_cluster_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_kill_nonleader_BP.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_kill_nonleader_BP.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_kill_leader_BP.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_kill_leader_BP.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_restart_leader_test.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_restart_leader_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_kill_leader_with_background_snapshot.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_kill_leader_with_background_snapshot.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_kill9_nonleader_BP.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_kill9_nonleader_BP.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_kill9_leader_BP.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_kill9_leader_BP.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_switch_to_ha_prod.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_switch_to_ha_prod.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_take_leadership.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_take_leadership.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_with_p2p_test.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_with_p2p_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_http_api_test.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_http_api_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_is_active_raft_cluster_test.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_is_active_raft_cluster_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_network_drop_test.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_network_drop_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_network_latency_test.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_network_latency_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_network_isolation_test.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_network_isolation_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_partial_relaunch_test.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_partial_relaunch_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_disconnect_allBPs.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_disconnect_allBPs.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_two_region_topology.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_two_region_topology.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_recover_snapshot_test.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_recover_snapshot_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_quorum_size_consistency_test.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_quorum_size_consistency_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_peers_size_consistency_test.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_peers_size_consistency_test.py COPYONLY)
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_ssl_test.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_ssl_test.py COPYONLY)
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_push_event_test.py ${CMAKE_CURRENT_BINARY_DIR}/nodeos_push_event_test.py COPYONLY)
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_snapshot_on_exit_test.py ${CMAKE_CURRENT_BINARY_DIR}/nodeos_snapshot_on_exit_test.py COPYONLY)
+
+# rodeos
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rodeos_test.py ${CMAKE_CURRENT_BINARY_DIR}/rodeos_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rodeos_idle_test.py ${CMAKE_CURRENT_BINARY_DIR}/rodeos_idle_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rodeos_multi_ship_test.py ${CMAKE_CURRENT_BINARY_DIR}/rodeos_multi_ship_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rodeos_multi_ship_kill_restart.py ${CMAKE_CURRENT_BINARY_DIR}/rodeos_multi_ship_kill_restart.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rodeos_wasmQL_http_timeout.py ${CMAKE_CURRENT_BINARY_DIR}/rodeos_wasmQL_http_timeout.py COPYONLY)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/read_only_query_tests.py ${CMAKE_CURRENT_BINARY_DIR}/read_only_query_tests.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rodeos_filter_contracts_test.py ${CMAKE_CURRENT_BINARY_DIR}/rodeos_filter_contracts_test.py COPYONLY)
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/persist_data_false_test.py ${CMAKE_CURRENT_BINARY_DIR}/persist_data_false_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/generate_amqps_certs.sh ${CMAKE_CURRENT_BINARY_DIR}/generate_amqps_certs.sh COPYONLY)
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/background_snapshot_test.py ${CMAKE_CURRENT_BINARY_DIR}/background_snapshot_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/producer_ha_background_snapshots_test.py ${CMAKE_CURRENT_BINARY_DIR}/producer_ha_background_snapshots_test.py COPYONLY)
 
 #To run plugin_test with all log from blockchain displayed, put --verbose after --, i.e. plugin_test -- --verbose
 add_test(NAME plugin_test COMMAND plugin_test --report_level=detailed --color_output)
@@ -99,10 +154,16 @@ if (DEFINED AMQP_CONN_STR)
   set_property(TEST nodeos_run_test-rabbitmq-with_signing_delay PROPERTY LABELS nonparallelizable_tests)
   add_test(NAME amqp_tests-rabbit COMMAND tests/amqp_tests.py --amqp-address ${AMQP_CONN_STR} -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
   set_property(TEST amqp_tests-rabbit PROPERTY LABELS nonparallelizable_tests)
+  add_test(NAME amqps_tests-rabbit COMMAND tests/amqp_tests.py --amqp-address ${AMQP_CONN_STR} --amqps --gen-amqps-certs -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_property(TEST amqps_tests-rabbit PROPERTY LABELS nonparallelizable_tests)
+  add_test(NAME amqps_tests-rabbit-background-snapshot COMMAND tests/amqp_tests_with_background_snapshot.py --amqp-address ${AMQP_CONN_STR} --amqps --gen-amqps-certs -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_property(TEST amqps_tests-rabbit-background-snapshot PROPERTY LABELS nonparallelizable_tests)
   add_test(NAME nodeos_high_transaction_lr_test-rabbitmq COMMAND tests/nodeos_high_transaction_test.py --amqp-address ${AMQP_CONN_STR} -v --clean-run --dump-error-detail -p 4 -n 8 --num-transactions 10000 --max-transactions-per-second 500 WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
   set_property(TEST nodeos_high_transaction_lr_test-rabbitmq PROPERTY LABELS long_running_tests)
   add_test(NAME distributed-transactions-test-rabbitmq COMMAND tests/distributed-transactions-test.py -d 2 -p 4 -n 6 -v --clean-run --dump-error-detail --amqp-address ${AMQP_CONN_STR} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
   set_property(TEST distributed-transactions-test-rabbitmq PROPERTY LABELS nonparallelizable_tests)
+  add_test(NAME nodeos-push-event-test-rabbitmq COMMAND tests/nodeos_push_event_test.py -v --clean-run --dump-error-detail --amqp-address ${AMQP_CONN_STR} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_property(TEST nodeos-push-event-test-rabbitmq PROPERTY LABELS nonparallelizable_tests)
 endif()
 
 add_test(NAME producer-preactivate-feature-test COMMAND tests/prod_preactivation_test.py --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
@@ -142,11 +203,16 @@ add_test(NAME db_modes_test COMMAND tests/db_modes_test.sh WORKING_DIRECTORY ${C
 set_tests_properties(db_modes_test PROPERTIES COST 6000)
 set_property(TEST db_modes_test PROPERTY LABELS nonparallelizable_tests)
 add_test(NAME release-build-test COMMAND tests/release-build.sh WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-add_test(NAME validate-reflection-test COMMAND "${CMAKE_BINARY_DIR}/tests/validate-reflection.py" plugins/ programs/ libraries/ --recurse --extension "cpp" --extension "hpp" -e WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+#disable until updated to use clang instead of regex
+#add_test(NAME validate-reflection-test COMMAND "${CMAKE_BINARY_DIR}/tests/validate-reflection.py" plugins/ programs/ libraries/ --recurse --extension "cpp" --extension "hpp" -e WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/..)
 add_test(NAME version-label-test COMMAND tests/version-label.sh "v${VERSION_FULL}" WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-add_test(NAME full-version-label-test COMMAND tests/full-version-label.sh "v${VERSION_FULL}" ${CMAKE_SOURCE_DIR} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-add_test(NAME print-build-info-test COMMAND tests/print-build-info.sh ${CMAKE_SOURCE_DIR} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-if(NOT EOSIO_REQUIRE_FULL_VALIDATION)
+add_test(NAME full-version-label-test COMMAND tests/full-version-label.sh "v${VERSION_FULL}" ${CMAKE_CURRENT_SOURCE_DIR}/.. WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+add_test(NAME print-build-info-test COMMAND tests/print-build-info.sh ${CMAKE_CURRENT_SOURCE_DIR}/.. WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+
+add_test(NAME proto_abi_test COMMAND tests/proto_abi_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST proto_abi_test PROPERTY LABELS nonparallelizable_tests)
+
+if(EOSIO_NOT_REQUIRE_FULL_VALIDATION)
    add_test(NAME light_validation_sync_test COMMAND tests/light_validation_sync_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
    set_property(TEST light_validation_sync_test PROPERTY LABELS nonparallelizable_tests)
    add_test(NAME eosio_blocklog_prune_test COMMAND tests/eosio_blocklog_prune_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
@@ -155,7 +221,72 @@ if(NOT EOSIO_REQUIRE_FULL_VALIDATION)
    set_property(TEST eosio_blocklog_prune_test_with_signing_delay PROPERTY LABELS nonparallelizable_tests)
 endif()
 
+add_test(NAME nodeos_snapshot_on_exit COMMAND tests/nodeos_snapshot_on_exit_test.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST nodeos_snapshot_on_exit PROPERTY LABELS nonparallelizable_tests)
+
+#
+# rodeos plugin tests
+#
+
+add_test(NAME rodeos_plugin_test COMMAND tests/rodeos_plugin_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_plugin_test PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME rodeos_plugin_test_with_signing_delay COMMAND tests/rodeos_plugin_test.py -v --clean-run --dump-error-detail --signing-delay 200 WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_plugin_test_with_signing_delay PROPERTY LABELS nonparallelizable_tests)
+if("eos-vm-oc" IN_LIST EOSIO_WASM_RUNTIMES)
+  add_test(NAME rodeos_plugin_eosvmoc_test COMMAND tests/rodeos_plugin_test.py -v --clean-run --dump-error-detail --eos-vm-oc-enable WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_property(TEST rodeos_plugin_eosvmoc_test PROPERTY LABELS nonparallelizable_tests)
+endif()
+
+add_test(NAME rodeos_plugin_multi_idle_test COMMAND tests/rodeos_plugin_multi_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_plugin_multi_idle_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME rodeos_plugin_multi_load_test COMMAND tests/rodeos_plugin_multi_test.py -v --clean-run --dump-error-detail --load-test-enable WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_plugin_multi_load_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME rodeos_plugin_multi_kill_restart_idle_test COMMAND tests/rodeos_plugin_multi_kill_restart.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_plugin_multi_kill_restart_idle_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME rodeos_plugin_multi_kill_restart_load_test COMMAND tests/rodeos_plugin_multi_kill_restart.py -v --clean-run --dump-error-detail --load-test-enable WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_plugin_multi_kill_restart_load_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME rodeos_plugin_multi_kill_clean_restart_idle_test COMMAND tests/rodeos_plugin_multi_kill_restart.py -v --clean-run --dump-error-detail --clean-restart WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_plugin_multi_kill_clean_restart_idle_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME rodeos_plugin_multi_kill_clean_restart_load_test COMMAND tests/rodeos_plugin_multi_kill_restart.py -v --clean-run --dump-error-detail --clean-restart --load-test-enable WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_plugin_multi_kill_clean_restart_load_test PROPERTY LABELS nonparallelizable_tests)
+
+
+add_test(NAME rodeos_plugin_wasmQL_http_timeout COMMAND tests/rodeos_plugin_wasmQL_http_timeout.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_plugin_wasmQL_http_timeout PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME rodeos_plugin_wasmQL_http_timeout_unix_socket COMMAND tests/rodeos_plugin_wasmQL_http_timeout.py --unix-socket -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_plugin_wasmQL_http_timeout_unix_socket PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME rodeos_plugin_multi_kill_restart_idle_unixsocket_test COMMAND tests/rodeos_plugin_multi_kill_restart.py -v --clean-run --dump-error-detail --unix-socket WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_plugin_multi_kill_restart_idle_unixsocket_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME rodeos_plugin_multi_kill_restart_load_unixsocket_test COMMAND tests/rodeos_plugin_multi_kill_restart.py -v --clean-run --dump-error-detail --load-test-enable --unix-socket WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_plugin_multi_kill_restart_load_unixsocket_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME rodeos_plugin_multi_kill_clean_restart_idle_unixsocket_test COMMAND tests/rodeos_plugin_multi_kill_restart.py -v --clean-run --dump-error-detail --clean-restart --unix-socket WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_plugin_multi_kill_clean_restart_idle_unixsocket_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME rodeos_plugin_multi_kill_clean_restart_load_unixsocket_test COMMAND tests/rodeos_plugin_multi_kill_restart.py -v --clean-run --dump-error-detail --clean-restart --load-test-enable --unix-socket WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_plugin_multi_kill_clean_restart_load_unixsocket_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME rodeos_plugin_filter_contracts_test COMMAND tests/rodeos_plugin_filter_contracts_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_plugin_filter_contracts_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME rodeos_plugin_verify_rsa_test COMMAND tests/rodeos_plugin_verify_rsa_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_plugin_verify_rsa_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME rodeos_plugin_verify_ecdsa_test COMMAND tests/rodeos_plugin_verify_ecdsa_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_plugin_verify_ecdsa_test PROPERTY LABELS nonparallelizable_tests)
+
+#
 # rodeos tests
+#
+
 add_test(NAME rodeos_test COMMAND tests/rodeos_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST rodeos_test PROPERTY LABELS nonparallelizable_tests)
 add_test(NAME rodeos_test_with_signing_delay COMMAND tests/rodeos_test.py -v --clean-run --dump-error-detail --signing-delay 200 WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
@@ -168,7 +299,7 @@ endif()
 add_test(NAME rodeos_idle_test COMMAND tests/rodeos_idle_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST rodeos_idle_test PROPERTY LABELS nonparallelizable_tests)
 
-# rodoes restart scenarios: stop/start single node, TCP/IP 
+# rodoes restart scenarios: stop/start single node, TCP/IP
 add_test(NAME rodeos_idle_restart_ship_test COMMAND tests/rodeos_idle_test.py -v --clean-run --dump-error-detail --node-order _ship-k2,+ship-n,_ship-k15,+ship-n WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST rodeos_idle_restart_ship_test PROPERTY LABELS nonparallelizable_tests)
 add_test(NAME rodeos_idle_restart_producer_test COMMAND tests/rodeos_idle_test.py -v --clean-run --dump-error-detail --node-order _prod-k2,+prod-n,_prod-k15,+prod-n WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
@@ -203,55 +334,10 @@ set_property(TEST rodeos_idle_restart_ship_unix-socket_eos-vm-oc_test PROPERTY L
 add_test(NAME rodeos_idle_restart_rodeos_unix-socket_eos-vm-oc_test COMMAND tests/rodeos_idle_test.py -v --clean-run --dump-error-detail --unix-socket --node-order _rodeos-k2,+rodeos-n,_rodeos-k15,+rodeos-n --eos-vm-oc-enable WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST rodeos_idle_restart_rodeos_unix-socket_eos-vm-oc_test PROPERTY LABELS nonparallelizable_tests)
 
-
 # TODO add restart_producer_ship_eos-vm-oc when it becomes stable
 # TODO add restart_rodeos_ship_eos-vm-oc when it becomes stable
 add_test(NAME rodeos_idle_restart_rodeos_producer_eos-vm-oc_test COMMAND tests/rodeos_idle_test.py -v --clean-run --dump-error-detail --reps 2 --node-order _rodeos-k2,_prod-k2,+rodeos-n,+prod-n,_prod-k15,_rodeos-k15,+rodeos-n,+prod-n --eos-vm-oc-enable WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST rodeos_idle_restart_rodeos_producer_eos-vm-oc_test PROPERTY LABELS nonparallelizable_tests)
-add_test(NAME read_only_query COMMAND tests/read_only_query_tests.py -p 1 -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-set_property(TEST read_only_query PROPERTY LABELS nonparallelizable_tests)
-
-# TODO add test restart all three  (rodeos, producer, ship) shutdown then brought back up
-
-# Long running tests
-add_test(NAME nodeos_sanity_lr_test COMMAND tests/nodeos_run_test.py -v --sanity-test --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-set_property(TEST nodeos_sanity_lr_test PROPERTY LABELS long_running_tests)
-add_test(NAME nodeos_run_check_lr_test COMMAND tests/nodeos_run_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-set_property(TEST nodeos_run_check_lr_test PROPERTY LABELS long_running_tests)
-add_test(NAME nodeos_remote_lr_test COMMAND tests/nodeos_run_remote_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-set_property(TEST nodeos_remote_lr_test PROPERTY LABELS long_running_tests)
-
-#add_test(NAME distributed_transactions_lr_test COMMAND tests/distributed-transactions-test.py -d 2 -p 21 -n 21 -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-#set_property(TEST distributed_transactions_lr_test PROPERTY LABELS long_running_tests)
-
-add_test(NAME nodeos_forked_chain_lr_test COMMAND tests/nodeos_forked_chain_test.py -v --wallet-port 9901 --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-set_property(TEST nodeos_forked_chain_lr_test PROPERTY LABELS long_running_tests)
-
-add_test(NAME nodeos_contrl_c_lr_test COMMAND tests/nodeos_contrl_c_test.py -v --wallet-port 9901 WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-set_property(TEST nodeos_contrl_c_lr_test PROPERTY LABELS long_running_tests)
-
-add_test(NAME nodeos_voting_lr_test COMMAND tests/nodeos_voting_test.py -v --wallet-port 9902 --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-set_property(TEST nodeos_voting_lr_test PROPERTY LABELS long_running_tests)
-
-add_test(NAME nodeos_under_min_avail_ram_lr_test COMMAND tests/nodeos_under_min_avail_ram.py -v --wallet-port 9904 --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-set_tests_properties(nodeos_under_min_avail_ram_lr_test PROPERTIES TIMEOUT 3000)
-set_property(TEST nodeos_under_min_avail_ram_lr_test PROPERTY LABELS long_running_tests)
-
-add_test(NAME nodeos_irreversible_mode_lr_test COMMAND tests/nodeos_irreversible_mode_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-set_property(TEST nodeos_irreversible_mode_lr_test PROPERTY LABELS long_running_tests)
-
-add_test(NAME nodeos_read_terminate_at_block_lr_test COMMAND tests/nodeos_read_terminate_at_block_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-set_property(TEST nodeos_read_terminate_at_block_lr_test PROPERTY LABELS long_running_tests)
-
-add_test(NAME nodeos_chainbase_allocation_lr_test COMMAND tests/nodeos_chainbase_allocation_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-set_property(TEST nodeos_chainbase_allocation_lr_test PROPERTY LABELS long_running_tests)
-
-add_test(NAME nodeos_startup_catchup_lr_test COMMAND tests/nodeos_startup_catchup.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-set_tests_properties(nodeos_startup_catchup_lr_test PROPERTIES TIMEOUT 3000)
-set_property(TEST nodeos_startup_catchup_lr_test PROPERTY LABELS long_running_tests)
-
-add_test(NAME nodeos_short_fork_take_over_lr_test COMMAND tests/nodeos_short_fork_take_over_test.py -v --wallet-port 9905 --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-set_property(TEST nodeos_short_fork_take_over_lr_test PROPERTY LABELS long_running_tests)
 
 add_test(NAME rodeos_multi_ship_idle_test COMMAND tests/rodeos_multi_ship_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST rodeos_multi_ship_idle_test PROPERTY LABELS nonparallelizable_tests)
@@ -290,8 +376,140 @@ set_property(TEST rodeos_multi_ship_kill_clean_restart_idle_unixsocket_test PROP
 add_test(NAME rodeos_multi_ship_kill_clean_restart_load_unixsocket_test COMMAND tests/rodeos_multi_ship_kill_restart.py -v --clean-run --dump-error-detail --clean-restart --load-test-enable --unix-socket WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST rodeos_multi_ship_kill_clean_restart_load_unixsocket_test PROPERTY LABELS nonparallelizable_tests)
 
+add_test(NAME rodeos_filter_contracts_test COMMAND tests/rodeos_filter_contracts_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_filter_contracts_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME rodeos_verify_rsa_test COMMAND tests/rodeos_verify_rsa_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_verify_rsa_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME rodeos_verify_ecdsa_test COMMAND tests/rodeos_verify_ecdsa_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST rodeos_verify_ecdsa_test PROPERTY LABELS nonparallelizable_tests)
+
+# nodeos tests
+
+add_test(NAME read_only_query COMMAND tests/read_only_query_tests.py -p 1 -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST read_only_query PROPERTY LABELS nonparallelizable_tests)
+
+# producer HA tests
+add_test(NAME producer_ha_launch_one_BP_cluster COMMAND tests/producer_ha_launch_cluster_test.py -p 1 -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_launch_one_BP_cluster PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME producer_ha_launch_two_BP_cluster COMMAND tests/producer_ha_launch_cluster_test.py -p 2 -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_launch_two_BP_cluster PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME producer_ha_launch_three_BP_cluster COMMAND tests/producer_ha_launch_cluster_test.py -p 3 -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_launch_three_BP_cluster PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME producer_ha_kill_nonleader_BP COMMAND tests/producer_ha_kill_nonleader_BP.py --kill-count 1 -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_kill_nonleader_BP PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME producer_ha_kill_two_nonleader_BP COMMAND tests/producer_ha_kill_nonleader_BP.py --kill-count 2 -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_kill_two_nonleader_BP PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME producer_ha_kill_leader_BP COMMAND tests/producer_ha_kill_leader_BP.py -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_kill_leader_BP PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME producer_ha_restart_leader COMMAND tests/producer_ha_restart_leader_test.py -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_restart_leader PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME producer_ha_kill_leader_with_background_snapshot COMMAND tests/producer_ha_kill_leader_with_background_snapshot.py -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_kill_leader_with_background_snapshot PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME producer_ha_kill9_nonleader_BP COMMAND tests/producer_ha_kill9_nonleader_BP.py --kill-count 1 -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_kill9_nonleader_BP PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME producer_ha_kill9_two_nonleader_BP COMMAND tests/producer_ha_kill9_nonleader_BP.py --kill-count 2 -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_kill9_two_nonleader_BP PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME producer_ha_kill9_leader_BP COMMAND tests/producer_ha_kill9_leader_BP.py -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_kill9_leader_BP PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME producer_ha_switch_to_ha_prod COMMAND tests/producer_ha_switch_to_ha_prod.py -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_switch_to_ha_prod PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME producer_ha_take_leadership COMMAND tests/producer_ha_take_leadership.py -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_take_leadership PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME producer_ha_with_p2p COMMAND tests/producer_ha_with_p2p_test.py -p 3 -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_with_p2p PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME producer_ha_two_region_topology COMMAND tests/producer_ha_two_region_topology.py -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_two_region_topology PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME producer_ha_two_region_topology_net_latency COMMAND tests/producer_ha_two_region_topology.py -v --dump-error-detail --net-latency WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_two_region_topology_net_latency PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME producer_ha_recover_snapshot COMMAND tests/producer_ha_recover_snapshot_test.py -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_recover_snapshot PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME producer_ha_disconnect_allBPs COMMAND tests/producer_ha_disconnect_allBPs.py -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_disconnect_allBPs PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME producer_ha_partial_relaunch COMMAND tests/producer_ha_partial_relaunch_test.py -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_partial_relaunch PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME producer_ha_http_api COMMAND tests/producer_ha_http_api_test.py -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_http_api PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME producer_ha_is_active_raft_cluster COMMAND tests/producer_ha_is_active_raft_cluster_test.py -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_is_active_raft_cluster PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME producer_ha_network_drop_test COMMAND tests/producer_ha_network_drop_test.py -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_network_drop_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME producer_ha_network_latency_test COMMAND tests/producer_ha_network_latency_test.py -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_network_latency_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME producer_ha_network_isolation_test COMMAND tests/producer_ha_network_isolation_test.py -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_network_isolation_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME persist_data_false_test COMMAND tests/persist_data_false_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST persist_data_false_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME producer_ha_quorum_size_consistency COMMAND tests/producer_ha_quorum_size_consistency_test.py -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_quorum_size_consistency PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME producer_ha_peers_size_consistency COMMAND tests/producer_ha_peers_size_consistency_test.py -v --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_peers_size_consistency PROPERTY LABELS nonparallelizable_tests)
+
+# TODO add test restart all three  (rodeos, producer, ship) shutdown then brought back up
+
+# Long running tests
+add_test(NAME nodeos_sanity_lr_test COMMAND tests/nodeos_run_test.py -v --sanity-test --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST nodeos_sanity_lr_test PROPERTY LABELS long_running_tests)
+add_test(NAME nodeos_run_check_lr_test COMMAND tests/nodeos_run_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST nodeos_run_check_lr_test PROPERTY LABELS long_running_tests)
+add_test(NAME nodeos_remote_lr_test COMMAND tests/nodeos_run_remote_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST nodeos_remote_lr_test PROPERTY LABELS long_running_tests)
+
+add_test(NAME p2p_high_latency_test COMMAND tests/p2p_high_latency_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST p2p_high_latency_test PROPERTY LABELS nonparallelizable_tests)
+
+#add_test(NAME distributed_transactions_lr_test COMMAND tests/distributed-transactions-test.py -d 2 -p 21 -n 21 -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+#set_property(TEST distributed_transactions_lr_test PROPERTY LABELS long_running_tests)
+
+add_test(NAME nodeos_forked_chain_lr_test COMMAND tests/nodeos_forked_chain_test.py -v --wallet-port 9901 --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST nodeos_forked_chain_lr_test PROPERTY LABELS long_running_tests)
+
+add_test(NAME nodeos_contrl_c_lr_test COMMAND tests/nodeos_contrl_c_test.py -v --wallet-port 9901 WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST nodeos_contrl_c_lr_test PROPERTY LABELS long_running_tests)
+
+add_test(NAME nodeos_voting_lr_test COMMAND tests/nodeos_voting_test.py -v --wallet-port 9902 --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST nodeos_voting_lr_test PROPERTY LABELS long_running_tests)
+
+add_test(NAME nodeos_under_min_avail_ram_lr_test COMMAND tests/nodeos_under_min_avail_ram.py -v --wallet-port 9904 --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_tests_properties(nodeos_under_min_avail_ram_lr_test PROPERTIES TIMEOUT 3000)
+set_property(TEST nodeos_under_min_avail_ram_lr_test PROPERTY LABELS long_running_tests)
+
+add_test(NAME nodeos_irreversible_mode_lr_test COMMAND tests/nodeos_irreversible_mode_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST nodeos_irreversible_mode_lr_test PROPERTY LABELS long_running_tests)
+
+add_test(NAME nodeos_read_terminate_at_block_lr_test COMMAND tests/nodeos_read_terminate_at_block_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST nodeos_read_terminate_at_block_lr_test PROPERTY LABELS long_running_tests)
+
+add_test(NAME nodeos_chainbase_allocation_lr_test COMMAND tests/nodeos_chainbase_allocation_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST nodeos_chainbase_allocation_lr_test PROPERTY LABELS long_running_tests)
+
+add_test(NAME nodeos_startup_catchup_lr_test COMMAND tests/nodeos_startup_catchup.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_tests_properties(nodeos_startup_catchup_lr_test PROPERTIES TIMEOUT 3000)
+set_property(TEST nodeos_startup_catchup_lr_test PROPERTY LABELS long_running_tests)
+
+add_test(NAME nodeos_short_fork_take_over_lr_test COMMAND tests/nodeos_short_fork_take_over_test.py -v --wallet-port 9905 --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST nodeos_short_fork_take_over_lr_test PROPERTY LABELS long_running_tests)
+
+add_test(NAME json_snapshots_test COMMAND tests/json_snapshots_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST json_snapshots_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME override_cpu_test COMMAND tests/override_cpu_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST override_cpu_test PROPERTY LABELS nonparallelizable_tests)
+
 if("eos-vm-oc" IN_LIST EOSIO_WASM_RUNTIMES)
 
+  # rodeos tests
   add_test(NAME rodeos_multi_ship_eos_vm_oc_idle_test COMMAND tests/rodeos_multi_ship_test.py -v --clean-run --dump-error-detail --eos-vm-oc-enable WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
   set_property(TEST rodeos_multi_ship_eos_vm_oc_idle_test PROPERTY LABELS nonparallelizable_tests)
 
@@ -329,6 +547,44 @@ if("eos-vm-oc" IN_LIST EOSIO_WASM_RUNTIMES)
   add_test(NAME rodeos_multi_ship_kill_restart_eos_vm_oc_load_unixsocket_test COMMAND tests/rodeos_multi_ship_kill_restart.py -v --clean-run --dump-error-detail --eos-vm-oc-enable --load-test-enable --unix-socket WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
   set_property(TEST rodeos_multi_ship_kill_restart_eos_vm_oc_load_unixsocket_test PROPERTY LABELS nonparallelizable_tests)
 
+  # rodeos_plugin tests
+  add_test(NAME rodeos_plugin_multi_eos_vm_oc_idle_test COMMAND tests/rodeos_plugin_multi_test.py -v --clean-run --dump-error-detail --eos-vm-oc-enable WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_property(TEST rodeos_plugin_multi_eos_vm_oc_idle_test PROPERTY LABELS nonparallelizable_tests)
+
+  add_test(NAME rodeos_plugin_multi_eos_vm_oc_load_test COMMAND tests/rodeos_plugin_multi_test.py -v --clean-run --dump-error-detail --eos-vm-oc-enable --load-test-enable WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_property(TEST rodeos_plugin_multi_eos_vm_oc_load_test PROPERTY LABELS nonparallelizable_tests)
+
+  add_test(NAME rodeos_plugin_multi_kill_clean_restart_eos_vm_oc_idle_test COMMAND tests/rodeos_plugin_multi_kill_restart.py -v --clean-run --dump-error-detail --clean-restart --eos-vm-oc-enable WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_property(TEST rodeos_plugin_multi_kill_clean_restart_eos_vm_oc_idle_test PROPERTY LABELS nonparallelizable_tests)
+
+  add_test(NAME rodeos_plugin_multi_kill_clean_restart_eos_vm_oc_load_test COMMAND tests/rodeos_plugin_multi_kill_restart.py -v --clean-run --dump-error-detail --clean-restart --eos-vm-oc-enable --load-test-enable WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_property(TEST rodeos_plugin_multi_kill_clean_restart_eos_vm_oc_load_test PROPERTY LABELS nonparallelizable_tests)
+
+  add_test(NAME rodeos_plugin_multi_kill_restart_eos_vm_oc_idle_test COMMAND tests/rodeos_plugin_multi_kill_restart.py -v --clean-run --dump-error-detail --eos-vm-oc-enable WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_property(TEST rodeos_plugin_multi_kill_restart_eos_vm_oc_idle_test PROPERTY LABELS nonparallelizable_tests)
+
+  add_test(NAME rodeos_plugin_multi_kill_restart_eos_vm_oc_load_test COMMAND tests/rodeos_plugin_multi_kill_restart.py -v --clean-run --dump-error-detail --eos-vm-oc-enable --load-test-enable WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_property(TEST rodeos_plugin_multi_kill_restart_eos_vm_oc_load_test PROPERTY LABELS nonparallelizable_tests)
+
+
+  add_test(NAME rodeos_plugin_wasmQL_http_timeout_eos_vm_oc COMMAND tests/rodeos_plugin_wasmQL_http_timeout.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_property(TEST rodeos_plugin_wasmQL_http_timeout_eos_vm_oc PROPERTY LABELS nonparallelizable_tests)
+
+  add_test(NAME rodeos_plugin_wasmQL_http_timeout_unix_socket_eos_vm_oc COMMAND tests/rodeos_plugin_wasmQL_http_timeout.py --unix-socket -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_property(TEST rodeos_plugin_wasmQL_http_timeout_unix_socket_eos_vm_oc PROPERTY LABELS nonparallelizable_tests)
+
+  add_test(NAME rodeos_plugin_multi_kill_clean_restart_eos_vm_oc_idle_unixsocket_test COMMAND tests/rodeos_plugin_multi_kill_restart.py -v --clean-run --dump-error-detail --clean-restart --eos-vm-oc-enable --unix-socket WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_property(TEST rodeos_plugin_multi_kill_clean_restart_eos_vm_oc_idle_unixsocket_test PROPERTY LABELS nonparallelizable_tests)
+
+  add_test(NAME rodeos_plugin_multi_kill_clean_restart_eos_vm_oc_load_unixsocket_test COMMAND tests/rodeos_plugin_multi_kill_restart.py -v --clean-run --dump-error-detail --clean-restart --eos-vm-oc-enable --load-test-enable --unix-socket WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_property(TEST rodeos_plugin_multi_kill_clean_restart_eos_vm_oc_load_unixsocket_test PROPERTY LABELS nonparallelizable_tests)
+
+  add_test(NAME rodeos_plugin_multi_kill_restart_eos_vm_oc_idle_unixsocket_test COMMAND tests/rodeos_plugin_multi_kill_restart.py -v --clean-run --dump-error-detail --eos-vm-oc-enable --unix-socket WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_property(TEST rodeos_plugin_multi_kill_restart_eos_vm_oc_idle_unixsocket_test PROPERTY LABELS nonparallelizable_tests)
+
+  add_test(NAME rodeos_plugin_multi_kill_restart_eos_vm_oc_load_unixsocket_test COMMAND tests/rodeos_plugin_multi_kill_restart.py -v --clean-run --dump-error-detail --eos-vm-oc-enable --load-test-enable --unix-socket WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_property(TEST rodeos_plugin_multi_kill_restart_eos_vm_oc_load_unixsocket_test PROPERTY LABELS nonparallelizable_tests)
+
 endif()
 
 if(ENABLE_MULTIVERSION_PROTOCOL_TEST)
@@ -354,14 +610,14 @@ set_property(TEST nodeos_high_transaction_lr_test-p1 PROPERTY LABELS long_runnin
 add_test(NAME cli_test COMMAND tests/cli_test.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 
 add_test(NAME plugin_http_api_test COMMAND tests/plugin_http_api_test.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-set_tests_properties(plugin_http_api_test PROPERTIES TIMEOUT 40)
+set_tests_properties(plugin_http_api_test PROPERTIES TIMEOUT 150)
 set_property(TEST plugin_http_api_test PROPERTY LABELS nonparallelizable_tests)
 
-add_test(NAME trace_plugin_test COMMAND tests/trace_plugin_test.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+add_test(NAME trace_plugin_test COMMAND tests/trace_plugin_test.py -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_tests_properties(trace_plugin_test PROPERTIES TIMEOUT 100)
 set_property(TEST trace_plugin_test PROPERTY LABELS nonparallelizable_tests)
 
-add_test(NAME trace_plugin_test_with_signing_delay COMMAND tests/trace_plugin_test.py --signing-delay 200 WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+add_test(NAME trace_plugin_test_with_signing_delay COMMAND tests/trace_plugin_test.py --signing-delay 200 -v --clean-run --dump-error-detail WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_tests_properties(trace_plugin_test_with_signing_delay PROPERTIES TIMEOUT 100)
 set_property(TEST trace_plugin_test_with_signing_delay PROPERTY LABELS nonparallelizable_tests)
 
@@ -403,7 +659,7 @@ if(ENABLE_COVERAGE_TESTING)
     COMMAND ctest -R ${ctest_tests} -E ${ctest_exclude_tests}
 
     COMMENT "Capturing lcov counters and generating report"
-    COMMAND ${LCOV_PATH} --directory . --capture --gcov-tool ${CMAKE_SOURCE_DIR}/tools/llvm-gcov.sh --output-file ${Coverage_NAME}.info
+    COMMAND ${LCOV_PATH} --directory . --capture --gcov-tool ${CMAKE_CURRENT_SOURCE_DIR}/../tools/llvm-gcov.sh --output-file ${Coverage_NAME}.info
 
     COMMENT "Processing code coverage counters and generating report."
     COMMAND ${GENHTML_PATH} -o ${Coverage_NAME} ${PROJECT_BINARY_DIR}/${Coverage_NAME}.info
@@ -419,3 +675,9 @@ if(ENABLE_COVERAGE_TESTING)
     COMMENT "Open ./${Coverage_NAME}/index.html in your browser to view the coverage report."
     )
 endif()
+
+add_test(NAME background_snapshot_test COMMAND tests/background_snapshot_test.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST background_snapshot_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME producer_ha_background_snapshots_test COMMAND tests/producer_ha_background_snapshots_test.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST producer_ha_background_snapshots_test PROPERTY LABELS nonparallelizable_tests)

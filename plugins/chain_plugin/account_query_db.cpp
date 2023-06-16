@@ -150,7 +150,7 @@ namespace eosio::chain_apis {
 
          for (uint32_t block_num = lib_num + 1; block_num <= head_num; block_num++) {
             const auto block_p = controller.fetch_block_by_number(block_num);
-            EOS_ASSERT(block_p, chain::plugin_exception, "cannot fetch reversible block ${block_num}, required for account_db initialization", ("block_num", block_num));
+            EOS_ASSERT(block_p, chain::plugin_exception, "cannot fetch reversible block {block_num}, required for account_db initialization", ("block_num", block_num));
             time_to_block_num.emplace(block_p->timestamp.to_time_point(), block_num);
          }
 
@@ -160,7 +160,7 @@ namespace eosio::chain_apis {
             add_to_bimaps(*pi, po);
          }
          auto duration = fc::time_point::now() - start;
-         ilog("Finished building account query DB in ${sec}", ("sec", (duration.count() / 1'000'000.0 )));
+         ilog("Finished building account query DB in {sec}", ("sec", (duration.count() / 1'000'000.0 )));
       }
 
       /**
@@ -219,7 +219,7 @@ namespace eosio::chain_apis {
          uint32_t last_updated_height = lib_num;
          if (last_updated > lib_time) {
             const auto iter = time_to_block_num.find(last_updated);
-            EOS_ASSERT(iter != time_to_block_num.end(), chain::plugin_exception, "invalid block time encountered in on-chain accounts ${time}", ("time", last_updated));
+            EOS_ASSERT(iter != time_to_block_num.end(), chain::plugin_exception, "invalid block time encountered in on-chain accounts {time}", ("time", last_updated));
             last_updated_height = iter->second;
          }
 
@@ -266,7 +266,7 @@ namespace eosio::chain_apis {
             } else {
                const auto& po = *itr;
 
-               uint32_t last_updated_height = po.last_updated == bsp->header.timestamp ? bsp->block_num : last_updated_time_to_height(po.last_updated);
+               uint32_t last_updated_height = eosio::chain::block_timestamp_type{po.last_updated} == bsp->header.timestamp ? bsp->block_num : last_updated_time_to_height(po.last_updated);
 
                index.modify(index.iterator_to(pi), [&po, last_updated_height](auto& mutable_pi) {
                   mutable_pi.last_updated_height = last_updated_height;

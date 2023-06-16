@@ -20,6 +20,15 @@ For information on specific plugins, just select from the list below:
 * [`state_history_plugin`](state_history_plugin/index.md)
 * [`trace_api_plugin`](trace_api_plugin/index.md)
 * [`txn_test_gen_plugin`](txn_test_gen_plugin/index.md)
+* [`signature_provider_plugin`](signature_provider_plugin/index.md)
+
+Plugins added in the taurus-node:
+
+* [`producer_ha_plugin`](producer_ha_plugin/index.md)
+
+Plugins added in the taurus-node:
+
+* [`producer_ha_plugin`](producer_ha_plugin/index.md)
 
 [[info | Nodeos is modular]]
 | Plugins add incremental functionality to `nodeos`. Unlike runtime plugins, `nodeos` plugins are built at compile-time.

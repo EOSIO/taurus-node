@@ -1,0 +1,40 @@
+{
+    "____comment": "This file was generated with eosio-abigen. DO NOT EDIT ",
+    "version": "eosio::abi/1.2",
+    "types": [],
+    "structs": [
+        {
+            "name": "verrsasig",
+            "base": "",
+            "fields": [
+                {
+                    "name": "message",
+                    "type": "string"
+                },
+                {
+                    "name": "signature",
+                    "type": "string"
+                },
+                {
+                    "name": "exponent",
+                    "type": "string"
+                },
+                {
+                    "name": "modulus",
+                    "type": "string"
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "name": "verrsasig",
+            "type": "verrsasig",
+            "ricardian_contract": ""
+        }
+    ],
+    "tables": [],
+    "ricardian_clauses": [],
+    "variants": [],
+    "action_results": []
+}

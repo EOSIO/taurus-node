@@ -1,11 +1,6 @@
 #include <b1/rodeos/wasm_ql.hpp>
 
-#include <b1/rodeos/callbacks/chaindb.hpp>
-#include <b1/rodeos/callbacks/compiler_builtins.hpp>
-#include <b1/rodeos/callbacks/console.hpp>
-#include <b1/rodeos/callbacks/crypto.hpp>
-#include <b1/rodeos/callbacks/memory.hpp>
-#include <b1/rodeos/callbacks/unimplemented.hpp>
+
 #include <b1/rodeos/rodeos.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/multi_index/member.hpp>
@@ -20,6 +15,13 @@
 #include <fc/scoped_exit.hpp>
 #include <mutex>
 #include <rocksdb/utilities/checkpoint.h>
+#include <rapidjson/document.h>
+#include <rapidjson/writer.h>
+#include <rapidjson/stringbuffer.h>
+#ifdef EOSIO_NATIVE_MODULE_RUNTIME_ENABLED
+#   include <b1/rodeos/native_module_context_type.hpp>
+#   include <eosio/chain/webassembly/dynamic_loaded_function.hpp>
+#endif
 
 using namespace std::literals;
 namespace ship_protocol = eosio::ship_protocol;
@@ -61,30 +63,13 @@ struct wasm_ql_backend_options {
 
 struct callbacks;
 using rhf_t     = registered_host_functions<callbacks>;
+
+
+
+#ifdef EOSIO_EOS_VM_JIT_RUNTIME_ENABLED
 using backend_t = eosio::vm::backend<rhf_t, eosio::vm::jit, wasm_ql_backend_options>;
+#endif
 
-struct callbacks : action_callbacks<callbacks>,
-                   chaindb_callbacks<callbacks>,
-                   compiler_builtins_callbacks<callbacks>,
-                   console_callbacks<callbacks>,
-                   context_free_system_callbacks<callbacks>,
-                   crypto_callbacks<callbacks>,
-                   db_callbacks<callbacks>,
-                   memory_callbacks<callbacks>,
-                   query_callbacks<callbacks>,
-                   unimplemented_callbacks<callbacks> {
-   wasm_ql::thread_state& thread_state;
-   rodeos::chaindb_state& chaindb_state;
-   rodeos::db_view_state& db_view_state;
-
-   callbacks(wasm_ql::thread_state& thread_state, rodeos::chaindb_state& chaindb_state,
-             rodeos::db_view_state& db_view_state)
-       : thread_state{ thread_state }, chaindb_state{ chaindb_state }, db_view_state{ db_view_state } {}
-
-   auto& get_state() { return thread_state; }
-   auto& get_chaindb_state() { return chaindb_state; }
-   auto& get_db_view_state() { return db_view_state; }
-};
 
 std::once_flag registered_callbacks;
 
@@ -99,12 +84,19 @@ void register_callbacks() {
    memory_callbacks<callbacks>::register_callbacks<rhf_t>();
    query_callbacks<callbacks>::register_callbacks<rhf_t>();
    unimplemented_callbacks<callbacks>::register_callbacks<rhf_t>();
+   coverage_callbacks<callbacks>::register_callbacks<rhf_t>();
 }
+
 
 struct backend_entry {
    eosio::name                name; // only for wasms loaded from disk
    eosio::checksum256         hash; // only for wasms loaded from chain
+#ifdef EOSIO_EOS_VM_JIT_RUNTIME_ENABLED
    std::unique_ptr<backend_t> backend;
+#endif
+#ifdef EOSIO_NATIVE_MODULE_RUNTIME_ENABLED
+   std::optional<eosio::chain::dynamic_loaded_function> apply_fun;
+#endif
 };
 
 struct by_age;
@@ -174,7 +166,7 @@ std::optional<std::vector<uint8_t>> read_code(wasm_ql::thread_state& thread_stat
       auto          filename = thread_state.shared->contract_dir + "/" + (std::string)account + ".wasm";
       std::ifstream wasm_file(filename, std::ios::binary);
       if (wasm_file.is_open()) {
-         ilog("compiling ${f}", ("f", filename));
+         ilog("compiling {f}", ("f", filename));
          wasm_file.seekg(0, std::ios::end);
          int len = wasm_file.tellg();
          if (len < 0)
@@ -213,7 +205,7 @@ std::optional<std::vector<uint8_t>> read_contract(db_view_state& db_view_state, 
 
    // todo: avoid copy
    result.emplace(code0.code.pos, code0.code.end);
-   ilog("compiling ${h}: ${a}", ("h", eosio::convert_to_json(hash))("a", (std::string)account));
+   ilog("compiling {h}: {a}", ("h", eosio::convert_to_json(hash))("a", (std::string)account));
    return result;
 }
 
@@ -250,11 +242,21 @@ void run_action(wasm_ql::thread_state& thread_state, const std::vector<char>& co
          entry->hash = *hash;
       else
          entry->name = action.account;
-
-      std::call_once(registered_callbacks, register_callbacks);
-      entry->backend = std::make_unique<backend_t>(
-            *code, nullptr, wasm_ql_backend_options{ .max_pages = thread_state.shared->max_pages });
-      rhf_t::resolve(entry->backend->get_module());
+#ifdef EOSIO_NATIVE_MODULE_RUNTIME_ENABLED
+      if (thread_state.shared->native_context) {
+         auto bytes = hash->extract_as_byte_array();
+         auto code_path = thread_state.shared->native_context->code_dir() / ( fc::to_hex((const char*)bytes.data(), bytes.size()) + ".so");
+         entry->apply_fun.emplace(code_path.c_str(), "apply");
+      } else
+#endif
+      {
+#ifdef EOSIO_EOS_VM_JIT_RUNTIME_ENABLED
+         std::call_once(registered_callbacks, register_callbacks);
+         entry->backend = std::make_unique<backend_t>(
+               *code, nullptr, wasm_ql_backend_options{ .max_pages = thread_state.shared->max_pages });
+         rhf_t::resolve(entry->backend->get_module());
+#endif
+      }
    }
    auto se = fc::make_scoped_exit([&] { thread_state.shared->backend_cache->add(std::move(*entry)); });
 
@@ -273,15 +275,29 @@ void run_action(wasm_ql::thread_state& thread_state, const std::vector<char>& co
    thread_state.block_info.reset();
 
    chaindb_state chaindb_state;
-   callbacks     cb{ thread_state, chaindb_state, db_view_state };
-   entry->backend->set_wasm_allocator(&thread_state.wa);
+   coverage_state coverage_state;
+   callbacks     cb{ thread_state, chaindb_state, db_view_state, coverage_state };
 
    try {
-      eosio::vm::watchdog wd{ stop_time - std::chrono::steady_clock::now() };
-      entry->backend->timed_run(wd, [&] {
-         entry->backend->initialize(&cb);
-         (*entry->backend)(cb, "env", "apply", action.account.value, action.account.value, action.name.value);
-      });
+#ifdef EOSIO_NATIVE_MODULE_RUNTIME_ENABLED
+      if (entry->apply_fun) {
+         auto native_context = thread_state.shared->native_context;
+         native_context->push(&cb);
+         auto on_exit = fc::make_scoped_exit([native_context] { native_context->pop(); });
+         entry->apply_fun->exec<void (*)(uint64_t, uint64_t, uint64_t)>(action.account.value, action.account.value,
+                                                                       action.name.value);
+      } else
+#endif
+      {
+#ifdef EOSIO_EOS_VM_JIT_RUNTIME_ENABLED
+         entry->backend->set_wasm_allocator(&thread_state.wa);
+         eosio::vm::watchdog wd{ stop_time - std::chrono::steady_clock::now() };
+         entry->backend->timed_run(wd, [&] {
+            entry->backend->initialize(&cb);
+            (*entry->backend)(cb, "env", "apply", action.account.value, action.account.value, action.name.value);
+         });
+#endif
+      }
    } catch (...) {
       atrace.console = std::move(thread_state.console);
       throw;
@@ -421,6 +437,98 @@ const std::vector<char>& query_get_block(wasm_ql::thread_state&   thread_state,
    throw std::runtime_error("block " + params.block_num_or_id + " not found");
 } // query_get_block
 
+struct get_account_results {
+   eosio::name                                  account_name = {};
+   uint32_t                                     head_block_num = {};
+   eosio::block_timestamp                       created = {};
+   std::vector<ship_protocol::permission_v0>    permissions = {};
+};
+EOSIO_REFLECT(get_account_results, account_name, head_block_num, created, permissions)
+
+struct get_account_params {
+   eosio::name                               account_name = {};
+};
+EOSIO_REFLECT(get_account_params, account_name)
+
+const std::vector<char>& query_get_account(wasm_ql::thread_state& thread_state, const std::vector<char>& contract_kv_prefix,
+                                           std::string_view body) {
+   get_account_params       params;
+   std::string              s{ body.begin(), body.end() };
+   eosio::json_token_stream stream{ s.data() };
+   try {
+      from_json(params, stream);
+   } catch (std::exception& e) {
+      throw std::runtime_error("An error occurred deserializing get_account_params: "s + e.what());
+   }
+
+   rocksdb::ManagedSnapshot snapshot{ thread_state.shared->db->rdb.get() };
+   chain_kv::write_session  write_session{ *thread_state.shared->db, snapshot.snapshot() };
+   db_view_state            db_view_state{ state_account, *thread_state.shared->db, write_session, contract_kv_prefix };
+
+   auto acc = get_state_row<ship_protocol::account>(
+           db_view_state.kv_state.view,
+           std::make_tuple(eosio::name{ "account" }, eosio::name{ "primary" }, params.account_name));
+   if (!acc)
+      throw std::runtime_error("account " + (std::string)params.account_name + " not found");
+   auto& acc0 = std::get<ship_protocol::account_v0>(acc->second);
+
+   get_account_results result;
+   result.account_name = acc0.name;
+   result.created = acc0.creation_date;
+
+   // permissions
+   {
+      auto t = std::make_tuple(eosio::name{"account.perm"}, eosio::name{"primary"}, params.account_name);
+      auto key = eosio::convert_to_key(std::make_tuple((uint8_t) 0x01, t));
+      b1::chain_kv::view::iterator view_it(db_view_state.kv_state.view, state_account.value, chain_kv::to_slice(key));
+      view_it.lower_bound(key);
+      while (!view_it.is_end() ){
+         const auto key_value = view_it.get_kv();
+         if (key_value) {
+            eosio::input_stream in((*key_value).value.data(), (*key_value).value.size());
+            ship_protocol::permission perm;
+            try {
+               from_bin(perm, in);
+            } catch (std::exception &e) {
+               throw std::runtime_error("An error occurred deserializing state: " + std::string(e.what()));
+            }
+            auto &perm0 = std::get<ship_protocol::permission_v0>(perm);
+            result.permissions.push_back(std::move(perm0));
+         }
+         ++view_it;
+      }
+   }
+
+   // head_block_num
+   {
+      fill_status_sing sing{ state_account, db_view_state, false };
+      if (sing.exists()) {
+         std::visit( [&](auto& obj) { result.head_block_num = obj.head;}, sing.get());
+      } else
+         throw std::runtime_error("No fill_status records found; is filler running?");
+   }
+
+   auto json = eosio::convert_to_json(result);
+
+   rapidjson::Document doc;
+   doc.Parse(json.c_str());
+   for (auto& perm : doc["permissions"].GetArray()) {
+      auto name_value = perm.FindMember("name");
+      perm.AddMember("perm_name", name_value->value, doc.GetAllocator());
+      perm.EraseMember("name");
+
+      auto auth_value = perm.FindMember("auth");
+      perm.AddMember("required_auth", auth_value->value, doc.GetAllocator());
+      perm.EraseMember("auth");
+   }
+   rapidjson::StringBuffer sb;
+   rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+   doc.Accept(writer);
+
+   thread_state.action_return_value.assign(sb.GetString(), sb.GetString() + sb.GetSize());
+   return thread_state.action_return_value;
+} // query_get_account
+
 struct get_abi_params {
    eosio::name account_name = {};
 };
@@ -524,7 +632,7 @@ const std::vector<char>& query_get_raw_abi(wasm_ql::thread_state& thread_state, 
       auto abi_hash_stream = eosio::input_stream(fc_abi_hash.data(), fc_abi_hash.data_size());
       eosio::from_bin(result.abi_hash, abi_hash_stream);
       if(!params.abi_hash || *params.abi_hash != result.abi_hash) {
-        result.abi = fc::base64_encode(reinterpret_cast<const unsigned char*>(acc0.abi.pos), acc0.abi.remaining());
+        result.abi = fc::base64_encode(reinterpret_cast<const unsigned char*>(acc0.abi.pos), acc0.abi.remaining()) + "=";
       }
    }
 
@@ -621,7 +729,7 @@ query_send_transaction(wasm_ql::thread_state&   thread_state,
    if (params.compression != "0" && params.compression != "none")
       throw std::runtime_error("Compression must be 0 or none"); // todo
    ship_protocol::packed_transaction trx{ 0,
-                                          { ship_protocol::prunable_data_type::full_legacy{
+                                          { ship_protocol::prunable_data_full_legacy{
                                                 std::move(params.signatures), params.packed_context_free_data.data } },
                                           params.packed_trx.data };
 
@@ -631,14 +739,14 @@ query_send_transaction(wasm_ql::thread_state&   thread_state,
 } // query_send_transaction
 
 bool is_signatures_empty(const ship_protocol::prunable_data_type& data) {
-   return std::visit(overloaded{ [](const ship_protocol::prunable_data_type::none&) { return true; },
+   return std::visit(overloaded{ [](const ship_protocol::prunable_data_none&) { return true; },
                                  [](const auto& v) { return v.signatures.empty(); } },
                      data.prunable_data);
 }
 
 bool is_context_free_data_empty(const ship_protocol::prunable_data_type& data) {
-   return std::visit(overloaded{ [](const ship_protocol::prunable_data_type::none&) { return true; },
-                                 [](const ship_protocol::prunable_data_type::full_legacy& v) {
+   return std::visit(overloaded{ [](const ship_protocol::prunable_data_none&) { return true; },
+                                 [](const ship_protocol::prunable_data_full_legacy& v) {
                                     return v.packed_context_free_data.pos == v.packed_context_free_data.end;
                                  },
                                  [](const auto& v) { return v.context_free_segments.empty(); } },
@@ -737,7 +845,7 @@ const std::vector<char>& query_create_checkpoint(wasm_ql::thread_state&         
       char        buf[30] = "temp";
       strftime(buf, 30, "%FT%H-%M-%S", localtime(&t));
       auto tmp_path = dir / buf;
-      ilog("creating checkpoint ${p}", ("p", tmp_path.string()));
+      ilog("creating checkpoint {p}", ("p", tmp_path.string()));
 
       rocksdb::Checkpoint* p;
       b1::chain_kv::check(rocksdb::Checkpoint::Create(thread_state.shared->db->rdb.get(), &p),
@@ -748,7 +856,7 @@ const std::vector<char>& query_create_checkpoint(wasm_ql::thread_state&         
 
       create_checkpoint_result result;
       {
-         ilog("examining checkpoint ${p}", ("p", tmp_path.string()));
+         ilog("examining checkpoint {p}", ("p", tmp_path.string()));
          auto                       db        = std::make_shared<chain_kv::database>(tmp_path.c_str(), false);
          auto                       partition = std::make_shared<rodeos::rodeos_db_partition>(db, std::vector<char>{});
          rodeos::rodeos_db_snapshot snap{ partition, true };
@@ -763,15 +871,15 @@ const std::vector<char>& query_create_checkpoint(wasm_ql::thread_state&         
                        ("-head-" + std::to_string(result.head) + "-" + head_id_json.substr(1, head_id_json.size() - 2));
 
          ilog("checkpoint contains:");
-         ilog("    revisions:    ${f} - ${r}",
+         ilog("    revisions:    {f} - {r}",
               ("f", snap.undo_stack->first_revision())("r", snap.undo_stack->revision()));
-         ilog("    chain:        ${a}", ("a", eosio::convert_to_json(snap.chain_id)));
-         ilog("    head:         ${a} ${b}", ("a", snap.head)("b", eosio::convert_to_json(snap.head_id)));
-         ilog("    irreversible: ${a} ${b}",
+         ilog("    chain:        {a}", ("a", eosio::convert_to_json(snap.chain_id)));
+         ilog("    head:         {a} {b}", ("a", snap.head)("b", eosio::convert_to_json(snap.head_id)));
+         ilog("    irreversible: {a} {b}",
               ("a", snap.irreversible)("b", eosio::convert_to_json(snap.irreversible_id)));
       }
 
-      ilog("rename ${a} to ${b}", ("a", tmp_path.string())("b", result.path));
+      ilog("rename {a} to {b}", ("a", tmp_path.string())("b", result.path));
       boost::filesystem::rename(tmp_path, result.path);
 
       auto json = eosio::convert_to_json(result);
@@ -780,10 +888,10 @@ const std::vector<char>& query_create_checkpoint(wasm_ql::thread_state&         
       ilog("checkpoint finished");
       return thread_state.action_return_value;
    } catch (const fc::exception& e) {
-      elog("fc::exception creating snapshot: ${e}", ("e", e.to_detail_string()));
+      elog("fc::exception creating snapshot: {e}", ("e", e.to_detail_string()));
       throw;
    } catch (const std::exception& e) {
-      elog("std::exception creating snapshot: ${e}", ("e", e.what()));
+      elog("std::exception creating snapshot: {e}", ("e", e.what()));
       throw;
    }
    catch (...) {

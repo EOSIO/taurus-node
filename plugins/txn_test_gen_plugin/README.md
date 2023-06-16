@@ -2,11 +2,9 @@
 
 This plugin provides a way to generate a given amount of transactions per second against the currency contract. It runs internally to eosd to reduce overhead.
 
-This general procedure was used when doing Dawn 3.0 performance testing as mentioned in https://github.com/EOSIO/eos/issues/2078.
-
 ## Performance testing
 
-The following instructions describe how to use the `txn_test_gen_plugin` plugin to generate 1,000 transaction per second load on a simple EOSIO node.
+The following instructions describe how to use the `txn_test_gen_plugin` plugin to generate 1,000 transaction per second load on a simple EOSIO-Taurus node.
 
 ### Create config and data directories
 Make an empty directory for our configs and data, `mkdir ~/eos.data`, and define a logging.json that doesn't print debug information (which occurs for each txn) to the console:
@@ -85,5 +83,3 @@ eosio generated block b243aeaa... #3221 @ 2018-04-25T16:07:48.000 with 500 trxs,
 
 Note in the console output there are 500 transactions in each of the blocks which are produced every 500 ms yielding 1,000 transactions / second.
 
-### Demonstration
-The following video provides a demo: https://vimeo.com/266585781

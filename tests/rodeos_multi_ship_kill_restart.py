@@ -5,6 +5,7 @@ from TestHelper import TestHelper
 from rodeos_utils import RodeosCluster
 import signal
 from TestHelper import AppArgs
+import time
 
 ###############################################################
 # rodeos_multi_ship_kill_restart
@@ -127,6 +128,8 @@ def launch_cluster(num_ships, num_rodeos, unix_socket, cleanRestart, killSignal,
         assert cluster.produceBlocks(numBlocks), "Nodeos failed to produce {} blocks for a cluster of {} ship node and {} rodeos node"\
             .format(numBlocks, num_ships, num_rodeos)
 
+        # give it 10 seconds to generate the 10 blocks
+        time.sleep(10)
 
         # Verify that the rodeos node listening to the newly started Ship is receiving blocks.
         for j in cluster.ShiprodeosConnectionMap[shipKilledId]:

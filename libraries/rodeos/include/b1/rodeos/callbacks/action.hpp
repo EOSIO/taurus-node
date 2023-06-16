@@ -4,6 +4,7 @@
 #include <eosio/name.hpp>
 #include <eosio/stream.hpp>
 #include <eosio/chain/exceptions.hpp>
+#include <eosio/vm/execution_context.hpp>
 
 namespace b1::rodeos {
 
@@ -36,7 +37,7 @@ struct action_callbacks {
          derived().get_state().shared->max_action_return_value_size;
       EOS_ASSERT(packed_blob.size() <= max_action_return_value_size,
                  eosio::chain::action_return_value_exception, 
-                 "action return value size must be less than ${s} bytes", 
+                 "action return value size must be less than {s} bytes",
                  ("s", max_action_return_value_size));
       derived().get_state().action_return_value.assign(packed_blob.begin(), packed_blob.end());
    }

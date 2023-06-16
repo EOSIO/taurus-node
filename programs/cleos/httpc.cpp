@@ -97,7 +97,7 @@ namespace eosio { namespace client { namespace http {
       } else {
          boost::system::error_code ec;
          boost::asio::read(socket, response, boost::asio::transfer_all(), ec);
-         EOS_ASSERT(!ec || ec == boost::asio::ssl::error::stream_truncated, http_exception, "Unable to read http response: ${err}", ("err",ec.message()));
+         EOS_ASSERT(!ec || ec == boost::asio::ssl::error::stream_truncated, http_exception, "Unable to read http response: {err}", ("err",ec.message()));
       }
 
       std::stringstream re;
@@ -126,9 +126,9 @@ namespace eosio { namespace client { namespace http {
          res.path = match[7];
       }
       if(res.scheme != "http" && res.scheme != "https")
-         EOS_THROW(fail_to_resolve_host, "Unrecognized URL scheme (${s}) in URL \"${u}\"", ("s", res.scheme)("u", server_url));
+         EOS_THROW(fail_to_resolve_host, "Unrecognized URL scheme ({s}) in URL \"{u}\"", ("s", res.scheme)("u", server_url));
       if(res.server.empty())
-         EOS_THROW(fail_to_resolve_host, "No server parsed from URL \"${u}\"", ("u", server_url));
+         EOS_THROW(fail_to_resolve_host, "No server parsed from URL \"{u}\"", ("u", server_url));
       if(res.port.empty())
          res.port = res.scheme == "http" ? "80" : "443";
       boost::trim_right_if(res.path, boost::is_any_of("/"));
@@ -143,7 +143,7 @@ namespace eosio { namespace client { namespace http {
       boost::system::error_code ec;
       auto result = resolver.resolve(tcp::v4(), url.server, url.port, ec);
       if (ec) {
-         EOS_THROW(fail_to_resolve_host, "Error resolving \"${server}:${port}\" : ${m}", ("server", url.server)("port",url.port)("m",ec.message()));
+         EOS_THROW(fail_to_resolve_host, "Error resolving \"{server}:{port}\" : {m}", ("server", url.server)("port",url.port)("m",ec.message()));
       }
 
       // non error results are guaranteed to return a non-empty range
@@ -160,7 +160,7 @@ namespace eosio { namespace client { namespace http {
          is_loopback = is_loopback && addr.is_loopback();
 
          if (resolved_port) {
-            EOS_ASSERT(*resolved_port == port, resolved_to_multiple_ports, "Service name \"${port}\" resolved to multiple ports and this is not supported!", ("port",url.port));
+            EOS_ASSERT(*resolved_port == port, resolved_to_multiple_ports, "Service name \"{port}\" resolved to multiple ports and this is not supported!", ("port",url.port));
          } else {
             resolved_port = port;
          }
@@ -248,8 +248,8 @@ namespace eosio { namespace client { namespace http {
          try {socket.shutdown();} catch(...) {}
       }
    } catch ( invalid_http_request& e ) {
-      e.append_log( FC_LOG_MESSAGE( info, "Please verify this url is valid: ${url}", ("url", url.scheme + "://" + url.server + ":" + url.port + url.path) ) );
-      e.append_log( FC_LOG_MESSAGE( info, "If the condition persists, please contact the RPC server administrator for ${server}!", ("server", url.server) ) );
+      e.append_log( FC_LOG_MESSAGE( info, "Please verify this url is valid: {url}", ("url", url.scheme + "://" + url.server + ":" + url.port + url.path) ) );
+      e.append_log( FC_LOG_MESSAGE( info, "If the condition persists, please contact the RPC server administrator for {server}!", ("server", url.server) ) );
       throw;
    }
 
@@ -302,7 +302,7 @@ namespace eosio { namespace client { namespace http {
    }
 
    EOS_ASSERT( status_code == 200 && !response_result.is_null(), http_request_fail,
-               "Error code ${c}\n: ${msg}\n", ("c", status_code)("msg", re) );
+               "Error code {c}\n: {msg}\n", ("c", status_code)("msg", re) );
    return response_result;
    }
 }}}
