@@ -10,4 +10,4 @@ Protocol Buffers has certain advantages
 
 ## How this is supported
 
-The ABIEOS library, `cleos` and `nodeos` as long as CDT are extended to support Protocol Buffer in the ABI definitions and tools.
+The ABIEOS library, `cleos` and `nodeos` as long as CDT are extended to support Protocol Buffers in the ABI definitions and tools.
