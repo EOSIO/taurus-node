@@ -19,9 +19,6 @@
 [submodule "libraries/softfloat"]
 	path = libraries/softfloat
 	url = https://github.com/EOSIO/berkeley-softfloat-3
-[submodule "taurus-wasm-spec-tests"]
-	path = taurus-wasm-spec-tests
-	url = https://github.com/EOSIO/taurus-wasm-spec-tests
 [submodule "libraries/appbase"]
 	path = libraries/appbase
 	url = https://github.com/EOSIO/taurus-appbase
@@ -31,6 +28,9 @@
 [submodule "libraries/fc"]
 	path = libraries/fc
 	url = https://github.com/EOSIO/taurus-fc
+[submodule "taurus-wasm-spec-tests"]
+	path = taurus-wasm-spec-tests
+	url = https://github.com/EOSIO/taurus-wasm-spec-tests
 [submodule "libraries/abieos"]
 	path = libraries/abieos
 	url = https://github.com/EOSIO/taurus-abieos
